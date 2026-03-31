@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useData } from "../contexts/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { CheckSquare, Target, Timer, TrendingUp, Calendar } from "lucide-react";
@@ -11,19 +12,61 @@ export default function DashboardPage() {
   const activeHabits = habits.length;
   const todaysSessions = focusSessions.filter(s => {
     const today = new Date().toISOString().split("T")[0];
-    return s.startTime.split("T")[0] === today;
+    return s.startedAt.split("T")[0] === today;
   }).length;
 
-  // Mock data for the chart
-  const chartData = [
-    { day: "Mon", tasks: 4, habits: 3 },
-    { day: "Tue", tasks: 6, habits: 4 },
-    { day: "Wed", tasks: 5, habits: 3 },
-    { day: "Thu", tasks: 8, habits: 5 },
-    { day: "Fri", tasks: 7, habits: 4 },
-    { day: "Sat", tasks: 3, habits: 2 },
-    { day: "Sun", tasks: 5, habits: 4 },
-  ];
+  const chartData = useMemo(() => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    const dayOffset = (today.getDay() + 6) % 7;
+    startOfWeek.setDate(today.getDate() - dayOffset);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + index);
+
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const taskCount = tasks.filter(task => {
+        if (!task.completedAt) {
+          return false;
+        }
+
+        const completedAt = new Date(task.completedAt);
+        return completedAt >= dayStart && completedAt <= dayEnd;
+      }).length;
+
+      const habitCount = habits.reduce((count, habit) => {
+        const completedForDay = habit.completedDates.filter(entry => {
+          const completedAt = new Date(entry);
+          return completedAt >= dayStart && completedAt <= dayEnd;
+        }).length;
+
+        return count + completedForDay;
+      }, 0);
+
+      const focusCount = focusSessions.filter(session => {
+        if (session.status !== "completed" || !session.endedAt) {
+          return false;
+        }
+
+        const endedAt = new Date(session.endedAt);
+        return endedAt >= dayStart && endedAt <= dayEnd;
+      }).length;
+
+      return {
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        tasks: taskCount,
+        habits: habitCount,
+        focus: focusCount,
+      };
+    });
+  }, [focusSessions, habits, tasks]);
 
   const upcomingTasks = tasks
     .filter(t => !t.completed && t.dueDate)
@@ -124,6 +167,14 @@ export default function DashboardPage() {
                   stroke="#10b981"
                   fill="#10b981"
                   fillOpacity={0.6}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="focus"
+                  stackId="1"
+                  stroke="#8b5cf6"
+                  fill="#8b5cf6"
+                  fillOpacity={0.55}
                 />
               </AreaChart>
             </ResponsiveContainer>

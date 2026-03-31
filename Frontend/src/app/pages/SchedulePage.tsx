@@ -12,8 +12,12 @@ export default function SchedulePage() {
   // Get tasks due exactly today (not completed, not in active focus sessions, not expired)
   const tasksInFocus = new Set(
     focusSessions
-      .filter(session => !session.completed && session.taskId)
-      .map(session => session.taskId)
+      .filter(session => session.status === "active")
+      .flatMap(session =>
+        session.items
+          .filter(item => item.sourceType === "task")
+          .map(item => item.sourceId)
+      )
   );
 
   const todayTasks = tasks.filter(task => {
@@ -34,8 +38,12 @@ export default function SchedulePage() {
   // Get habits that need to be completed today
   const habitsInFocus = new Set(
     focusSessions
-      .filter(session => !session.completed && session.habitId)
-      .map(session => session.habitId)
+      .filter(session => session.status === "active")
+      .flatMap(session =>
+        session.items
+          .filter(item => item.sourceType === "habit")
+          .map(item => item.sourceId)
+      )
   );
 
   const todayHabits = habits.filter(habit => {
