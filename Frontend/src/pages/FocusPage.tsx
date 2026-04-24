@@ -308,15 +308,16 @@ export default function FocusPage() {
     }
   };
 
-  const handleCreateSession = () => {
+  const handleCreateSession = async () => {
     if (!canStartNewSession || totalDurationMinutes <= 0) return;
-    createFocusSession({
+    const sessionId = await createFocusSession({
       totalDurationMinutes,
       focusLengthMinutes: Math.min(focusLengthMinutes, totalDurationMinutes),
       breakLengthMinutes,
       taskIds: selectedTaskIds,
       habitIds: selectedHabitIds,
     });
+    if (!sessionId) return;
     resetSetupForm();
     setIsSetupOpen(false);
   };
@@ -726,5 +727,4 @@ export default function FocusPage() {
     </DashboardLayout>
   );
 }
-
 
