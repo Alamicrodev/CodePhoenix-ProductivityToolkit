@@ -33,8 +33,8 @@ This folder contains the React + Vite frontend for the CodePhoenix Productivity 
 
 - The active application currently uses `src/`.
 - There is also a duplicated `src/app/` tree that appears to be legacy scaffolding.
-- The frontend still relies on prototype local state and localStorage for productivity data.
-- The backend scaffold now exists in `../backend/` and is ready for integration.
+- The main auth and productivity flows in `src/` are now backed by the FastAPI API in `../backend/`.
+- Authentication stores the JWT access token in localStorage for session restore between reloads.
 
 ## Local Run
 
@@ -45,6 +45,17 @@ npm run dev
 ```
 
 The frontend dev server runs at `http://localhost:5173`.
+
+## API Configuration
+
+- Default API base URL: `http://localhost:8000/api/v1`
+- Override with `VITE_API_BASE_URL` when the backend is hosted elsewhere.
+
+Example:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000/api/v1 npm run dev
+```
 
 ## Docker Run
 
@@ -61,13 +72,13 @@ This starts the frontend alongside the backend API and PostgreSQL.
 - `npm run dev`: starts the Vite development server
 - `npm run build`: builds the production bundle
 
-## Integration Direction
+## Integration Status
 
-The current intended migration path is:
+The active `src/` app currently:
 
-1. Replace localStorage-based auth and data flows with backend API calls.
-2. Keep the current page and component structure.
-3. Move task, habit, and focus-session persistence into FastAPI + PostgreSQL.
+1. Uses backend JWT auth for register, login, and session restore.
+2. Loads and mutates tasks, habits, and focus sessions through the FastAPI API.
+3. Keeps the existing page and component structure while mapping backend responses into the frontend data shape.
 
 ## Related Documentation
 
