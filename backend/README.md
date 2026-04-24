@@ -128,9 +128,14 @@ Current route groups:
 - `GET /api/v1/focus-sessions`
 - `GET /api/v1/dashboard/summary`
 
-## Next Integration Step
+## Frontend Integration Status
 
-The backend scaffold is ready to replace the frontend prototype persistence layer. The next major step is wiring `Frontend/src/context/` to these API endpoints.
+The active frontend in `Frontend/src/` is now wired to these API endpoints for:
+
+- JWT auth and session restore
+- Task CRUD
+- Habit CRUD and completion tracking
+- Focus session creation and lifecycle updates
 
 ## Related Documentation
 

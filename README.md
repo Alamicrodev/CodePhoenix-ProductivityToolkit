@@ -108,11 +108,11 @@ When running the backend outside Docker, update `DATABASE_URL` to point to your 
 ## Current Features
 
 - User auth scaffold with register, login, and current-user endpoints
-- Task management model and CRUD API scaffold
-- Habit tracking model and CRUD API scaffold
-- Focus session model and CRUD API scaffold
+- Backend-backed task management in the active frontend
+- Backend-backed habit tracking in the active frontend
+- Backend-backed focus session flows in the active frontend
 - Dashboard summary endpoint scaffold
-- Frontend pages and UI for core productivity workflows
+- React frontend pages and UI for core productivity workflows
 
 ## API Overview
 
@@ -135,6 +135,6 @@ Current backend endpoints include:
 
 ## Notes
 
-- The frontend still contains local state and localStorage-based behavior from the prototype implementation.
-- The backend is scaffolded and ready for incremental frontend integration.
+- The active app under `Frontend/src/` is integrated with the FastAPI backend.
+- JWT session restore still uses localStorage to persist the access token in the browser.
 - There is duplicate legacy/stale code under `Frontend/src/app/`; the live app currently uses `Frontend/src/`.
