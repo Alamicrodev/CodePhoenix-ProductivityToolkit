@@ -519,8 +519,8 @@ export function HabitCard({ habit }: HabitCardProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                deleteHabit(habit.id);
+              onClick={async () => {
+                await deleteHabit(habit.id);
                 toast.success(`Habit "${habit.title}" has been deleted`);
                 setOpen(false);
               }}
