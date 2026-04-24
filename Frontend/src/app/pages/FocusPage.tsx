@@ -381,22 +381,22 @@ export default function FocusPage() {
                     <PomodoroTimer timeLeft={currentSession.phaseRemainingSeconds} progress={Math.min(Math.max(sessionProgress, 0), 100)} />
                     <div className="flex flex-wrap justify-center gap-2">
                       {currentSession.status === "active" ? (
-                        <Button className="gap-2" variant="outline" onClick={() => pauseFocusSession(currentSession.id)}>
+                        <Button className="gap-2" variant="outline" onClick={() => void pauseFocusSession(currentSession.id)}>
                           <CirclePause className="h-4 w-4" />
                           Pause Session
                         </Button>
                       ) : (
-                        <Button className="gap-2" onClick={() => resumeFocusSession(currentSession.id)} disabled={!canStartNewSession}>
+                        <Button className="gap-2" onClick={() => void resumeFocusSession(currentSession.id)} disabled={!canStartNewSession}>
                           <CirclePlay className="h-4 w-4" />
                           Resume Session
                         </Button>
                       )}
-                      <Button className="gap-2" variant="destructive" onClick={() => quitFocusSession(currentSession.id)}>
+                      <Button className="gap-2" variant="destructive" onClick={() => void quitFocusSession(currentSession.id)}>
                         <XCircle className="h-4 w-4" />
                         Quit Session
                       </Button>
                       {canEndCurrentSessionEarly && (
-                        <Button className="gap-2" variant="secondary" onClick={() => completeFocusSession(currentSession.id)}>
+                        <Button className="gap-2" variant="secondary" onClick={() => void completeFocusSession(currentSession.id)}>
                           <CirclePlay className="h-4 w-4" />
                           End As Complete
                         </Button>
@@ -668,7 +668,7 @@ export default function FocusPage() {
                       canResume={!activeSession}
                       isSelected={selectedHistorySession?.id === session.id}
                       onSelect={() => setSelectedHistorySessionId(session.id)}
-                      onResume={() => resumeFocusSession(session.id)}
+                      onResume={() => void resumeFocusSession(session.id)}
                     />
                   ))
                 ) : (
