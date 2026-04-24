@@ -191,14 +191,14 @@ export function HabitCard({ habit }: HabitCardProps) {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     // Add skip occurrence
     const timestamp = new Date().toISOString();
     const newOccurrences = [
       ...(habit.occurrences || []),
       { timestamp, status: "skipped" as const }
     ];
-    updateHabit(habit.id, { occurrences: newOccurrences });
+    await updateHabit(habit.id, { occurrences: newOccurrences });
     toast.info(`Habit "${habit.title}" skipped for this occurrence`);
   };
 

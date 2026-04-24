@@ -15,19 +15,19 @@ interface TaskCardProps {
 export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueDate" }: TaskCardProps) {
   const { updateTask } = useData();
 
-  const handleToggle = () => {
+  const handleToggle = async () => {
     const newCompleted = !task.completed;
-    updateTask(task.id, { 
+    await updateTask(task.id, {
       completed: newCompleted,
       completedAt: newCompleted ? new Date().toISOString() : null
     });
   };
 
-  const handleSubtaskToggle = (subtaskId: string) => {
+  const handleSubtaskToggle = async (subtaskId: string) => {
     const updatedSubtasks = task.subtasks.map(st =>
       st.id === subtaskId ? { ...st, completed: !st.completed } : st
     );
-    updateTask(task.id, { subtasks: updatedSubtasks });
+    await updateTask(task.id, { subtasks: updatedSubtasks });
   };
 
   const getPriorityColor = (priority: string) => {
