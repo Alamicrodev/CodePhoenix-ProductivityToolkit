@@ -172,17 +172,17 @@ export function HabitCard({ habit }: HabitCardProps) {
   const isCompleted = !canComplete() && isDayActive(new Date()) && (habit.frequency !== "hourly" || isWithinActiveHours(new Date()));
   const isInactive = !isDayActive(new Date()) || (habit.frequency === "hourly" && !isWithinActiveHours(new Date()));
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (!canComplete()) return;
 
-    const completionTimestamp = completeHabit(habit.id);
-    
+    const completionTimestamp = await completeHabit(habit.id);
+
     if (completionTimestamp) {
       toast.success(`Habit "${habit.title}" marked as complete!`, {
         action: {
           label: "Undo",
           onClick: () => {
-            undoCompleteHabit(habit.id, completionTimestamp);
+            void undoCompleteHabit(habit.id, completionTimestamp);
             toast.info("Habit completion undone");
           },
         },
@@ -533,4 +533,3 @@ export function HabitCard({ habit }: HabitCardProps) {
     </div>
   );
 }
-

@@ -28,6 +28,12 @@ class Habit(Base):
     owner = relationship("User", back_populates="habits")
     occurrences = relationship("HabitOccurrence", back_populates="habit", cascade="all, delete-orphan")
 
+    @property
+    def active_hours(self) -> dict[str, str] | None:
+        if not self.active_hours_start or not self.active_hours_end:
+            return None
+        return {"start": self.active_hours_start, "end": self.active_hours_end}
+
 
 class HabitOccurrence(Base):
     __tablename__ = "habit_occurrences"
