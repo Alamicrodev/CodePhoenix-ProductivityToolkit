@@ -93,7 +93,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
     return subtaskDateTime <= parentDateTime;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate all subtask due dates
@@ -119,17 +119,17 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
     };
 
     if (task) {
-      updateTask(task.id, taskData);
+      await updateTask(task.id, taskData);
     } else {
-      addTask(taskData);
+      await addTask(taskData);
     }
 
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (task && confirm("Are you sure you want to delete this task?")) {
-      deleteTask(task.id);
+      await deleteTask(task.id);
       onClose();
     }
   };

@@ -64,9 +64,9 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addHabit({
+    await addHabit({
       title,
       description,
       frequency,

@@ -144,11 +144,11 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
   const [autoCategorizeTrigger, setAutoCategorizeTrigger] = useState(0);
 
   // Auto-categorize tasks based on due date and priority
-  const autoCategorizeTasks = () => {
+  const autoCategorizeTasks = async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    activeTasks.forEach((task) => {
+    await Promise.all(activeTasks.map(async (task) => {
       // Skip if task already has a quadrant assigned
       if (task.quadrant) return;
 
@@ -177,8 +177,8 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
         quadrant = "not-urgent-not-important";
       }
 
-      updateTask(task.id, { quadrant });
-    });
+      await updateTask(task.id, { quadrant });
+    }));
 
     setAutoCategorizeTrigger((prev) => prev + 1);
   };
@@ -196,8 +196,8 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
     };
   }, [activeTasks, autoCategorizeTrigger]);
 
-  const handleDrop = (taskId: string, quadrant: Task["quadrant"]) => {
-    updateTask(taskId, { quadrant });
+  const handleDrop = async (taskId: string, quadrant: Task["quadrant"]) => {
+    await updateTask(taskId, { quadrant });
   };
 
   return (
