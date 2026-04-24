@@ -71,6 +71,12 @@ web_modules/
 .env.*
 !.env.example
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
