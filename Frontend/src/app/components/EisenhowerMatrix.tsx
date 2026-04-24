@@ -48,7 +48,9 @@ const DraggableTaskCard = ({ task, onEdit }: DraggableTaskCardProps) => {
 
   return (
     <div
-      ref={drag}
+      ref={(node) => {
+        drag(node);
+      }}
       className={`bg-card border border-border rounded-lg p-3 hover:shadow-md transition-all cursor-move ${
         isDragging ? "opacity-50" : ""
       }`}
@@ -110,7 +112,9 @@ const Quadrant = ({
 
   return (
     <div
-      ref={drop}
+      ref={(node) => {
+        drop(node);
+      }}
       className={`border-2 rounded-xl p-4 min-h-[300px] transition-all ${
         isOver ? "border-primary bg-accent/30" : "border-border"
       } ${bgColor}`}
@@ -144,11 +148,11 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
   const [autoCategorizeTrigger, setAutoCategorizeTrigger] = useState(0);
 
   // Auto-categorize tasks based on due date and priority
-  const autoCategorizeTasks = async () => {
+  const autoCategorizeTasks = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    await Promise.all(activeTasks.map(async (task) => {
+    activeTasks.forEach((task) => {
       // Skip if task already has a quadrant assigned
       if (task.quadrant) return;
 
@@ -177,8 +181,8 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
         quadrant = "not-urgent-not-important";
       }
 
-      await updateTask(task.id, { quadrant });
-    }));
+      updateTask(task.id, { quadrant });
+    });
 
     setAutoCategorizeTrigger((prev) => prev + 1);
   };
@@ -196,8 +200,8 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
     };
   }, [activeTasks, autoCategorizeTrigger]);
 
-  const handleDrop = async (taskId: string, quadrant: Task["quadrant"]) => {
-    await updateTask(taskId, { quadrant });
+  const handleDrop = (taskId: string, quadrant: Task["quadrant"]) => {
+    updateTask(taskId, { quadrant });
   };
 
   return (
