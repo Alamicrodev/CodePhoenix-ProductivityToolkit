@@ -22,8 +22,6 @@ export function AuthGuard() {
     return <Navigate to="/login" replace />;
   }
 
-
-
   return <Outlet />;  //return the child (depending on path)
 }
 

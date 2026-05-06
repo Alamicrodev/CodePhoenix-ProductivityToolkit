@@ -1,6 +1,6 @@
 import {Navigate, Route, Routes} from "react-router-dom"; 
 import { createBrowserRouter } from "react-router";
-import AuthGuard from "../components/AuthGuard";
+import AuthGuard from "./AuthGuard";
 import DashboardPage from "../pages/DashboardPage";
 import FocusPage from "../pages/FocusPage";
 import HabitsPage from "../pages/HabitsPage";
@@ -22,7 +22,7 @@ export const appRouter = createBrowserRouter([
   },
   {
     path: "/",
-    element: <AuthGuard />,
+    element: <AuthGuard />,     //AuthGuard essentially wraps arround its children, and only allows access if authenticated.
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "tasks", element: <TasksPage /> },
