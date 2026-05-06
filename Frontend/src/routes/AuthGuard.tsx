@@ -1,10 +1,11 @@
 import { Navigate, Outlet } from "react-router";
 import { useAuth } from "../context/AuthContext";
 
-// Route guard keeps the private dashboard pages hidden until a mock user exists.
+// Route guard keeps the private pages hidden until a user exists.
 export function AuthGuard() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();   //useAuth gets auth context. 
 
+  //if loading we show loading 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -16,11 +17,14 @@ export function AuthGuard() {
     );
   }
 
+  //if no user exists, then we redirect to login page :) 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+
+
+  return <Outlet />;  //return the child (depending on path)
 }
 
 export default AuthGuard;

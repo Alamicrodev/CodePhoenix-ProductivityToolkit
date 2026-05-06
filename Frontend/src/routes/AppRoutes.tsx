@@ -1,3 +1,4 @@
+import {Navigate, Route, Routes} from "react-router-dom"; 
 import { createBrowserRouter } from "react-router";
 import AuthGuard from "../components/AuthGuard";
 import DashboardPage from "../pages/DashboardPage";
