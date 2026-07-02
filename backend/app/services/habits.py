@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.habit import Habit, HabitOccurrence
 from app.schemas.habits import HabitCreate, HabitUpdate
 
-
+#Get habbits by userId
 def list_habits(db: Session, user_id: str) -> list[Habit]:
     stmt = select(Habit).where(Habit.user_id == user_id).options(selectinload(Habit.occurrences)).order_by(Habit.created_at.desc())
     return list(db.scalars(stmt).unique())
 
-
+#Get a single habit
 def get_habit_or_404(db: Session, user_id: str, habit_id: str) -> Habit:
     stmt = select(Habit).where(Habit.id == habit_id, Habit.user_id == user_id).options(selectinload(Habit.occurrences))
     habit = db.scalar(stmt)
@@ -20,7 +20,7 @@ def get_habit_or_404(db: Session, user_id: str, habit_id: str) -> Habit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Habit not found")
     return habit
 
-
+#Create Habit
 def create_habit(db: Session, user_id: str, payload: HabitCreate) -> Habit:
     active_hours = payload.active_hours
     habit = Habit(
@@ -41,7 +41,7 @@ def create_habit(db: Session, user_id: str, payload: HabitCreate) -> Habit:
     db.commit()
     return get_habit_or_404(db, user_id, habit.id)
 
-
+#Update Habit 
 def update_habit(db: Session, habit: Habit, payload: HabitUpdate) -> Habit:
     update_data = payload.model_dump(exclude_unset=True, exclude={"active_hours", "occurrences"})
     for field, value in update_data.items():
@@ -58,7 +58,7 @@ def update_habit(db: Session, habit: Habit, payload: HabitUpdate) -> Habit:
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)
 
-
+#Mark habit as complete
 def complete_habit(db: Session, habit: Habit, timestamp: datetime | None = None) -> Habit:
     completion_time = timestamp or datetime.now(timezone.utc)
     today = completion_time.date().isoformat()
@@ -74,7 +74,7 @@ def complete_habit(db: Session, habit: Habit, timestamp: datetime | None = None)
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)
 
-
+#Undo habit completion
 def undo_habit_completion(db: Session, habit: Habit, completion_timestamp: str) -> Habit:
     habit.completed_dates = [item for item in habit.completed_dates if item != completion_timestamp]
     if habit.streak > 0:
@@ -93,7 +93,7 @@ def undo_habit_completion(db: Session, habit: Habit, completion_timestamp: str) 
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)
 
-
+#Delete Habit
 def delete_habit(db: Session, habit: Habit) -> None:
     db.delete(habit)
     db.commit()

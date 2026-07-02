@@ -5,12 +5,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.task import Subtask, Task
 from app.schemas.tasks import TaskCreate, TaskUpdate
 
-
+# Get the list of tasks, primarily by user id
 def list_tasks(db: Session, user_id: str) -> list[Task]:
     stmt = select(Task).where(Task.user_id == user_id).options(selectinload(Task.subtasks)).order_by(Task.created_at.desc())
     return list(db.scalars(stmt).unique())
 
-
+# Get a single task 
 def get_task_or_404(db: Session, user_id: str, task_id: str) -> Task:
     stmt = select(Task).where(Task.id == task_id, Task.user_id == user_id).options(selectinload(Task.subtasks))
     task = db.scalar(stmt)
@@ -18,7 +18,7 @@ def get_task_or_404(db: Session, user_id: str, task_id: str) -> Task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
 
-
+# Create Task 
 def create_task(db: Session, user_id: str, payload: TaskCreate) -> Task:
     task = Task(
         user_id=user_id,
@@ -47,6 +47,7 @@ def create_task(db: Session, user_id: str, payload: TaskCreate) -> Task:
     return get_task_or_404(db, user_id, task.id)
 
 
+#Update Task 
 def update_task(db: Session, task: Task, payload: TaskUpdate) -> Task:
     update_data = payload.model_dump(exclude_unset=True, exclude={"subtasks"})
     for field, value in update_data.items():
@@ -68,7 +69,7 @@ def update_task(db: Session, task: Task, payload: TaskUpdate) -> Task:
     db.commit()
     return get_task_or_404(db, task.user_id, task.id)
 
-
+#Delete Task 
 def delete_task(db: Session, task: Task) -> None:
     db.delete(task)
     db.commit()

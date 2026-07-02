@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.focus_session import FocusSession, FocusSessionItem
 from app.schemas.focus_sessions import FocusSessionCreate, FocusSessionUpdate
 
-
+#Get all focus sessions 
 def list_focus_sessions(db: Session, user_id: str) -> list[FocusSession]:
     stmt = select(FocusSession).where(FocusSession.user_id == user_id).options(selectinload(FocusSession.items)).order_by(FocusSession.created_at.desc())
     return list(db.scalars(stmt).unique())
 
-
+#Get a single focus session 
 def get_focus_session_or_404(db: Session, user_id: str, session_id: str) -> FocusSession:
     stmt = select(FocusSession).where(FocusSession.id == session_id, FocusSession.user_id == user_id).options(selectinload(FocusSession.items))
     session = db.scalar(stmt)
@@ -20,7 +20,7 @@ def get_focus_session_or_404(db: Session, user_id: str, session_id: str) -> Focu
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Focus session not found")
     return session
 
-
+#Create a focus session 
 def create_focus_session(db: Session, user_id: str, payload: FocusSessionCreate) -> FocusSession:
     session = FocusSession(
         user_id=user_id,
@@ -53,7 +53,7 @@ def create_focus_session(db: Session, user_id: str, payload: FocusSessionCreate)
     db.commit()
     return get_focus_session_or_404(db, user_id, session.id)
 
-
+#Update Focus Session
 def update_focus_session(db: Session, focus_session: FocusSession, payload: FocusSessionUpdate) -> FocusSession:
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(focus_session, field, value)
@@ -61,7 +61,7 @@ def update_focus_session(db: Session, focus_session: FocusSession, payload: Focu
     db.commit()
     return get_focus_session_or_404(db, focus_session.user_id, focus_session.id)
 
-
+#apply some focus session action: pause, active, completed, quit 
 def apply_focus_session_action(db: Session, focus_session: FocusSession, action: str, timestamp: datetime | None = None) -> FocusSession:
     action_time = timestamp or datetime.now(timezone.utc)
     if action == "pause":
@@ -85,7 +85,7 @@ def apply_focus_session_action(db: Session, focus_session: FocusSession, action:
     db.commit()
     return get_focus_session_or_404(db, focus_session.user_id, focus_session.id)
 
-
+#mark an item in focus session complete
 def mark_focus_session_item_complete(db: Session, focus_session: FocusSession, item_id: str, timestamp: datetime | None = None) -> FocusSession:
     action_time = timestamp or datetime.now(timezone.utc)
     item = next((session_item for session_item in focus_session.items if session_item.id == item_id), None)
@@ -98,7 +98,7 @@ def mark_focus_session_item_complete(db: Session, focus_session: FocusSession, i
     db.commit()
     return get_focus_session_or_404(db, focus_session.user_id, focus_session.id)
 
-
+# delete a focus session 
 def delete_focus_session(db: Session, focus_session: FocusSession) -> None:
     db.delete(focus_session)
     db.commit()

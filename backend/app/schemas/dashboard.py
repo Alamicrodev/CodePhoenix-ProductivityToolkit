@@ -6,3 +6,5 @@ class DashboardResponse(BaseModel):
     completed_tasks: int
     total_habits: int
     active_focus_sessions: int
+
+
