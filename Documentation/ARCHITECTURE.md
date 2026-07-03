@@ -250,12 +250,7 @@ Services:
 
 ### Frontend Code Layout
 
-There are two similar trees in the frontend:
-
-- `Frontend/src/`
-- `Frontend/src/app/`
-
-The live application currently uses `Frontend/src/`. The `Frontend/src/app/` tree appears to be older or duplicated scaffolding and should be treated carefully.
+The application lives under `Frontend/src/`, with the entry chain `index.html` → `src/main.tsx` → `src/App.tsx` → `src/routes/AppRoutes.tsx` plus providers in `src/context/`. (A duplicated legacy `src/app/` mock tree has been removed from the repository.)
 
 ### Service Layer Pattern
 

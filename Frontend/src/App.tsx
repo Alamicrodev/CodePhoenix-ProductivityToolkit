@@ -6,7 +6,7 @@ import { appRouter } from "./routes/AppRoutes";
 import { Toaster } from "./components/ui/sonner";
 import "./App.css";
 
-// The app shell wires together theme, mocked auth, shared productivity data,
+// The app shell wires together theme, API-backed auth, shared productivity data,
 // and the router so every page gets the same providers.
 export default function App() {
   return (

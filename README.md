@@ -137,4 +137,3 @@ Current backend endpoints include:
 
 - The active app under `Frontend/src/` is integrated with the FastAPI backend.
 - JWT session restore still uses localStorage to persist the access token in the browser.
-- There is duplicate legacy/stale code under `Frontend/src/app/`; the live app currently uses `Frontend/src/`.

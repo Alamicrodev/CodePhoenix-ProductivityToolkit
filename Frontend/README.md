@@ -27,13 +27,10 @@ This folder contains the React + Vite frontend for the CodePhoenix Productivity 
 - `src/pages/`: page-level screens
 - `src/routes/`: router configuration
 - `src/styles/`: shared styles
-- `src/utils/`: utility helpers
 
 ## Development Notes
 
-- The active application currently uses `src/`.
-- There is also a duplicated `src/app/` tree that appears to be legacy scaffolding.
-- The main auth and productivity flows in `src/` are now backed by the FastAPI API in `../backend/`.
+- The main auth and productivity flows in `src/` are backed by the FastAPI API in `../backend/`.
 - Authentication stores the JWT access token in localStorage for session restore between reloads.
 
 ## Local Run
