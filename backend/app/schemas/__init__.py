@@ -1,5 +1,4 @@
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.schemas.dashboard import DashboardResponse
 from app.schemas.focus_sessions import FocusSessionCreate, FocusSessionResponse, FocusSessionUpdate
 from app.schemas.habits import HabitCreate, HabitResponse, HabitUpdate
 from app.schemas.tasks import TaskCreate, TaskResponse, TaskUpdate
@@ -25,5 +24,4 @@ __all__ = [
     "FocusSessionCreate",
     "FocusSessionUpdate",
     "FocusSessionResponse",
-    "DashboardResponse",
 ]

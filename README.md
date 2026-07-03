@@ -10,14 +10,14 @@ The repository currently contains:
 - Docker Compose for running the full stack locally
 - Supporting project artifacts in `Documentation/`
 
-See the partial implementation demo on YouTube: [Project Demo](https://www.youtube.com/watch?v=pZxzrRLDrf0)
+Watch an early development demo on YouTube: [Project Demo](https://www.youtube.com/watch?v=pZxzrRLDrf0)
 
 ## Architecture Summary
 
 The system is organized as a small full-stack monorepo:
 
-- `Frontend/`: React client, routing, UI components, context-based state management, and current mock/local persistence logic
-- `backend/`: FastAPI API, JWT auth scaffold, SQLAlchemy models, Alembic migrations, and CRUD route modules
+- `Frontend/`: React client, routing, UI components, and context-based state management backed by the REST API
+- `backend/`: FastAPI API, JWT auth, SQLAlchemy models, Alembic migrations, and CRUD route modules
 - `docker-compose.yml`: local orchestration for frontend, backend, and PostgreSQL
 - `Documentation/`: architecture notes, diagrams, and project reports
 
@@ -107,12 +107,12 @@ When running the backend outside Docker, update `DATABASE_URL` to point to your 
 
 ## Current Features
 
-- User auth scaffold with register, login, and current-user endpoints
-- Backend-backed task management in the active frontend
-- Backend-backed habit tracking in the active frontend
-- Backend-backed focus session flows in the active frontend
-- Dashboard summary endpoint scaffold
-- React frontend pages and UI for core productivity workflows
+- User auth with register, login, and current-user endpoints (JWT)
+- Backend-backed task management with subtasks, tags, and priorities
+- Backend-backed habit tracking with streaks and completion history
+- Backend-backed focus session flows with pomodoro-style phases
+- Client-side dashboard with weekly progress computed from live data
+- Automated test suite (pytest, Vitest, Playwright) with GitHub Actions CI
 
 ## API Overview
 
@@ -125,7 +125,6 @@ Current backend endpoints include:
 - `GET /api/v1/tasks`
 - `GET /api/v1/habits`
 - `GET /api/v1/focus-sessions`
-- `GET /api/v1/dashboard/summary`
 
 ## Documentation
 

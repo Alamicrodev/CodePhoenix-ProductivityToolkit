@@ -1,6 +1,6 @@
 # Backend
 
-This folder contains the FastAPI backend scaffold for the productivity toolkit.
+This folder contains the FastAPI backend for the productivity toolkit.
 
 ## Stack
 
@@ -17,7 +17,7 @@ This folder contains the FastAPI backend scaffold for the productivity toolkit.
 The backend is responsible for:
 
 - API routing
-- Authentication scaffolding
+- JWT authentication
 - Request and response validation
 - Business logic for productivity modules
 - Persistence through PostgreSQL
@@ -59,7 +59,6 @@ The backend follows a layered approach:
 - Tasks
 - Habits
 - Focus sessions
-- Dashboard summary
 
 ## Initial Database Schema
 
@@ -126,7 +125,6 @@ Current route groups:
 - `GET /api/v1/tasks`
 - `GET /api/v1/habits`
 - `GET /api/v1/focus-sessions`
-- `GET /api/v1/dashboard/summary`
 
 ## Frontend Integration Status
 

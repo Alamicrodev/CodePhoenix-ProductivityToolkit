@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { useData } from "../context/DataContext";
-import { User, Mail, Calendar, Award, Target, CheckSquare } from "lucide-react";
+import { Mail, Calendar, Award, Target, CheckSquare } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -56,13 +56,9 @@ export default function ProfilePage() {
               </div>
               <div className="flex-1">
                 <h2 className="text-2xl font-semibold mb-1">{user?.name}</h2>
-                <div className="flex items-center gap-2 text-muted-foreground mb-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
                   <Mail className="w-4 h-4" />
                   <span>{user?.email}</span>
-                </div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-900">
-                  <User className="w-4 h-4" />
-                  <span className="text-sm font-medium">Pro Member</span>
                 </div>
               </div>
             </div>

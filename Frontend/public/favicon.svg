@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- FlowManager mark: sparkle on the app's blue, mirrors the sidebar logo -->
+  <rect width="64" height="64" rx="14" fill="#2563eb"/>
+  <path d="M32 12 L36.5 27.5 L52 32 L36.5 36.5 L32 52 L27.5 36.5 L12 32 L27.5 27.5 Z" fill="#ffffff"/>
+  <path d="M47 9 L49 15 L55 17 L49 19 L47 25 L45 19 L39 17 L45 15 Z" fill="#ffffff" opacity="0.85"/>
+</svg>

@@ -135,7 +135,6 @@ PROTECTED_ROUTES = [
     ("POST", "/focus-sessions/x/pause"),
     ("POST", "/focus-sessions/x/items/y/complete"),
     ("DELETE", "/focus-sessions/x"),
-    ("GET", "/dashboard/summary"),
 ]
 
 

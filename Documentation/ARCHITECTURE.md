@@ -66,7 +66,7 @@ Backend responsibilities:
 
 - API routing
 - Request validation
-- Authentication scaffold
+- Authentication (JWT)
 - Business logic for tasks, habits, and focus sessions
 - Database persistence
 - Migration management
@@ -190,7 +190,6 @@ Current route groups:
 - `/tasks`
 - `/habits`
 - `/focus-sessions`
-- `/dashboard`
 
 The backend currently uses JWT bearer tokens for protected routes.
 
@@ -208,8 +207,8 @@ The backend currently uses JWT bearer tokens for protected routes.
 
 Current state:
 
-- The frontend prototype still manages task, habit, and focus-session state locally.
-- The backend already provides matching server-side models and route scaffolding.
+- The frontend manages task, habit, and focus-session state through the backend API.
+- The backend provides the matching server-side models, services, and routes.
 
 Target state:
 
