@@ -206,6 +206,11 @@ export function HabitCard({ habit }: HabitCardProps) {
   const generateOccurrenceBoxes = () => {
     const boxes: Array<{ date: string; status: "completed" | "skipped" | "missed" | "pending" }> = [];
     const now = new Date();
+    // Boxes from before the habit existed must not render (they would all
+    // read as "missed"); today stays "pending" until the day is actually over.
+    const createdAt = habit.createdAt ? new Date(habit.createdAt) : null;
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
 
     if (habit.frequency === "hourly") {
       const interval = habit.hourlyInterval || 1;
@@ -216,6 +221,9 @@ export function HabitCard({ habit }: HabitCardProps) {
         const occurrenceTime = new Date(now.getTime() - i * interval * 60 * 60 * 1000);
         const occurrenceTimeStr = occurrenceTime.toISOString();
         const occurrenceHour = occurrenceTime.toISOString().slice(0, 13);
+
+        // Skip slots from before the habit was created
+        if (createdAt && occurrenceTime < createdAt) continue;
 
         // Check if this time period is active
         if (!isDayActive(occurrenceTime) || !isWithinActiveHours(occurrenceTime)) {
@@ -253,6 +261,13 @@ export function HabitCard({ habit }: HabitCardProps) {
         dayDate.setDate(dayDate.getDate() - i);
         dayDate.setHours(0, 0, 0, 0);
 
+        // Skip days from before the habit was created
+        if (createdAt) {
+          const creationDay = new Date(createdAt);
+          creationDay.setHours(0, 0, 0, 0);
+          if (dayDate < creationDay) continue;
+        }
+
         // Skip if not an active day
         if (!isDayActive(dayDate)) continue;
 
@@ -267,7 +282,7 @@ export function HabitCard({ habit }: HabitCardProps) {
           status = "completed";
         } else if (skipped) {
           status = "skipped";
-        } else if (dayDate < now) {
+        } else if (dayDate < startOfToday) {
           status = "missed";
         } else {
           status = "pending";
@@ -288,6 +303,9 @@ export function HabitCard({ habit }: HabitCardProps) {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
         weekEnd.setHours(23, 59, 59, 999);
+
+        // Skip weeks that ended before the habit was created
+        if (createdAt && weekEnd < createdAt) continue;
 
         const completed = habit.completedDates.some(date => {
           const completionDate = new Date(date);

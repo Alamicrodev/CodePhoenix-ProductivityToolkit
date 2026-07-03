@@ -33,6 +33,7 @@ const API_TASK = {
 
 const API_HABIT = {
   id: "h1",
+  created_at: "2026-06-30T08:00:00Z",
   title: "Drink water",
   description: "",
   frequency: "daily",
@@ -77,6 +78,7 @@ function Probe() {
       <span data-testid="task-due">{tasks[0]?.dueDate ?? "unset"}</span>
       <span data-testid="subtask-title">{tasks[0]?.subtasks[0]?.title ?? "unset"}</span>
       <span data-testid="habit-hours">{habits[0]?.activeHours?.start ?? "unset"}</span>
+      <span data-testid="habit-created">{habits[0]?.createdAt ?? "unset"}</span>
       <span data-testid="habit-streak">{habits[0]?.streak ?? "unset"}</span>
       <span data-testid="session-elapsed">{focusSessions[0]?.elapsedSeconds ?? "unset"}</span>
     </div>
@@ -113,8 +115,39 @@ describe("DataProvider", () => {
     expect(screen.getByTestId("task-due")).toHaveTextContent("2026-07-10");
     expect(screen.getByTestId("subtask-title")).toHaveTextContent("Draft outline");
     expect(screen.getByTestId("habit-hours")).toHaveTextContent("08:00");
+    expect(screen.getByTestId("habit-created")).toHaveTextContent("2026-06-30T08:00:00Z");
     expect(screen.getByTestId("habit-streak")).toHaveTextContent("3");
     expect(screen.getByTestId("session-elapsed")).toHaveTextContent("120");
+  });
+
+  it("syncs an active focus session at ~30s intervals instead of every second", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      localStorage.setItem("accessToken", "tok-1");
+      let patchCount = 0;
+      const activeSession = { ...API_SESSION, status: "active" };
+      server.use(
+        http.get(`${API}/auth/me`, () => HttpResponse.json(API_USER)),
+        http.get(`${API}/focus-sessions`, () => HttpResponse.json([activeSession])),
+        http.patch(`${API}/focus-sessions/${API_SESSION.id}`, () => {
+          patchCount += 1;
+          return HttpResponse.json(activeSession);
+        }),
+      );
+
+      renderWorkspace();
+      await waitFor(() => expect(screen.getByTestId("session-elapsed")).toHaveTextContent("120"));
+
+      // ten seconds of ticking: UI advances, but nothing is persisted yet
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(patchCount).toBe(0);
+
+      // crossing the 30s sync interval flushes exactly one PATCH
+      await vi.advanceTimersByTimeAsync(25_000);
+      expect(patchCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("logs the user out when the workspace load hits a 401", async () => {

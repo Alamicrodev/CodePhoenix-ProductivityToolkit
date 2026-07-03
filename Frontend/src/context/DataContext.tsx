@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { toast } from "sonner";
 import { ApiError, apiRequest } from "../lib/api";
 import { useAuth } from "./AuthContext";
@@ -26,6 +26,7 @@ export interface Task {
 
 export interface Habit {
   id: string;
+  createdAt?: string;
   title: string;
   description: string;
   frequency: "hourly" | "daily" | "weekly";
@@ -135,6 +136,7 @@ interface ApiHabitOccurrence {
 
 interface ApiHabit {
   id: string;
+  created_at: string;
   title: string;
   description: string;
   frequency: Habit["frequency"];
@@ -179,6 +181,8 @@ interface ApiFocusSession {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 const MINUTE_IN_SECONDS = 60;
+// How often an actively ticking focus session is synced to the backend.
+const FOCUS_SYNC_INTERVAL_SECONDS = 30;
 
 function formatSessionTitle(totalDurationMinutes: number) {
   if (totalDurationMinutes >= 60) {
@@ -201,7 +205,7 @@ function getPhaseDurationSeconds(
   return Math.max(Math.min(requestedPhaseSeconds, remainingSessionSeconds), 0);
 }
 
-function tickFocusSession(session: FocusSession): FocusSession {
+function advanceFocusSessionOneSecond(session: FocusSession): FocusSession {
   if (session.status !== "active") {
     return session;
   }
@@ -257,6 +261,18 @@ function tickFocusSession(session: FocusSession): FocusSession {
   };
 }
 
+// Advances an active session by `deltaSeconds` of wall-clock time by replaying
+// the per-second phase logic, so focus/break boundaries and auto-completion
+// behave identically whether the tab fired every second or was throttled in
+// the background and woke up after a long gap. Exported for tests.
+export function tickFocusSession(session: FocusSession, deltaSeconds = 1): FocusSession {
+  let current = session;
+  for (let i = 0; i < deltaSeconds && current.status === "active"; i++) {
+    current = advanceFocusSessionOneSecond(current);
+  }
+  return current;
+}
+
 function mapTaskFromApi(task: ApiTask): Task {
   return {
     id: task.id,
@@ -283,6 +299,7 @@ function mapTaskFromApi(task: ApiTask): Task {
 function mapHabitFromApi(habit: ApiHabit): Habit {
   return {
     id: habit.id,
+    createdAt: habit.created_at,
     title: habit.title,
     description: habit.description,
     frequency: habit.frequency,
@@ -431,6 +448,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+
+  // Mirror of focusSessions for the interval tick: state updaters run
+  // asynchronously, so the tick must read the latest sessions from a ref
+  // instead of assigning variables inside setFocusSessions callbacks.
+  const focusSessionsRef = useRef(focusSessions);
+  useEffect(() => {
+    focusSessionsRef.current = focusSessions;
+  }, [focusSessions]);
 
   const handleApiError = useCallback(
     (error: unknown, fallbackMessage: string, showToast = true) => {
@@ -925,22 +950,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let lastTickAt = Date.now();
+    let secondsSinceLastSync = 0;
+
     const interval = window.setInterval(() => {
-      let sessionToSync: FocusSession | null = null;
+      // Derive elapsed time from the wall clock: browsers throttle intervals
+      // in background tabs, so one fire may represent many seconds, not one.
+      const nowMs = Date.now();
+      const deltaSeconds = Math.max(1, Math.round((nowMs - lastTickAt) / 1000));
+      lastTickAt = nowMs;
+
+      const activeSession = focusSessionsRef.current.find(session => session.status === "active");
+      if (!activeSession) {
+        return;
+      }
+
+      const ticked = tickFocusSession(activeSession, deltaSeconds);
+      const crossedBoundary =
+        ticked.phaseType !== activeSession.phaseType || ticked.status !== activeSession.status;
 
       setFocusSessions(currentSessions =>
-        currentSessions.map(session => {
-          if (session.status !== "active") {
-            return session;
-          }
-
-          sessionToSync = tickFocusSession(session);
-          return sessionToSync;
-        }),
+        currentSessions.map(session => (session.id === ticked.id ? ticked : session)),
       );
 
-      if (sessionToSync) {
-        void persistFocusSession(sessionToSync);
+      // Sync to the backend on phase changes / auto-completion, otherwise at
+      // most every FOCUS_SYNC_INTERVAL_SECONDS — not on every 1s tick.
+      secondsSinceLastSync += deltaSeconds;
+      if (crossedBoundary || secondsSinceLastSync >= FOCUS_SYNC_INTERVAL_SECONDS) {
+        secondsSinceLastSync = 0;
+        void persistFocusSession(ticked);
       }
     }, 1000);
 
