@@ -149,3 +149,9 @@ vite.config.ts.timestamp-*
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

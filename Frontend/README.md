@@ -68,6 +68,19 @@ This starts the frontend alongside the backend API and PostgreSQL.
 
 - `npm run dev`: starts the Vite development server
 - `npm run build`: builds the production bundle
+- `npm run typecheck`: TypeScript check (`tsc --noEmit`)
+- `npm test`: Vitest unit/component tests in watch mode (`npm run test:ci` for one-shot)
+- `npm run e2e`: Playwright E2E suite (expects `docker compose up -d` from the repo root)
+
+## Testing
+
+- Unit/component tests use Vitest + Testing Library + MSW; they live next to
+  the code as `*.test.ts(x)` with shared setup in `src/test/`.
+- Vitest config lives in `vitest.config.ts` — kept separate from
+  `vite.config.ts` so the docker dev container never depends on test-only
+  packages.
+- E2E specs live in `e2e/` and run against the full docker compose stack.
+- Strategy and roadmap: see `Documentation/TESTING_PLAN.md`.
 
 ## Integration Status
 
