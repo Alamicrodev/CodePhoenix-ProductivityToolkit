@@ -132,6 +132,7 @@ Current backend endpoints include:
 - Project architecture: [ARCHITECTURE.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/ARCHITECTURE.md)
 - Frontend guide: [Frontend/README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Frontend/README.md)
 - Backend guide: [backend/README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/backend/README.md)
+- Testing plan: [TESTING_PLAN.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/TESTING_PLAN.md)
 
 ## Notes
 
