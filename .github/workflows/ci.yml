@@ -81,14 +81,17 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
-      - name: Start the stack
-        run: docker compose up -d --build
+      # npm ci must run BEFORE docker compose: on Linux, compose creates the
+      # Frontend/node_modules volume mountpoint as root, which makes a later
+      # npm ci fail with EACCES.
       - name: Install dependencies
         working-directory: Frontend
         run: npm ci
       - name: Install Playwright browser
         working-directory: Frontend
         run: npx playwright install --with-deps chromium
+      - name: Start the stack
+        run: docker compose up -d --build
       - name: Wait for backend and frontend
         run: |
           for i in $(seq 1 60); do curl -fsS http://localhost:8000/api/v1/health > /dev/null && break; sleep 2; done
