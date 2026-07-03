@@ -137,6 +137,38 @@ The active frontend in `Frontend/src/` is now wired to these API endpoints for:
 - Habit CRUD and completion tracking
 - Focus session creation and lifecycle updates
 
+## Testing
+
+API tests live in `backend/tests/` and run against a real PostgreSQL database
+using the project's Alembic migrations (strategy and roadmap in
+[TESTING_PLAN.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/TESTING_PLAN.md)).
+
+One-time setup (with Docker running):
+
+```bash
+docker compose up -d db
+docker compose exec db createdb -U codephoenix codephoenix_test
+```
+
+Run inside Docker (no local Python needed):
+
+```bash
+docker compose run --rm --no-deps \
+  -e TEST_DATABASE_URL=postgresql+psycopg://codephoenix:codephoenix@db:5432/codephoenix_test \
+  backend sh -c "pip install -q -r requirements-dev.txt && pytest"
+```
+
+Or locally with a venv (expects Postgres on `localhost:5432`):
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
+
+The same suite runs in GitHub Actions on every push and pull request
+(`.github/workflows/ci.yml`), including a standalone `alembic upgrade head`
+step against an empty database.
+
 ## Related Documentation
 
 - Root guide: [README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/README.md)

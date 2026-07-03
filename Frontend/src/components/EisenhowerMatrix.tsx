@@ -48,7 +48,10 @@ const DraggableTaskCard = ({ task, onEdit }: DraggableTaskCardProps) => {
 
   return (
     <div
-      ref={drag}
+      // react-dnd connectors aren't typed as React refs; wrap in a callback ref
+      ref={(node) => {
+        drag(node);
+      }}
       className={`bg-card border border-border rounded-lg p-3 hover:shadow-md transition-all cursor-move ${
         isDragging ? "opacity-50" : ""
       }`}
@@ -110,7 +113,10 @@ const Quadrant = ({
 
   return (
     <div
-      ref={drop}
+      // react-dnd connectors aren't typed as React refs; wrap in a callback ref
+      ref={(node) => {
+        drop(node);
+      }}
       className={`border-2 rounded-xl p-4 min-h-[300px] transition-all ${
         isOver ? "border-primary bg-accent/30" : "border-border"
       } ${bgColor}`}
