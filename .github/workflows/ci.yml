@@ -48,7 +48,7 @@ jobs:
       - name: Apply migrations
         run: alembic upgrade head
       - name: Run tests
-        run: pytest --cov=app --cov-report=term-missing
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=85
 
   frontend:
     runs-on: ubuntu-latest
