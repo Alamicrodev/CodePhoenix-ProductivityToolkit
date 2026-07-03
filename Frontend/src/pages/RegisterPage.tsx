@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { getApiErrorMessage } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -10,18 +11,20 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
     try {
       await register(email, password, name);
       navigate("/");
-    } catch (error) {
-      console.error("Registration failed:", error);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to create your account. Please try again."));
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +50,10 @@ export default function RegisterPage() {
                 type="text"
                 placeholder="Your name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
                 required
                 className="h-11"
               />
@@ -60,7 +66,10 @@ export default function RegisterPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError(null);
+                }}
                 required
                 className="h-11"
               />
@@ -73,11 +82,25 @@ export default function RegisterPage() {
                 type="password"
                 placeholder="Create a password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
                 required
+                minLength={8}
                 className="h-11"
               />
+              <p className="text-xs text-muted-foreground">Must be at least 8 characters.</p>
             </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
+              >
+                {error}
+              </div>
+            )}
 
             <Button type="submit" className="w-full h-11" disabled={isLoading}>
               {isLoading ? "Creating account..." : "Create account"}
@@ -95,5 +118,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-

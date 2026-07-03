@@ -28,7 +28,8 @@ test("login rejects wrong credentials and accepts the right ones", async ({ page
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("definitely-wrong-1");
   await page.getByRole("button", { name: "Sign in" }).click();
-  // stays on the login page
+  // stays on the login page and shows the backend error
+  await expect(page.getByRole("alert")).toContainText("Incorrect email or password");
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
 
   await page.getByLabel("Password").fill(password);

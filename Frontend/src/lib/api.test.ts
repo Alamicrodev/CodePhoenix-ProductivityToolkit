@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { API, server } from "../test/server";
-import { ApiError, apiRequest, getApiUrl } from "./api";
+import { ApiError, apiRequest, getApiErrorMessage, getApiUrl } from "./api";
 
 describe("getApiUrl", () => {
   afterEach(() => {
@@ -94,5 +94,48 @@ describe("apiRequest", () => {
     const error = await apiRequest("/boom").catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).message).toBe("Request failed");
+  });
+
+  it("flattens FastAPI 422 validation details into readable text", async () => {
+    server.use(
+      http.post(`${API}/auth/register`, () =>
+        HttpResponse.json(
+          {
+            detail: [
+              {
+                loc: ["body", "password"],
+                msg: "String should have at least 8 characters",
+                type: "string_too_short",
+              },
+            ],
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    const error = await apiRequest("/auth/register", { method: "POST", body: "{}" }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    // not "[object Object]" — the msg fields are extracted
+    expect((error as ApiError).message).toBe("String should have at least 8 characters");
+  });
+});
+
+describe("getApiErrorMessage", () => {
+  it("passes through backend ApiError messages", () => {
+    expect(getApiErrorMessage(new ApiError("Email already registered", 400), "fallback")).toBe(
+      "Email already registered",
+    );
+  });
+
+  it("maps network failures to a connectivity hint", () => {
+    expect(getApiErrorMessage(new TypeError("fetch failed"), "fallback")).toBe(
+      "Could not reach the server. Please try again.",
+    );
+  });
+
+  it("uses the fallback for unknown errors", () => {
+    expect(getApiErrorMessage("boom", "fallback")).toBe("fallback");
   });
 });

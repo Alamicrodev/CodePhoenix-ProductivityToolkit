@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { RouterProvider, createMemoryRouter } from "react-router";
 
 import { API, server } from "../test/server";
@@ -26,10 +26,6 @@ function renderLogin() {
   );
 }
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("LoginPage", () => {
   it("signs in and navigates to the dashboard", async () => {
     server.use(
@@ -48,8 +44,7 @@ describe("LoginPage", () => {
     expect(localStorage.getItem("accessToken")).toBe("tok-1");
   });
 
-  it("stays on the page when credentials are rejected", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("shows the backend error and stays on the page when credentials are rejected", async () => {
     server.use(
       http.post(`${API}/auth/login`, () =>
         HttpResponse.json({ detail: "Incorrect email or password" }, { status: 401 }),
@@ -61,10 +56,14 @@ describe("LoginPage", () => {
     await userEvent.type(screen.getByLabelText("Password"), "wrongpassword");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Incorrect email or password");
     expect(screen.queryByText("HOME")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBeNull();
+
+    // editing a field dismisses the stale error
+    await userEvent.type(screen.getByLabelText("Password"), "x");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("links to the signup page", async () => {

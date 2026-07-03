@@ -11,6 +11,39 @@ export class ApiError extends Error {
 
 
 
+// FastAPI error bodies: `detail` is a plain string for HTTPExceptions, but an
+// array of {loc, msg, type} objects for 422 validation errors — flatten both
+// to readable text (otherwise String(detail) yields "[object Object]").
+function formatErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string" && detail) {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map(item =>
+        item && typeof item === "object" && "msg" in item ? String((item as { msg: unknown }).msg) : null,
+      )
+      .filter((msg): msg is string => Boolean(msg));
+    if (messages.length) {
+      return messages.join(" ");
+    }
+  }
+  return null;
+}
+
+// Turns any thrown value into a message safe to show the user. ApiError
+// messages come from the backend and are already human-readable; a fetch
+// TypeError means the server was unreachable; anything else gets the fallback.
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.message) {
+    return error.message;
+  }
+  if (error instanceof TypeError) {
+    return "Could not reach the server. Please try again.";
+  }
+  return fallback;
+}
+
 const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1";
 
 // to get the base url 
@@ -87,15 +120,15 @@ export async function apiRequest<T>(
   const isJson = contentType.includes("application/json");
   const payload = isJson ? await response.json() : await response.text();
 
-  //if request failed we construct an error message accordingly and throw it in the curtom ApiError Object.  
+  //if request failed we construct an error message accordingly and throw it in the curtom ApiError Object.
   if (!response.ok) {
-    const message =
+    const detailMessage =
       typeof payload === "object" && payload !== null && "detail" in payload
-        ? String(payload.detail)
-        : typeof payload === "string" && payload
-          ? payload
-          : "Request failed";
-      
+        ? formatErrorDetail((payload as { detail: unknown }).detail)
+        : null;
+    const message =
+      detailMessage ?? (typeof payload === "string" && payload ? payload : "Request failed");
+
     throw new ApiError(message, response.status);
   }
 

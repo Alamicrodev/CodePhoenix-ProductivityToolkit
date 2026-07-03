@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { RouterProvider, createMemoryRouter } from "react-router";
 
 import { API, server } from "../test/server";
@@ -26,9 +26,11 @@ function renderRegister() {
   );
 }
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+async function fillForm() {
+  await userEvent.type(screen.getByLabelText("Name"), "Ada Lovelace");
+  await userEvent.type(screen.getByLabelText("Email"), "ada@example.com");
+  await userEvent.type(screen.getByLabelText("Password"), "password123");
+}
 
 describe("RegisterPage", () => {
   it("creates the account with full_name, auto-logs-in, and navigates home", async () => {
@@ -45,9 +47,7 @@ describe("RegisterPage", () => {
     );
     renderRegister();
 
-    await userEvent.type(screen.getByLabelText("Name"), "Ada Lovelace");
-    await userEvent.type(screen.getByLabelText("Email"), "ada@example.com");
-    await userEvent.type(screen.getByLabelText("Password"), "password123");
+    await fillForm();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(await screen.findByText("HOME")).toBeInTheDocument();
@@ -59,8 +59,7 @@ describe("RegisterPage", () => {
     expect(localStorage.getItem("accessToken")).toBe("tok-1");
   });
 
-  it("stays on the page when registration fails", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("shows the backend error when registration fails", async () => {
     server.use(
       http.post(`${API}/auth/register`, () =>
         HttpResponse.json({ detail: "Email already registered" }, { status: 400 }),
@@ -68,14 +67,23 @@ describe("RegisterPage", () => {
     );
     renderRegister();
 
-    await userEvent.type(screen.getByLabelText("Name"), "Ada Lovelace");
-    await userEvent.type(screen.getByLabelText("Email"), "ada@example.com");
-    await userEvent.type(screen.getByLabelText("Password"), "password123");
+    await fillForm();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Email already registered");
     expect(screen.queryByText("HOME")).not.toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBeNull();
+
+    // editing a field dismisses the stale error
+    await userEvent.type(screen.getByLabelText("Email"), "x");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("hints and enforces the 8-character password minimum client-side", () => {
+    renderRegister();
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "8");
+    expect(screen.getByText("Must be at least 8 characters.")).toBeInTheDocument();
   });
 
   it("links back to the sign-in page", async () => {
