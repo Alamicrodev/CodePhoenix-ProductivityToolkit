@@ -135,6 +135,41 @@ The active frontend in `Frontend/src/` is now wired to these API endpoints for:
 - Habit CRUD and completion tracking
 - Focus session creation and lifecycle updates
 
+## Using a hosted Supabase database
+
+The backend is database-agnostic over `DATABASE_URL`; point it at a Supabase
+Postgres instead of the local Docker `db` service by overriding that one var.
+
+Important: use Supabase's **session pooler** connection (IPv4, port 5432), not
+the direct `db.<ref>.supabase.co` host — the direct endpoint is IPv6-only and
+will not resolve on most local/hosting networks. In the Supabase dashboard:
+**Connect → Connection string → Session pooler**. Convert the scheme to
+`postgresql+psycopg` and append `?sslmode=require`:
+
+```
+postgresql+psycopg://postgres.<project-ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+Run the migrations against it (from the repo root):
+
+```bash
+export SUPABASE_URL='postgresql+psycopg://postgres.<ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres?sslmode=require'
+docker compose run --rm --no-deps -e DATABASE_URL="$SUPABASE_URL" backend alembic upgrade head
+```
+
+Run the API against it (publishes port 8000):
+
+```bash
+docker compose run --rm --no-deps --service-ports -e DATABASE_URL="$SUPABASE_URL" \
+  backend uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+For local convenience you can instead put the Supabase `DATABASE_URL` in a
+gitignored `backend/.env` (see `.env.example`) and run the backend outside
+Docker. For a deployed backend, set `DATABASE_URL` in the host's environment
+variables rather than committing it. Plain `docker compose up` still uses the
+local Docker Postgres.
+
 ## Testing
 
 API tests live in `backend/tests/` and run against a real PostgreSQL database
