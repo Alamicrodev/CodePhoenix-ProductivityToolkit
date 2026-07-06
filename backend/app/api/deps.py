@@ -15,9 +15,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/lo
 
 def get_current_user(
     db: Session = Depends(get_db),          #gets db session
-    token: str = Depends(oauth2_scheme),    #gets jwt token from reqest
+    token: str = Depends(oauth2_scheme),    #gets jwt token from request
 ) -> User:
-    user_id = decode_access_token(token)    
+    user_id = decode_access_token(token)    #decodes token to get userId  
     user = db.get(User, user_id)             #get user from db
     if not user:
         raise HTTPException(

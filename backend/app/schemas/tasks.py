@@ -61,7 +61,8 @@ class TaskUpdate(BaseModel):
     subtasks: list[SubtaskCreate] | None = None
 
 
-class TaskResponse(TaskBase):
+
+class TaskResponse(TaskBase):  #inherits from TaskBase
     id: str
     created_at: datetime
     updated_at: datetime

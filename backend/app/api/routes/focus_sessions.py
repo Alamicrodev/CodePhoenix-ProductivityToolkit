@@ -9,40 +9,40 @@ from app.services.focus_sessions import apply_focus_session_action, create_focus
 
 router = APIRouter(prefix="/focus-sessions", tags=["focus-sessions"])
 
-
+#get the list of focus sessions for the current user
 @router.get("", response_model=list[FocusSessionResponse])
 def get_focus_sessions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list:
     return list_focus_sessions(db, current_user.id)
 
-
+#create a focus session given current user
 @router.post("", response_model=FocusSessionResponse, status_code=status.HTTP_201_CREATED)
 def create_focus_session_route(payload: FocusSessionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return create_focus_session(db, current_user.id, payload)
 
-
+#gets a single focus session
 @router.get("/{session_id}", response_model=FocusSessionResponse)
 def get_focus_session(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return get_focus_session_or_404(db, current_user.id, session_id)
 
-
+#updates a single focus session
 @router.patch("/{session_id}", response_model=FocusSessionResponse)
 def update_focus_session_route(session_id: str, payload: FocusSessionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     focus_session = get_focus_session_or_404(db, current_user.id, session_id)
     return update_focus_session(db, focus_session, payload)
 
-
+#apply some action to the focus session
 @router.post("/{session_id}/{action}", response_model=FocusSessionResponse)
 def focus_session_action_route(session_id: str, action: str, payload: FocusSessionActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     focus_session = get_focus_session_or_404(db, current_user.id, session_id)
     return apply_focus_session_action(db, focus_session, action, payload.timestamp)
 
-
+#marks focus session complete
 @router.post("/{session_id}/items/{item_id}/complete", response_model=FocusSessionResponse)
 def complete_focus_session_item_route(session_id: str, item_id: str, payload: FocusSessionActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     focus_session = get_focus_session_or_404(db, current_user.id, session_id)
     return mark_focus_session_item_complete(db, focus_session, item_id, payload.timestamp)
 
-
+#deletes a focus session
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_focus_session_route(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Response:
     focus_session = get_focus_session_or_404(db, current_user.id, session_id)
