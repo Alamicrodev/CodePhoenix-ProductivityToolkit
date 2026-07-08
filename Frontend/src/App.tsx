@@ -8,6 +8,7 @@ import "./App.css";
 
 // The app shell wires together theme, API-backed auth, shared productivity data,
 // and the router so every page gets the same providers.
+// The app shell is the root of the app, and is rendered in index.tsx. !
 export default function App() {
   return (
     // Themeprovider is simply a nextJS module that adds a class .dark/.light to the <html> element.
