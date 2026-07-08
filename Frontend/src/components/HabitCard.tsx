@@ -1,7 +1,7 @@
 import { Habit } from "../context/DataContext";
 import { useData } from "../context/DataContext";
 import { Button } from "./ui/button";
-import { Check, Flame, Calendar, MoreVertical, Trash2, Clock, X } from "lucide-react";
+import { Check, Flame, Calendar, MoreVertical, Trash2, Clock, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ interface HabitCardProps {
 }
 
 export function HabitCard({ habit }: HabitCardProps) {
-  const { completeHabit, undoCompleteHabit, deleteHabit, updateHabit } = useData();
+  const { completeHabit, undoCompleteHabit, deleteHabit, updateHabit, isSyncing } = useData();
   const [open, setOpen] = useState(false);
 
   // Helper to check if a day is active
@@ -382,7 +382,7 @@ export function HabitCard({ habit }: HabitCardProps) {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-shadow relative">
+    <div className={`bg-card border border-border rounded-xl p-6 hover:shadow-md transition-shadow relative ${isSyncing ? "opacity-80 animate-pulse" : ""}`}>
       {/* Dropdown Menu - positioned in top right corner */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -390,6 +390,7 @@ export function HabitCard({ habit }: HabitCardProps) {
             variant="ghost"
             size="icon"
             className="absolute top-2 right-2 h-8 w-8"
+            disabled={isSyncing}
           >
             <MoreVertical className="w-4 h-4" />
           </Button>
@@ -488,7 +489,7 @@ export function HabitCard({ habit }: HabitCardProps) {
                 : ""
             }`}
           >
-            <Check className="w-4 h-4" />
+            {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {isCompleted 
               ? "Completed"
               : isInactive
@@ -502,6 +503,7 @@ export function HabitCard({ habit }: HabitCardProps) {
               variant="outline"
               size="icon"
               className="shrink-0"
+              disabled={isSyncing}
             >
               <X className="w-4 h-4" />
             </Button>
@@ -542,6 +544,7 @@ export function HabitCard({ habit }: HabitCardProps) {
                 toast.success(`Habit "${habit.title}" has been deleted`);
                 setOpen(false);
               }}
+              disabled={isSyncing}
             >
               Delete
             </AlertDialogAction>

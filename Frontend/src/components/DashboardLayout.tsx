@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import {
@@ -22,6 +23,7 @@ import {
   LogOut,
   Menu,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -42,6 +44,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { isWorkspaceLoading, isSyncing, syncStatus } = useData();
 
   const handleLogout = () => {
     logout();
@@ -117,6 +120,19 @@ export default function DashboardLayout({ children }: LayoutProps) {
       </aside>
 
       <main className="flex-1 overflow-auto">
+        {(isWorkspaceLoading || isSyncing) && (
+          <div className="sticky top-0 z-30 border-b border-blue-200/70 bg-blue-50/90 px-4 py-2 text-sm text-blue-700 backdrop-blur dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="font-medium animate-pulse">
+                {isWorkspaceLoading ? "Loading your workspace..." : syncStatus ?? "Saving changes..."}
+              </span>
+              <div className="ml-auto h-1 w-28 overflow-hidden rounded-full bg-blue-200/80 dark:bg-blue-900/70">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-blue-600/80" />
+              </div>
+            </div>
+          </div>
+        )}
         <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur md:hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
@@ -147,7 +163,9 @@ export default function DashboardLayout({ children }: LayoutProps) {
             <ThemeToggle />
           </div>
         </div>
-        {children}
+        <div className={isSyncing || isWorkspaceLoading ? "transition-opacity opacity-85" : ""}>
+          {children}
+        </div>
       </main>
     </div>
   );

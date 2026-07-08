@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
+import { Loader2 } from "lucide-react";
 
 interface HabitModalProps {
   isOpen: boolean;
@@ -27,7 +28,7 @@ interface HabitModalProps {
 }
 
 export function HabitModal({ isOpen, onClose }: HabitModalProps) {
-  const { addHabit } = useData();
+  const { addHabit, isSyncing } = useData();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [frequency, setFrequency] = useState<"hourly" | "daily" | "weekly">("daily");
@@ -209,10 +210,13 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSyncing}>
               Cancel
             </Button>
-            <Button type="submit">Create Habit</Button>
+            <Button type="submit" disabled={isSyncing} className="gap-2">
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isSyncing ? "Creating..." : "Create Habit"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

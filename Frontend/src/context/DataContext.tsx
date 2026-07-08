@@ -89,6 +89,9 @@ interface DataContextType {
   tasks: Task[];
   habits: Habit[];
   focusSessions: FocusSession[];
+  isWorkspaceLoading: boolean;
+  isSyncing: boolean;
+  syncStatus: string | null;
   addTask: (task: Omit<Task, "id">) => Promise<void>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -448,14 +451,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   // Mirror of focusSessions for the interval tick: state updaters run
   // asynchronously, so the tick must read the latest sessions from a ref
   // instead of assigning variables inside setFocusSessions callbacks.
   const focusSessionsRef = useRef(focusSessions);
+  const syncDepthRef = useRef(0);
   useEffect(() => {
     focusSessionsRef.current = focusSessions;
   }, [focusSessions]);
+
+  const beginSync = useCallback((label: string) => {
+    syncDepthRef.current += 1;
+    if (syncDepthRef.current === 1) {
+      setSyncStatus(label);
+    }
+  }, []);
+
+  const endSync = useCallback(() => {
+    syncDepthRef.current = Math.max(0, syncDepthRef.current - 1);
+    if (syncDepthRef.current === 0) {
+      setSyncStatus(null);
+    }
+  }, []);
+
+  const runWithSync = useCallback(function <T>(
+    label: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    beginSync(label);
+    return operation().finally(endSync);
+  }, [beginSync, endSync]);
 
   const handleApiError = useCallback(
     (error: unknown, fallbackMessage: string, showToast = true) => {
@@ -482,12 +510,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     if (!user || !accessToken) {
+      setIsWorkspaceLoading(false);
       setTasks([]);
       setHabits([]);
       setFocusSessions([]);
       return;
     }
 
+    setIsWorkspaceLoading(true);
     let isCancelled = false;
 
     const loadWorkspace = async () => {
@@ -509,6 +539,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!isCancelled) {
           handleApiError(error, "Failed to load workspace.");
         }
+      } finally {
+        if (!isCancelled) {
+          setIsWorkspaceLoading(false);
+        }
       }
     };
 
@@ -525,19 +559,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const createdTask = await apiRequest<ApiTask>("/tasks", {
-          method: "POST",
-          token: accessToken,
-          body: JSON.stringify(buildTaskCreatePayload(task)),
-        });
+      await runWithSync("Creating task...", async () => {
+        try {
+          const createdTask = await apiRequest<ApiTask>("/tasks", {
+            method: "POST",
+            token: accessToken,
+            body: JSON.stringify(buildTaskCreatePayload(task)),
+          });
 
-        setTasks(currentTasks => [mapTaskFromApi(createdTask), ...currentTasks]);
-      } catch (error) {
-        handleApiError(error, "Failed to create task.");
-      }
+          setTasks(currentTasks => [mapTaskFromApi(createdTask), ...currentTasks]);
+        } catch (error) {
+          handleApiError(error, "Failed to create task.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const updateTask = useCallback(
@@ -546,21 +582,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const updatedTask = await apiRequest<ApiTask>(`/tasks/${id}`, {
-          method: "PATCH",
-          token: accessToken,
-          body: JSON.stringify(buildTaskUpdatePayload(updates)),
-        });
+      await runWithSync("Saving task...", async () => {
+        try {
+          const updatedTask = await apiRequest<ApiTask>(`/tasks/${id}`, {
+            method: "PATCH",
+            token: accessToken,
+            body: JSON.stringify(buildTaskUpdatePayload(updates)),
+          });
 
-        setTasks(currentTasks =>
-          currentTasks.map(task => (task.id === id ? mapTaskFromApi(updatedTask) : task)),
-        );
-      } catch (error) {
-        handleApiError(error, "Failed to update task.");
-      }
+          setTasks(currentTasks =>
+            currentTasks.map(task => (task.id === id ? mapTaskFromApi(updatedTask) : task)),
+          );
+        } catch (error) {
+          handleApiError(error, "Failed to update task.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const deleteTask = useCallback(
@@ -569,18 +607,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        await apiRequest(`/tasks/${id}`, {
-          method: "DELETE",
-          token: accessToken,
-        });
+      await runWithSync("Deleting task...", async () => {
+        try {
+          await apiRequest(`/tasks/${id}`, {
+            method: "DELETE",
+            token: accessToken,
+          });
 
-        setTasks(currentTasks => currentTasks.filter(task => task.id !== id));
-      } catch (error) {
-        handleApiError(error, "Failed to delete task.");
-      }
+          setTasks(currentTasks => currentTasks.filter(task => task.id !== id));
+        } catch (error) {
+          handleApiError(error, "Failed to delete task.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const addHabit = useCallback(
@@ -589,19 +629,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const createdHabit = await apiRequest<ApiHabit>("/habits", {
-          method: "POST",
-          token: accessToken,
-          body: JSON.stringify(buildHabitCreatePayload(habit)),
-        });
+      await runWithSync("Creating habit...", async () => {
+        try {
+          const createdHabit = await apiRequest<ApiHabit>("/habits", {
+            method: "POST",
+            token: accessToken,
+            body: JSON.stringify(buildHabitCreatePayload(habit)),
+          });
 
-        setHabits(currentHabits => [mapHabitFromApi(createdHabit), ...currentHabits]);
-      } catch (error) {
-        handleApiError(error, "Failed to create habit.");
-      }
+          setHabits(currentHabits => [mapHabitFromApi(createdHabit), ...currentHabits]);
+        } catch (error) {
+          handleApiError(error, "Failed to create habit.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const updateHabit = useCallback(
@@ -610,21 +652,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const updatedHabit = await apiRequest<ApiHabit>(`/habits/${id}`, {
-          method: "PATCH",
-          token: accessToken,
-          body: JSON.stringify(buildHabitUpdatePayload(updates)),
-        });
+      await runWithSync("Saving habit...", async () => {
+        try {
+          const updatedHabit = await apiRequest<ApiHabit>(`/habits/${id}`, {
+            method: "PATCH",
+            token: accessToken,
+            body: JSON.stringify(buildHabitUpdatePayload(updates)),
+          });
 
-        setHabits(currentHabits =>
-          currentHabits.map(habit => (habit.id === id ? mapHabitFromApi(updatedHabit) : habit)),
-        );
-      } catch (error) {
-        handleApiError(error, "Failed to update habit.");
-      }
+          setHabits(currentHabits =>
+            currentHabits.map(habit => (habit.id === id ? mapHabitFromApi(updatedHabit) : habit)),
+          );
+        } catch (error) {
+          handleApiError(error, "Failed to update habit.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const deleteHabit = useCallback(
@@ -633,18 +677,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        await apiRequest(`/habits/${id}`, {
-          method: "DELETE",
-          token: accessToken,
-        });
+      await runWithSync("Deleting habit...", async () => {
+        try {
+          await apiRequest(`/habits/${id}`, {
+            method: "DELETE",
+            token: accessToken,
+          });
 
-        setHabits(currentHabits => currentHabits.filter(habit => habit.id !== id));
-      } catch (error) {
-        handleApiError(error, "Failed to delete habit.");
-      }
+          setHabits(currentHabits => currentHabits.filter(habit => habit.id !== id));
+        } catch (error) {
+          handleApiError(error, "Failed to delete habit.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const completeHabit = useCallback(
@@ -653,27 +699,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      try {
-        const completedHabit = await apiRequest<ApiHabit>(`/habits/${id}/complete`, {
-          method: "POST",
-          token: accessToken,
-          body: JSON.stringify({ timestamp: new Date().toISOString() }),
-        });
+      return runWithSync("Completing habit...", async () => {
+        try {
+          const completedHabit = await apiRequest<ApiHabit>(`/habits/${id}/complete`, {
+            method: "POST",
+            token: accessToken,
+            body: JSON.stringify({ timestamp: new Date().toISOString() }),
+          });
 
-        const mappedHabit = mapHabitFromApi(completedHabit);
-        const completionTimestamp = mappedHabit.completedDates[mappedHabit.completedDates.length - 1] || null;
+          const mappedHabit = mapHabitFromApi(completedHabit);
+          const completionTimestamp = mappedHabit.completedDates[mappedHabit.completedDates.length - 1] || null;
 
-        setHabits(currentHabits =>
-          currentHabits.map(habit => (habit.id === id ? mappedHabit : habit)),
-        );
+          setHabits(currentHabits =>
+            currentHabits.map(habit => (habit.id === id ? mappedHabit : habit)),
+          );
 
-        return completionTimestamp;
-      } catch (error) {
-        handleApiError(error, "Failed to complete habit.");
-        return null;
-      }
+          return completionTimestamp;
+        } catch (error) {
+          handleApiError(error, "Failed to complete habit.");
+          return null;
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const undoCompleteHabit = useCallback(
@@ -682,21 +730,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const updatedHabit = await apiRequest<ApiHabit>(`/habits/${id}/undo`, {
-          method: "POST",
-          token: accessToken,
-          body: JSON.stringify({ completion_timestamp: completionTimestamp }),
-        });
+      await runWithSync("Undoing habit...", async () => {
+        try {
+          const updatedHabit = await apiRequest<ApiHabit>(`/habits/${id}/undo`, {
+            method: "POST",
+            token: accessToken,
+            body: JSON.stringify({ completion_timestamp: completionTimestamp }),
+          });
 
-        setHabits(currentHabits =>
-          currentHabits.map(habit => (habit.id === id ? mapHabitFromApi(updatedHabit) : habit)),
-        );
-      } catch (error) {
-        handleApiError(error, "Failed to undo habit completion.");
-      }
+          setHabits(currentHabits =>
+            currentHabits.map(habit => (habit.id === id ? mapHabitFromApi(updatedHabit) : habit)),
+          );
+        } catch (error) {
+          handleApiError(error, "Failed to undo habit completion.");
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const persistFocusSession = useCallback(
@@ -705,23 +755,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const updatedSession = await apiRequest<ApiFocusSession>(`/focus-sessions/${session.id}`, {
-          method: "PATCH",
-          token: accessToken,
-          body: JSON.stringify(buildFocusSessionUpdatePayload(session)),
-        });
+      await runWithSync("Syncing focus session...", async () => {
+        try {
+          const updatedSession = await apiRequest<ApiFocusSession>(`/focus-sessions/${session.id}`, {
+            method: "PATCH",
+            token: accessToken,
+            body: JSON.stringify(buildFocusSessionUpdatePayload(session)),
+          });
 
-        setFocusSessions(currentSessions =>
-          currentSessions.map(entry =>
-            entry.id === session.id ? mapFocusSessionFromApi(updatedSession) : entry,
-          ),
-        );
-      } catch (error) {
-        handleApiError(error, "Failed to sync focus session.", showToast);
-      }
+          setFocusSessions(currentSessions =>
+            currentSessions.map(entry =>
+              entry.id === session.id ? mapFocusSessionFromApi(updatedSession) : entry,
+            ),
+          );
+        } catch (error) {
+          handleApiError(error, "Failed to sync focus session.", showToast);
+        }
+      });
     },
-    [accessToken, handleApiError],
+    [accessToken, handleApiError, runWithSync],
   );
 
   const createFocusSession = useCallback(
@@ -752,41 +804,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
           completed_in_session_at: null,
         }));
 
-      try {
-        const createdSession = await apiRequest<ApiFocusSession>("/focus-sessions", {
-          method: "POST",
-          token: accessToken,
-          body: JSON.stringify({
-            title: formatSessionTitle(input.totalDurationMinutes),
-            total_duration_minutes: input.totalDurationMinutes,
-            focus_length_minutes: input.focusLengthMinutes,
-            break_length_minutes: input.breakLengthMinutes,
-            elapsed_seconds: 0,
-            phase_type: "focus",
-            phase_remaining_seconds: Math.min(
-              input.focusLengthMinutes * MINUTE_IN_SECONDS,
-              input.totalDurationMinutes * MINUTE_IN_SECONDS,
-            ),
-            status: "active",
-            completion_result: null,
-            completed: false,
-            completed_focus_blocks: 0,
-            started_at: now,
-            paused_at: null,
-            ended_at: null,
-            items: [...taskItems, ...habitItems],
-          }),
-        });
+      return runWithSync("Creating focus session...", async () => {
+        try {
+          const createdSession = await apiRequest<ApiFocusSession>("/focus-sessions", {
+            method: "POST",
+            token: accessToken,
+            body: JSON.stringify({
+              title: formatSessionTitle(input.totalDurationMinutes),
+              total_duration_minutes: input.totalDurationMinutes,
+              focus_length_minutes: input.focusLengthMinutes,
+              break_length_minutes: input.breakLengthMinutes,
+              elapsed_seconds: 0,
+              phase_type: "focus",
+              phase_remaining_seconds: Math.min(
+                input.focusLengthMinutes * MINUTE_IN_SECONDS,
+                input.totalDurationMinutes * MINUTE_IN_SECONDS,
+              ),
+              status: "active",
+              completion_result: null,
+              completed: false,
+              completed_focus_blocks: 0,
+              started_at: now,
+              paused_at: null,
+              ended_at: null,
+              items: [...taskItems, ...habitItems],
+            }),
+          });
 
-        const mappedSession = mapFocusSessionFromApi(createdSession);
-        setFocusSessions(currentSessions => [mappedSession, ...currentSessions]);
-        return mappedSession.id;
-      } catch (error) {
-        handleApiError(error, "Failed to create focus session.");
-        return null;
-      }
+          const mappedSession = mapFocusSessionFromApi(createdSession);
+          setFocusSessions(currentSessions => [mappedSession, ...currentSessions]);
+          return mappedSession.id;
+        } catch (error) {
+          handleApiError(error, "Failed to create focus session.");
+          return null;
+        }
+      });
     },
-    [accessToken, focusSessions, habits, handleApiError, tasks],
+    [accessToken, focusSessions, habits, handleApiError, runWithSync, tasks],
   );
 
   const pauseFocusSession = useCallback(
@@ -909,35 +963,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       const completedAt = new Date().toISOString();
 
-      if (item.sourceType === "task") {
-        await updateTask(item.sourceId, {
-          completed: true,
-          completedAt,
-        });
-      } else {
-        await completeHabit(item.sourceId);
-      }
+      await runWithSync("Updating focus session item...", async () => {
+        if (item.sourceType === "task") {
+          await updateTask(item.sourceId, {
+            completed: true,
+            completedAt,
+          });
+        } else {
+          await completeHabit(item.sourceId);
+        }
 
-      try {
-        const updatedSession = await apiRequest<ApiFocusSession>(
-          `/focus-sessions/${sessionId}/items/${itemId}/complete`,
-          {
-            method: "POST",
-            token: accessToken,
-            body: JSON.stringify({ timestamp: completedAt }),
-          },
-        );
+        try {
+          const updatedSession = await apiRequest<ApiFocusSession>(
+            `/focus-sessions/${sessionId}/items/${itemId}/complete`,
+            {
+              method: "POST",
+              token: accessToken,
+              body: JSON.stringify({ timestamp: completedAt }),
+            },
+          );
 
-        setFocusSessions(currentSessions =>
-          currentSessions.map(entry =>
-            entry.id === sessionId ? mapFocusSessionFromApi(updatedSession) : entry,
-          ),
-        );
-      } catch (error) {
-        handleApiError(error, "Failed to complete focus session item.");
-      }
+          setFocusSessions(currentSessions =>
+            currentSessions.map(entry =>
+              entry.id === sessionId ? mapFocusSessionFromApi(updatedSession) : entry,
+            ),
+          );
+        } catch (error) {
+          handleApiError(error, "Failed to complete focus session item.");
+        }
+      });
     },
-    [accessToken, completeHabit, focusSessions, handleApiError, updateTask],
+    [accessToken, completeHabit, focusSessions, handleApiError, runWithSync, updateTask],
   );
 
   const hasActiveFocusSession = useMemo(
@@ -990,6 +1046,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       tasks,
       habits,
       focusSessions,
+      isWorkspaceLoading,
+      isSyncing: Boolean(syncStatus),
+      syncStatus,
       addTask,
       updateTask,
       deleteTask,
@@ -1015,6 +1074,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deleteTask,
       focusSessions,
       habits,
+      isWorkspaceLoading,
+      syncStatus,
       markFocusSessionItemComplete,
       pauseFocusSession,
       quitFocusSession,

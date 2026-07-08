@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Sparkles, Plus, X, AlertCircle } from "lucide-react";
+import { Sparkles, Plus, X, AlertCircle, Loader2 } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import { DateInput } from "./ui/date-input";
 
@@ -39,7 +39,7 @@ interface Subtask {
 }
 
 export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
-  const { addTask, updateTask, deleteTask } = useData();
+  const { addTask, updateTask, deleteTask, isSyncing } = useData();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
@@ -400,15 +400,16 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
 
           <DialogFooter className="gap-2">
             {task && (
-              <Button type="button" variant="destructive" onClick={handleDelete}>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isSyncing}>
                 Delete
               </Button>
             )}
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSyncing}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!!dueDateError}>
-              {task ? "Update" : "Create"} Task
+            <Button type="submit" disabled={!!dueDateError || isSyncing} className="gap-2">
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {task ? (isSyncing ? "Saving..." : "Update Task") : (isSyncing ? "Creating..." : "Create Task")}
             </Button>
           </DialogFooter>
         </form>

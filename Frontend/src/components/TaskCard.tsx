@@ -13,7 +13,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueDate" }: TaskCardProps) {
-  const { updateTask } = useData();
+  const { updateTask, isSyncing } = useData();
 
   const handleToggle = async () => {
     const newCompleted = !task.completed;
@@ -186,7 +186,7 @@ export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "due
     <div
       className={`bg-card border border-border rounded-xl transition-all ${
         isMuted ? "opacity-50" : "hover:shadow-md"
-      }`}
+      } ${isSyncing ? "opacity-80 animate-pulse" : ""}`}
     >
       {/* Parent Task */}
       <div className="p-5">
@@ -195,6 +195,7 @@ export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "due
             checked={task.completed}
             onCheckedChange={handleToggle}
             className="mt-1"
+            disabled={isSyncing}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -210,6 +211,7 @@ export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "due
                 size="icon"
                 className="h-8 w-8 -mt-1 flex-shrink-0"
                 onClick={onEdit}
+                disabled={isSyncing}
               >
                 <MoreVertical className="w-4 h-4" />
               </Button>
@@ -281,6 +283,7 @@ export function TaskCard({ task, onEdit, isMuted, matchedSubtasks, sortBy = "due
                     checked={subtask.completed}
                     onCheckedChange={() => handleSubtaskToggle(subtask.id)}
                     className="mt-0.5"
+                    disabled={isSyncing}
                   />
                   <div className="flex-1 min-w-0">
                     <p
