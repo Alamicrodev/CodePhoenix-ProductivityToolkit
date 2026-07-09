@@ -1,8 +1,15 @@
 import { Habit } from "../context/DataContext";
 import { useData } from "../context/DataContext";
 import { Button } from "./ui/button";
-import { Check, Flame, Calendar, MoreVertical, Trash2, Clock, X, Loader2 } from "lucide-react";
+import { Check, Flame, MoreVertical, Trash2, Clock, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useMemo, useState } from "react";
+import {
+  buildHabitHistorySlots,
+  canCompleteHabitNow,
+  formatHabitNextOccurrence,
+  isHabitCurrentlyActive,
+} from "../lib/habitSchedule";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,161 +26,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { useState } from "react";
 
 interface HabitCardProps {
   habit: Habit;
 }
 
 export function HabitCard({ habit }: HabitCardProps) {
-  const { completeHabit, undoCompleteHabit, deleteHabit, updateHabit, isSyncing } = useData();
+  const { completeHabit, undoCompleteHabit, deleteHabit, updateHabit, isSyncing, currentTime } = useData();
   const [open, setOpen] = useState(false);
-
-  // Helper to check if a day is active
-  const isDayActive = (date: Date) => {
-    if (!habit.activeDays || habit.activeDays.length === 0) return true;
-    const dayOfWeek = date.getDay();
-    return habit.activeDays.includes(dayOfWeek);
-  };
-
-  // Helper to check if current time is within active hours
-  const isWithinActiveHours = (date: Date) => {
-    if (habit.frequency !== "hourly" || !habit.activeHours) return true;
-    
-    const currentHour = date.getHours();
-    const currentMinute = date.getMinutes();
-    const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-    const [startHour, startMinute] = habit.activeHours.start.split(":").map(Number);
-    const startTimeInMinutes = startHour * 60 + startMinute;
-
-    const [endHour, endMinute] = habit.activeHours.end.split(":").map(Number);
-    const endTimeInMinutes = endHour * 60 + endMinute;
-
-    return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
-  };
-
-  // Calculate next occurrence based on frequency and active hours/days
-  const getNextOccurrence = () => {
-    const now = new Date();
-    
-    if (habit.frequency === "hourly") {
-      const interval = habit.hourlyInterval || 1;
-      const intervalMs = interval * 60 * 60 * 1000;
-
-      // If currently inactive, find next active period
-      if (!isDayActive(now) || !isWithinActiveHours(now)) {
-        // Find next active time
-        let checkDate = new Date(now);
-        
-        // Check next hour
-        for (let i = 0; i < 24 * 7; i++) { // Check up to 7 days
-          checkDate.setHours(checkDate.getHours() + 1);
-          checkDate.setMinutes(0);
-          checkDate.setSeconds(0);
-          
-          if (isDayActive(checkDate) && isWithinActiveHours(checkDate)) {
-            const endTime = new Date(checkDate.getTime() + intervalMs);
-            return { start: checkDate, end: endTime };
-          }
-        }
-      }
-
-      // If active now, calculate based on last completion or current interval
-      const lastCompletion = habit.completedDates.length > 0 
-        ? new Date(habit.completedDates[habit.completedDates.length - 1])
-        : null;
-
-      let nextStart: Date;
-      if (lastCompletion) {
-        nextStart = new Date(lastCompletion.getTime() + intervalMs);
-      } else {
-        // First occurrence - start from beginning of current active period
-        nextStart = new Date(now);
-        nextStart.setMinutes(0);
-        nextStart.setSeconds(0);
-      }
-
-      const nextEnd = new Date(nextStart.getTime() + intervalMs);
-      return { start: nextStart, end: nextEnd };
-    } else if (habit.frequency === "daily") {
-      // Find next active day
-      let nextDay = new Date(now);
-      nextDay.setHours(23, 59, 59, 999);
-
-      // If today is not active, find next active day
-      if (!isDayActive(now)) {
-        for (let i = 1; i <= 7; i++) {
-          const checkDate = new Date(now);
-          checkDate.setDate(checkDate.getDate() + i);
-          if (isDayActive(checkDate)) {
-            nextDay = new Date(checkDate);
-            nextDay.setHours(23, 59, 59, 999);
-            break;
-          }
-        }
-      }
-
-      return { start: now, end: nextDay };
-    } else if (habit.frequency === "weekly") {
-      const endOfWeek = new Date(now);
-      const daysUntilSunday = 7 - now.getDay();
-      endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
-      endOfWeek.setHours(23, 59, 59, 999);
-      return { start: now, end: endOfWeek };
-    }
-
-    return { start: now, end: now };
-  };
-
-  const nextOccurrence = getNextOccurrence();
-
-  // Check if habit can be completed now
-  const canComplete = () => {
-    const now = new Date();
-    if (!isDayActive(now)) return false;
-    if (habit.frequency === "hourly" && !isWithinActiveHours(now)) return false;
-
-    // Check if already completed for current period
-    if (habit.frequency === "hourly") {
-      const interval = habit.hourlyInterval || 1;
-      const intervalMs = interval * 60 * 60 * 1000;
-      
-      // Check if there's a completion within the current interval
-      const lastCompletion = habit.completedDates.length > 0 
-        ? new Date(habit.completedDates[habit.completedDates.length - 1])
-        : null;
-
-      if (lastCompletion) {
-        const timeSinceLastCompletion = now.getTime() - lastCompletion.getTime();
-        if (timeSinceLastCompletion < intervalMs) {
-          return false;
-        }
-      }
-
-      return true;
-    } else if (habit.frequency === "daily") {
-      const today = now.toISOString().split("T")[0];
-      return !habit.completedDates.includes(today);
-    } else if (habit.frequency === "weekly") {
-      const thisWeekStart = new Date(now);
-      thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
-      thisWeekStart.setHours(0, 0, 0, 0);
-      
-      return !habit.completedDates.some(date => {
-        const completionDate = new Date(date);
-        return completionDate >= thisWeekStart;
-      });
-    }
-
-    return true;
-  };
-
-  const isCompleted = !canComplete() && isDayActive(new Date()) && (habit.frequency !== "hourly" || isWithinActiveHours(new Date()));
-  const isInactive = !isDayActive(new Date()) || (habit.frequency === "hourly" && !isWithinActiveHours(new Date()));
+  const now = new Date(currentTime);
+  const occurrenceBoxes = useMemo(() => buildHabitHistorySlots(habit, now, 30), [habit, currentTime]);
+  const nextOccurrenceLabel = formatHabitNextOccurrence(habit, now);
+  const canCompleteNow = canCompleteHabitNow(habit, now);
+  const isActiveNow = isHabitCurrentlyActive(habit, now);
+  const isTodayActive = (habit.activeDays ?? []).length === 0 || (habit.activeDays ?? []).includes(now.getDay());
+  const isCompleted = isActiveNow && !canCompleteNow;
+  const isInactive = !isActiveNow;
 
   const handleComplete = async () => {
-    if (!canComplete()) return;
+    if (!canCompleteNow) return;
 
     const completionTimestamp = await completeHabit(habit.id);
 
@@ -202,141 +73,6 @@ export function HabitCard({ habit }: HabitCardProps) {
     toast.info(`Habit "${habit.title}" skipped for this occurrence`);
   };
 
-  // Generate GitHub-style contribution boxes (last 30 occurrences)
-  const generateOccurrenceBoxes = () => {
-    const boxes: Array<{ date: string; status: "completed" | "skipped" | "missed" | "pending" }> = [];
-    const now = new Date();
-    // Boxes from before the habit existed must not render (they would all
-    // read as "missed"); today stays "pending" until the day is actually over.
-    const createdAt = habit.createdAt ? new Date(habit.createdAt) : null;
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    if (habit.frequency === "hourly") {
-      const interval = habit.hourlyInterval || 1;
-      // Show last 30 intervals (or adjust based on interval)
-      const numBoxes = Math.min(30, Math.floor((24 * 7) / interval)); // Up to a week or 30 boxes
-      
-      for (let i = numBoxes - 1; i >= 0; i--) {
-        const occurrenceTime = new Date(now.getTime() - i * interval * 60 * 60 * 1000);
-        const occurrenceTimeStr = occurrenceTime.toISOString();
-        const occurrenceHour = occurrenceTime.toISOString().slice(0, 13);
-
-        // Skip slots from before the habit was created
-        if (createdAt && occurrenceTime < createdAt) continue;
-
-        // Check if this time period is active
-        if (!isDayActive(occurrenceTime) || !isWithinActiveHours(occurrenceTime)) {
-          continue; // Skip inactive periods
-        }
-
-        // Check completion
-        const completed = habit.completedDates.some(date => {
-          const completionDate = new Date(date);
-          return Math.abs(completionDate.getTime() - occurrenceTime.getTime()) < interval * 60 * 60 * 1000;
-        });
-
-        const skipped = habit.occurrences?.some(occ => 
-          occ.status === "skipped" && 
-          Math.abs(new Date(occ.timestamp).getTime() - occurrenceTime.getTime()) < interval * 60 * 60 * 1000
-        );
-
-        let status: "completed" | "skipped" | "missed" | "pending";
-        if (completed) {
-          status = "completed";
-        } else if (skipped) {
-          status = "skipped";
-        } else if (occurrenceTime < now) {
-          status = "missed";
-        } else {
-          status = "pending";
-        }
-
-        boxes.push({ date: occurrenceTimeStr, status });
-      }
-    } else if (habit.frequency === "daily") {
-      // Show last 30 days (only active days)
-      for (let i = 29; i >= 0; i--) {
-        const dayDate = new Date(now);
-        dayDate.setDate(dayDate.getDate() - i);
-        dayDate.setHours(0, 0, 0, 0);
-
-        // Skip days from before the habit was created
-        if (createdAt) {
-          const creationDay = new Date(createdAt);
-          creationDay.setHours(0, 0, 0, 0);
-          if (dayDate < creationDay) continue;
-        }
-
-        // Skip if not an active day
-        if (!isDayActive(dayDate)) continue;
-
-        const dateStr = dayDate.toISOString().split("T")[0];
-        const completed = habit.completedDates.includes(dateStr);
-        const skipped = habit.occurrences?.some(occ => 
-          occ.status === "skipped" && occ.timestamp.startsWith(dateStr)
-        );
-
-        let status: "completed" | "skipped" | "missed" | "pending";
-        if (completed) {
-          status = "completed";
-        } else if (skipped) {
-          status = "skipped";
-        } else if (dayDate < startOfToday) {
-          status = "missed";
-        } else {
-          status = "pending";
-        }
-
-        boxes.push({ date: dateStr, status });
-      }
-    } else if (habit.frequency === "weekly") {
-      // Show last 12 weeks
-      for (let i = 11; i >= 0; i--) {
-        const weekDate = new Date(now);
-        weekDate.setDate(weekDate.getDate() - i * 7);
-        weekDate.setHours(0, 0, 0, 0);
-
-        const weekStart = new Date(weekDate);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-
-        // Skip weeks that ended before the habit was created
-        if (createdAt && weekEnd < createdAt) continue;
-
-        const completed = habit.completedDates.some(date => {
-          const completionDate = new Date(date);
-          return completionDate >= weekStart && completionDate <= weekEnd;
-        });
-
-        const skipped = habit.occurrences?.some(occ => {
-          const occDate = new Date(occ.timestamp);
-          return occ.status === "skipped" && occDate >= weekStart && occDate <= weekEnd;
-        });
-
-        let status: "completed" | "skipped" | "missed" | "pending";
-        if (completed) {
-          status = "completed";
-        } else if (skipped) {
-          status = "skipped";
-        } else if (weekEnd < now) {
-          status = "missed";
-        } else {
-          status = "pending";
-        }
-
-        boxes.push({ date: weekStart.toISOString(), status });
-      }
-    }
-
-    return boxes;
-  };
-
-  const occurrenceBoxes = generateOccurrenceBoxes();
-
   const getBoxColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -350,35 +86,6 @@ export function HabitCard({ habit }: HabitCardProps) {
       default:
         return "bg-gray-100 dark:bg-gray-800";
     }
-  };
-
-  const formatNextOccurrence = () => {
-    const end = nextOccurrence.end;
-    const now = new Date();
-    const diffMs = end.getTime() - now.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (habit.frequency === "hourly") {
-      if (diffHours < 1) {
-        return `Next in ${diffMinutes} min`;
-      }
-      return `Next in ${diffHours}h ${diffMinutes}m`;
-    } else if (habit.frequency === "daily") {
-      const endDateStr = end.toLocaleDateString("en-US", { 
-        month: "short", 
-        day: "numeric" 
-      });
-      return `Due by ${endDateStr}`;
-    } else if (habit.frequency === "weekly") {
-      const endDateStr = end.toLocaleDateString("en-US", { 
-        month: "short", 
-        day: "numeric" 
-      });
-      return `Due by ${endDateStr}`;
-    }
-
-    return "";
   };
 
   return (
@@ -442,7 +149,7 @@ export function HabitCard({ habit }: HabitCardProps) {
                 <div
                   key={idx}
                   className={`w-3 h-3 rounded-sm ${getBoxColor(box.status)}`}
-                  title={`${box.date} - ${box.status}`}
+                  title={`${box.label} - ${box.status}`}
                 />
               ))}
             </div>
@@ -467,11 +174,11 @@ export function HabitCard({ habit }: HabitCardProps) {
         <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
           <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 mb-2">
             <Clock className="w-4 h-4" />
-            <span className="font-medium">{formatNextOccurrence()}</span>
+            <span className="font-medium">{nextOccurrenceLabel}</span>
           </div>
           {isInactive && (
             <p className="text-xs text-muted-foreground">
-              {!isDayActive(new Date()) 
+              {!isTodayActive 
                 ? "Inactive day - not available today" 
                 : "Outside active hours"}
             </p>
@@ -482,7 +189,7 @@ export function HabitCard({ habit }: HabitCardProps) {
         <div className="flex gap-2">
           <Button
             onClick={handleComplete}
-            disabled={isCompleted || isInactive || !canComplete()}
+            disabled={isCompleted || isInactive || !canCompleteNow}
             className={`flex-1 gap-2 ${
               isCompleted
                 ? "bg-green-600 dark:bg-green-600 hover:bg-green-700 dark:hover:bg-green-700"

@@ -37,6 +37,8 @@ beforeEach(() => {
     undoCompleteHabit: vi.fn(),
     deleteHabit: vi.fn(),
     updateHabit: vi.fn(),
+    currentTime: Date.now(),
+    isSyncing: false,
   });
 });
 

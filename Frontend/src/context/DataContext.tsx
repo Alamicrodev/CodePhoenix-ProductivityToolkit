@@ -89,6 +89,7 @@ interface DataContextType {
   tasks: Task[];
   habits: Habit[];
   focusSessions: FocusSession[];
+  currentTime: number;
   isWorkspaceLoading: boolean;
   isSyncing: boolean;
   syncStatus: string | null;
@@ -451,6 +452,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
@@ -462,6 +464,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     focusSessionsRef.current = focusSessions;
   }, [focusSessions]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const beginSync = useCallback((label: string) => {
     syncDepthRef.current += 1;
@@ -1046,6 +1056,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       tasks,
       habits,
       focusSessions,
+      currentTime,
       isWorkspaceLoading,
       isSyncing: Boolean(syncStatus),
       syncStatus,
@@ -1074,6 +1085,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deleteTask,
       focusSessions,
       habits,
+      currentTime,
       isWorkspaceLoading,
       syncStatus,
       markFocusSessionItemComplete,
