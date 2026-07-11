@@ -1,6 +1,8 @@
 import { useData } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Calendar, Clock, Sparkles, TrendingUp } from "lucide-react";
+import { formatClockTime12, formatRelativeDueLabel, parseDateOnlyLocal } from "../lib/timeFormat";
+import { formatHabitNextOccurrence } from "../lib/habitSchedule";
 
 export default function SchedulePage() {
   const { tasks, habits, focusSessions } = useData();
@@ -8,6 +10,8 @@ export default function SchedulePage() {
   // Get today's date
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
+  const nextWeek = new Date(today);
+  nextWeek.setDate(today.getDate() + 7);
 
   // Get tasks due exactly today (not completed, not in active focus sessions, not expired)
   const tasksInFocus = new Set(
@@ -20,20 +24,17 @@ export default function SchedulePage() {
       )
   );
 
-  const todayTasks = tasks.filter(task => {
+  const dueSoonTasks = tasks.filter(task => {
     if (!task.dueDate || task.completed || tasksInFocus.has(task.id)) return false;
-    // Only include tasks due exactly today, not overdue tasks
-    return task.dueDate === todayStr;
+    return parseDateOnlyLocal(task.dueDate) <= nextWeek;
+  }).sort((a, b) => {
+    const dateA = a.dueDate ? parseDateOnlyLocal(a.dueDate).getTime() : Infinity;
+    const dateB = b.dueDate ? parseDateOnlyLocal(b.dueDate).getTime() : Infinity;
+    return dateA - dateB;
   });
 
-  // Get upcoming tasks (next 7 days)
-  const upcomingTasks = tasks.filter(task => {
-    if (!task.dueDate || task.completed) return false;
-    const dueDate = new Date(task.dueDate);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(today.getDate() + 7);
-    return dueDate > today && dueDate <= nextWeek;
-  }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  const todayTasks = dueSoonTasks.filter(task => task.dueDate === todayStr);
+  const upcomingTasks = dueSoonTasks.filter(task => task.dueDate !== todayStr);
 
   // Get habits that need to be completed today
   const habitsInFocus = new Set(
@@ -69,11 +70,12 @@ export default function SchedulePage() {
       priority: string;
       duration: string;
       id: string;
+      detail?: string;
     }> = [];
 
     // Add morning planning
     schedule.push({
-      time: "09:00 AM",
+      time: "9:00 AM",
       type: "planning",
       title: "Morning planning session",
       priority: "medium",
@@ -82,18 +84,19 @@ export default function SchedulePage() {
     });
 
     // Add high priority tasks first
-    const highPriorityTasks = todayTasks
+    const highPriorityTasks = dueSoonTasks
       .filter(t => t.priority === "high")
       .slice(0, 2);
     
     highPriorityTasks.forEach((task, index) => {
       schedule.push({
-        time: task.dueTime ? formatTime(task.dueTime) : `${10 + index * 2}:00 AM`,
+        time: task.dueTime ? formatClockTime12(task.dueTime) : `${10 + index * 2}:00 AM`,
         type: "task",
         title: task.title,
         priority: task.priority,
         duration: "60 min",
         id: task.id,
+        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
       });
     });
 
@@ -107,45 +110,48 @@ export default function SchedulePage() {
         priority: "medium",
         duration: "30 min",
         id: habit.id,
+        detail: formatHabitNextOccurrence(habit, today),
       });
     });
 
     // Add medium priority tasks
-    const mediumPriorityTasks = todayTasks
+    const mediumPriorityTasks = dueSoonTasks
       .filter(t => t.priority === "medium")
       .slice(0, 2);
     
     mediumPriorityTasks.forEach((task, index) => {
       schedule.push({
-        time: task.dueTime ? formatTime(task.dueTime) : `${2 + index}:00 PM`,
+        time: task.dueTime ? formatClockTime12(task.dueTime) : `${2 + index}:00 PM`,
         type: "task",
         title: task.title,
         priority: task.priority,
         duration: "45 min",
         id: task.id,
+        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
       });
     });
 
     // Add low priority tasks
-    const lowPriorityTasks = todayTasks
+    const lowPriorityTasks = dueSoonTasks
       .filter(t => t.priority === "low")
       .slice(0, 1);
     
     lowPriorityTasks.forEach((task) => {
       schedule.push({
-        time: task.dueTime ? formatTime(task.dueTime) : "04:00 PM",
+        time: task.dueTime ? formatClockTime12(task.dueTime) : "4:00 PM",
         type: "task",
         title: task.title,
         priority: task.priority,
         duration: "30 min",
         id: task.id,
+        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
       });
     });
 
     // Add review session at end of day if we have tasks
-    if (todayTasks.length > 0) {
+    if (dueSoonTasks.length > 0) {
       schedule.push({
-        time: "05:00 PM",
+        time: "5:00 PM",
         type: "review",
         title: "Review and planning",
         priority: "low",
@@ -155,14 +161,6 @@ export default function SchedulePage() {
     }
 
     return schedule;
-  };
-
-  const formatTime = (time: string): string => {
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   const aiSuggestions = generateSchedule();
@@ -228,7 +226,12 @@ export default function SchedulePage() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="font-medium">{item.title}</h4>
+                        <div>
+                          <h4 className="font-medium">{item.title}</h4>
+                          {item.detail && (
+                            <p className="text-xs text-muted-foreground mt-1">{item.detail}</p>
+                          )}
+                        </div>
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {item.duration}
@@ -288,6 +291,9 @@ export default function SchedulePage() {
                       className="p-3 rounded-lg bg-accent border border-border"
                     >
                       <p className="font-medium text-sm mb-1">{task.title}</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {formatRelativeDueLabel(task.dueDate, task.dueTime, today)}
+                      </p>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           task.priority === "high"
@@ -320,6 +326,9 @@ export default function SchedulePage() {
                       className="p-3 rounded-lg bg-accent border border-border"
                     >
                       <p className="font-medium text-sm mb-1">{task.title}</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {formatRelativeDueLabel(task.dueDate, task.dueTime, today)}
+                      </p>
                       <span className="text-xs text-muted-foreground">
                         {new Date(task.dueDate!).toLocaleDateString()}
                       </span>

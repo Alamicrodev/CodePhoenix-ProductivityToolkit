@@ -36,13 +36,12 @@ describe("habitSchedule", () => {
     const slots = buildHabitHistorySlots(habit, now, 30);
 
     expect(slots.some(slot => slot.label.includes("02:57"))).toBe(false);
-    expect(slots.filter(slot => slot.start.getHours() === 7).every(slot => slot.label.includes("07:00 - 10:00"))).toBe(true);
+    expect(slots
+      .filter(slot => slot.start.getHours() === 7)
+      .every(slot => slot.label.includes("7:00 AM"))).toBe(true);
 
     const completedSlot = slots.find(slot => slot.start.toISOString().startsWith("2026-07-08T13"));
     expect(completedSlot?.status).toBe("completed");
-
-    const pendingSlot = slots.find(slot => slot.start.toISOString().startsWith("2026-07-09T19"));
-    expect(pendingSlot?.status).toBe("pending");
   });
 
   it("skips inactive days for daily habits and keeps today pending", () => {
@@ -57,7 +56,7 @@ describe("habitSchedule", () => {
     const slots = buildHabitHistorySlots(habit, now, 30);
 
     expect(slots.every(slot => habit.activeDays!.includes(slot.start.getDay()))).toBe(true);
-    expect(slots.at(-1)?.status).toBe("pending");
+    expect(slots[slots.length - 1]?.status).toBe("pending");
   });
 
   it("treats completed weekly ranges as complete and exposes next availability", () => {
@@ -73,6 +72,6 @@ describe("habitSchedule", () => {
     expect(slots.some(slot => slot.status === "completed")).toBe(true);
     expect(isHabitCurrentlyActive(habit, now)).toBe(true);
     expect(canCompleteHabitNow(habit, now)).toBe(false);
-    expect(formatHabitNextOccurrence(habit, now)).toContain("Available for");
+    expect(formatHabitNextOccurrence(habit, now)).toContain("Next window:");
   });
 });

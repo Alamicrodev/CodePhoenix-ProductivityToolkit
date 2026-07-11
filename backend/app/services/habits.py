@@ -6,11 +6,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.habit import Habit, HabitOccurrence
 from app.schemas.habits import HabitCreate, HabitUpdate
+from app.services.habit_progress import recalculate_habit_progress
 
 #Get habbits by userId
 def list_habits(db: Session, user_id: str) -> list[Habit]:
     stmt = select(Habit).where(Habit.user_id == user_id).options(selectinload(Habit.occurrences)).order_by(Habit.created_at.desc())
-    return list(db.scalars(stmt).unique())   #db.scalars returns an interable of habit objects, we convert it into a list
+    habits = list(db.scalars(stmt).unique())   #db.scalars returns an interable of habit objects, we convert it into a list
+    for habit in habits:
+        recalculate_habit_progress(habit)
+    return habits
 
 
 #Get a single habit
@@ -19,6 +23,7 @@ def get_habit_or_404(db: Session, user_id: str, habit_id: str) -> Habit:
     habit = db.scalar(stmt) #gets the single habit object
     if not habit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Habit not found")
+    recalculate_habit_progress(habit)
     return habit
 
 #Create Habit
@@ -33,18 +38,17 @@ def create_habit(db: Session, user_id: str, payload: HabitCreate) -> Habit:
         active_hours_start=active_hours.start if active_hours else None,    #if active_hours? active hours start time
         active_hours_end=active_hours.end if active_hours else None,        #if active_hours? active hours end time 
         active_days=payload.active_days,                                    #days the habit is active
-        streak=payload.streak,                                              #habit streak (in occurrences) 
-        last_completed=payload.last_completed,                                 
         completed_dates=payload.completed_dates,
         occurrences=[HabitOccurrence(timestamp=item.timestamp, status=item.status) for item in payload.occurrences],
     )
+    recalculate_habit_progress(habit)
     db.add(habit)
     db.commit()
     return get_habit_or_404(db, user_id, habit.id)
 
 #Update Habit 
 def update_habit(db: Session, habit: Habit, payload: HabitUpdate) -> Habit:
-    update_data = payload.model_dump(exclude_unset=True, exclude={"active_hours", "occurrences"})
+    update_data = payload.model_dump(exclude_unset=True, exclude={"active_hours", "occurrences", "streak", "last_completed"})
     #converts object to disctionary removing none values and excluding active_hours and occurences. 
 
     for field, value in update_data.items():
@@ -57,6 +61,7 @@ def update_habit(db: Session, habit: Habit, payload: HabitUpdate) -> Habit:
     if payload.occurrences is not None:                               #if there are occurences replaces previous occurrences list with new one. 
         habit.occurrences = [HabitOccurrence(timestamp=item.timestamp, status=item.status) for item in payload.occurrences]
 
+    recalculate_habit_progress(habit)
     db.add(habit)
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)
@@ -70,10 +75,9 @@ def complete_habit(db: Session, habit: Habit, timestamp: datetime | None = None)
 
     if completion_marker not in habit.completed_dates:    #if not already completed at that time/date
         habit.completed_dates = [*habit.completed_dates, completion_marker]  #destructure previous list and add the new completion marker
-        habit.last_completed = today        
-        habit.streak += 1
         habit.occurrences.append(HabitOccurrence(timestamp=completion_time, status="completed"))
 
+    recalculate_habit_progress(habit, completion_time)
     db.add(habit)
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)     #we get and return the updated habbit
@@ -81,8 +85,6 @@ def complete_habit(db: Session, habit: Habit, timestamp: datetime | None = None)
 #Undo habit completion
 def undo_habit_completion(db: Session, habit: Habit, completion_timestamp: str) -> Habit:
     habit.completed_dates = [item for item in habit.completed_dates if item != completion_timestamp]  #updates completed_dates with a new list removing the given completion timestamp. 
-    if habit.streak > 0:     #reduce streak by 1 
-        habit.streak -= 1
 
     habit.occurrences = [             #updates habit.occurrences with a new list, removes the occurence where status was completed and its timestamp was equal to the given timestamp.
         occ for occ in habit.occurrences
@@ -91,8 +93,8 @@ def undo_habit_completion(db: Session, habit: Habit, completion_timestamp: str) 
             and (occ.timestamp.isoformat() == completion_timestamp or occ.timestamp.date().isoformat() == completion_timestamp)
         )
     ]
-    habit.last_completed = habit.completed_dates[-1][:10] if habit.completed_dates else None #updates last completed by getting from last value of completed dates.
 
+    recalculate_habit_progress(habit)
     db.add(habit)
     db.commit()
     return get_habit_or_404(db, habit.user_id, habit.id)

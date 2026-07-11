@@ -10,6 +10,7 @@ import {
   formatHabitNextOccurrence,
   isHabitCurrentlyActive,
 } from "../lib/habitSchedule";
+import { formatClockTime12 } from "../lib/timeFormat";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -229,7 +230,7 @@ export function HabitCard({ habit }: HabitCardProps) {
         {/* Active Hours Display (for hourly) */}
         {habit.frequency === "hourly" && habit.activeHours && (
           <div className="text-xs text-muted-foreground">
-            Active hours: {habit.activeHours.start} - {habit.activeHours.end}
+            Active hours: {formatClockTime12(habit.activeHours.start)} - {formatClockTime12(habit.activeHours.end)}
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import type { Habit } from "../context/DataContext";
+import { formatRelativeDayLabel, parseClockTime } from "./timeFormat";
 
 export type HabitOccurrenceStatus = "completed" | "skipped" | "missed" | "pending";
 
@@ -47,11 +48,6 @@ function startOfWeek(date: Date) {
   return copy;
 }
 
-function parseTime(value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  return { hours, minutes };
-}
-
 function parseStoredDate(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split("-").map(Number);
@@ -69,24 +65,47 @@ function formatShortDate(date: Date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function formatTime24(date: Date) {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+function formatTime12(date: Date) {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+  return `${displayHour}:${pad(minutes)} ${period}`;
 }
 
 function formatHourlyLabel(start: Date, end: Date) {
-  return `${formatShortDate(start)} ${formatTime24(start)} - ${formatTime24(end)}`;
+  return `${formatRelativeDayLabel(start)} ${formatTime12(start)}`;
 }
 
 function formatDailyLabel(start: Date) {
-  return start.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  return formatRelativeDayLabel(start);
 }
 
 function formatWeeklyLabel(start: Date, end: Date) {
-  return `${formatShortDate(start)} - ${formatShortDate(end)}`;
+  return `${formatRelativeDayLabel(start)}`;
+}
+
+function formatHabitDueSoonLabel(habit: Habit, now: Date) {
+  if (habit.frequency === "hourly") {
+    const currentSlot = getCurrentHourlySlot(habit, now);
+    if (!currentSlot) {
+      return "";
+    }
+
+    const diffMinutes = Math.max(1, Math.round((currentSlot.end.getTime() - now.getTime()) / 60000));
+    if (diffMinutes < 60) {
+      return `Due in ${diffMinutes} min`;
+    }
+
+    const diffHours = Math.round(diffMinutes / 60);
+    return `Due in ${diffHours} hour${diffHours === 1 ? "" : "s"}`;
+  }
+
+  if (habit.frequency === "daily") {
+    return "Due today";
+  }
+
+  return "Due this week";
 }
 
 function isActiveDay(habit: Habit, date: Date) {
@@ -99,8 +118,8 @@ function isWithinActiveHours(habit: Habit, date: Date) {
     return true;
   }
 
-  const { hours: startHours, minutes: startMinutes } = parseTime(habit.activeHours.start);
-  const { hours: endHours, minutes: endMinutes } = parseTime(habit.activeHours.end);
+  const { hours: startHours, minutes: startMinutes } = parseClockTime(habit.activeHours.start);
+  const { hours: endHours, minutes: endMinutes } = parseClockTime(habit.activeHours.end);
   const currentMinutes = date.getHours() * 60 + date.getMinutes();
   const startMinutesOfDay = startHours * 60 + startMinutes;
   const endMinutesOfDay = endHours * 60 + endMinutes;
@@ -126,8 +145,8 @@ function getHourlyWindowBounds(habit: Habit, date: Date) {
     };
   }
 
-  const { hours: startHours, minutes: startMinutes } = parseTime(habit.activeHours.start);
-  const { hours: endHours, minutes: endMinutes } = parseTime(habit.activeHours.end);
+  const { hours: startHours, minutes: startMinutes } = parseClockTime(habit.activeHours.start);
+  const { hours: endHours, minutes: endMinutes } = parseClockTime(habit.activeHours.end);
   const start = cloneDate(dayStart);
   start.setHours(startHours, startMinutes, 0, 0);
 
@@ -470,18 +489,19 @@ export function isHabitCurrentlyActive(habit: Habit, now: Date) {
 
 export function formatHabitNextOccurrence(habit: Habit, now: Date) {
   if (canCompleteHabitNow(habit, now)) {
-    return "Available now";
+    const dueSoonLabel = formatHabitDueSoonLabel(habit, now);
+    return dueSoonLabel ? `Available now · ${dueSoonLabel}` : "Available now";
   }
 
   const nextOccurrence = getHabitNextOccurrence(habit, now);
 
   if (habit.frequency === "hourly") {
-    return `Available at ${formatHourlyLabel(nextOccurrence.start, nextOccurrence.end)}`;
+    return `Next window: ${formatHourlyLabel(nextOccurrence.start, nextOccurrence.end)}`;
   }
 
   if (habit.frequency === "daily") {
-    return `Available on ${formatDailyLabel(nextOccurrence.start)}`;
+    return `Next window: ${formatDailyLabel(nextOccurrence.start)}`;
   }
 
-  return `Available for ${formatWeeklyLabel(nextOccurrence.start, nextOccurrence.end)}`;
+  return `Next window: ${formatWeeklyLabel(nextOccurrence.start, nextOccurrence.end)}`;
 }

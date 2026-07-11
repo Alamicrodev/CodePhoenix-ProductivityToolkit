@@ -21,10 +21,79 @@ import {
 } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
 import { Loader2 } from "lucide-react";
+import { splitClockTime12, toClockTime24 } from "../lib/timeFormat";
 
 interface HabitModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
+
+function formatMinute(value: number) {
+  return value.toString().padStart(2, "0");
+}
+
+function TimePicker12({
+  idPrefix,
+  value,
+  onChange,
+}: {
+  idPrefix: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const current = splitClockTime12(value);
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <Select
+        value={current.hour.toString()}
+        onValueChange={hour => onChange(toClockTime24(Number(hour), current.minute, current.period))}
+      >
+        <SelectTrigger id={`${idPrefix}-hour`}>
+          <SelectValue placeholder="Hour" />
+        </SelectTrigger>
+        <SelectContent>
+          {HOUR_OPTIONS.map(hour => (
+            <SelectItem key={hour} value={hour.toString()}>
+              {hour}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={formatMinute(current.minute)}
+        onValueChange={minute => onChange(toClockTime24(current.hour, Number(minute), current.period))}
+      >
+        <SelectTrigger id={`${idPrefix}-minute`}>
+          <SelectValue placeholder="Minute" />
+        </SelectTrigger>
+        <SelectContent>
+          {MINUTE_OPTIONS.map(minute => (
+            <SelectItem key={minute} value={formatMinute(minute)}>
+              {formatMinute(minute)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={current.period}
+        onValueChange={period => onChange(toClockTime24(current.hour, current.minute, period as "AM" | "PM"))}
+      >
+        <SelectTrigger id={`${idPrefix}-period`}>
+          <SelectValue placeholder="AM/PM" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="AM">AM</SelectItem>
+          <SelectItem value="PM">PM</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
 
 export function HabitModal({ isOpen, onClose }: HabitModalProps) {
@@ -161,25 +230,23 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
                 <Label>Active Hours</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="active-start" className="text-xs text-muted-foreground">
+                    <Label className="text-xs text-muted-foreground">
                       Start Time
                     </Label>
-                    <Input
-                      id="active-start"
-                      type="time"
+                    <TimePicker12
+                      idPrefix="active-start"
                       value={activeHoursStart}
-                      onChange={e => setActiveHoursStart(e.target.value)}
+                      onChange={setActiveHoursStart}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="active-end" className="text-xs text-muted-foreground">
+                    <Label className="text-xs text-muted-foreground">
                       End Time
                     </Label>
-                    <Input
-                      id="active-end"
-                      type="time"
+                    <TimePicker12
+                      idPrefix="active-end"
                       value={activeHoursEnd}
-                      onChange={e => setActiveHoursEnd(e.target.value)}
+                      onChange={setActiveHoursEnd}
                     />
                   </div>
                 </div>

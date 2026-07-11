@@ -133,9 +133,25 @@ def test_patch_habit_updates_only_sent_fields(client, auth_headers):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["title"] == "Drink more water"
-    assert body["streak"] == 5
+    assert body["streak"] == 0
     assert body["frequency"] == habit["frequency"]
     assert body["active_hours"] == habit["active_hours"]
+
+
+def test_streak_is_recomputed_from_persisted_progress(client, auth_headers):
+    habit = create_habit(client, auth_headers)
+
+    response = client.patch(
+        f"{API}/habits/{habit['id']}",
+        json={"streak": 99, "last_completed": "2026-07-09", "completed_dates": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["streak"] == 0
+    assert body["last_completed"] is None
+    assert body["completed_dates"] == []
 
 
 def test_delete_habit(client, auth_headers):
