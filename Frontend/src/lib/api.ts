@@ -57,6 +57,17 @@ export function getApiUrl(path: string) {
   return `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+// WebSocket URLs share the API origin but swap the scheme: https -> wss, http -> ws.
+// Deriving it here means deploys only ever configure VITE_API_BASE_URL.
+export function getWebSocketUrl(path: string, query?: Record<string, string>) {
+  const url = new URL(getApiUrl(path));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value));
+  }
+  return url.toString();
+}
+
 
 // ultimate apirequest  function 
 // generic function, we don't know what the expected output "type" is 

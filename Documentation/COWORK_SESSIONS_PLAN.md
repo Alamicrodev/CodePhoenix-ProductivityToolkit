@@ -1,5 +1,14 @@
 # Cowork Sessions — Implementation Plan
 
+> **Status (2026-07-20, branch `feat/cowork-sessions`):** Phases 1–3 implemented;
+> Phase 4 partially done (cold-start UX, ICE config endpoint, TURN env wiring).
+> Verified end to end in a browser: create room → share link → join → presence →
+> bidirectional task sync → task write-through to the Tasks module → peer leave.
+> **Not yet verified: two real webcams connecting.** The verification browser
+> blocks camera access, so the WebRTC mesh has only been exercised through its
+> signaling path. The manual NAT test matrix in Phase 3 is still outstanding and
+> is the remaining risk. Remaining: WS ticket auth, guest access, Phase 5.
+
 Shareable coworking rooms: a user creates a room, shares a link, and up to ~5 people
 see each other's webcams and each other's "working on" task lists in real time.
 

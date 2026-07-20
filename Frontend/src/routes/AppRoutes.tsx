@@ -1,5 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import AuthGuard from "./AuthGuard";
+import CoworkPage from "../pages/CoworkPage";
+import CoworkRoomPage from "../pages/CoworkRoomPage";
 import DashboardPage from "../pages/DashboardPage";
 import FocusPage from "../pages/FocusPage";
 import HabitDetailPage from "../pages/HabitDetailPage";
@@ -29,6 +31,8 @@ export const appRouter = createBrowserRouter([
       { path: "habits", element: <HabitsPage /> },
       { path: "habits/:habitId", element: <HabitDetailPage /> },
       { path: "focus", element: <FocusPage /> },
+      { path: "cowork", element: <CoworkPage /> },
+      { path: "cowork/:slug", element: <CoworkRoomPage /> },
       { path: "schedule", element: <SchedulePage /> },
       { path: "profile", element: <ProfilePage /> },
     ],

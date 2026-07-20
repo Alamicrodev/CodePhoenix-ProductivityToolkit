@@ -83,6 +83,20 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
 ```
 
+Optional, for cowork room video (`GET /cowork-sessions/ice-config` serves these to
+the browser so TURN credentials never enter the frontend bundle):
+
+```env
+STUN_URLS=["stun:stun.l.google.com:19302"]
+TURN_URLS=["turn:your-turn-host:3478"]
+TURN_USERNAME=turn-user
+TURN_CREDENTIAL=turn-secret
+```
+
+STUN alone is enough for most home networks. Without TURN, peers behind symmetric
+NAT (many office, campus, and mobile networks) cannot establish a direct
+connection at all, and the room UI warns about it.
+
 ## Local Run
 
 ```bash

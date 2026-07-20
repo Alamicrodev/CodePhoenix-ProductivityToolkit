@@ -31,3 +31,11 @@ services:
         sync: false
       - key: SECRET_KEY
         sync: false
+      # WebRTC relay for cowork rooms. Without TURN, peers on restrictive
+      # networks (office / campus Wi-Fi) cannot connect to each other at all.
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
