@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -19,6 +19,7 @@ from app.services.cowork import (
     list_hosted_cowork_sessions,
     serialize_cowork_session,
 )
+from app.api.routes.cowork_ws import WS_ROOM_ENDED
 from app.services.cowork_rooms import room_registry
 from app.services.turn import fetch_turn_ice_servers
 
@@ -79,9 +80,18 @@ def get_cowork_session(slug: str, db: Session = Depends(get_db), current_user: U
 @router.post("/{slug}/end", response_model=CoworkSessionResponse)
 def end_cowork_session_route(
     slug: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     cowork_session = get_cowork_session_or_404(db, slug)
+    live_count = room_registry.participant_count(slug)
     ended = end_cowork_session(db, cowork_session, current_user.id)
-    return serialize_cowork_session(ended, current_user.id, room_registry.participant_count(slug))
+
+    # Marking the row ended only stops *new* joins — anyone already connected
+    # would keep talking indefinitely. Evict them too. This runs as a background
+    # task because the socket work is async while this route (like the rest of
+    # the app) is a sync handler running in the threadpool.
+    background_tasks.add_task(room_registry.close_room, slug, WS_ROOM_ENDED, "host-ended")
+
+    return serialize_cowork_session(ended, current_user.id, live_count)

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -330,6 +331,68 @@ class TestCoworkSocket:
                     extra.receive_json()
 
         assert excinfo.value.code == 4403
+
+    def test_ending_a_room_evicts_everyone_still_inside(self, client, auth_headers, other_auth_headers):
+        # Marking the row ended only blocks new joins; people already connected
+        # would otherwise keep talking in a room that no longer exists.
+        room = create_room(client, auth_headers)
+
+        with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as guest_socket:
+            guest_socket.receive_json()  # welcome
+
+            client.post(f"{API}/cowork-sessions/{room['slug']}/end", headers=auth_headers)
+
+            ended = guest_socket.receive_json()
+            assert ended["type"] == "room-ended"
+            assert ended["payload"]["reason"] == "host-ended"
+
+            with pytest.raises(WebSocketDisconnect) as excinfo:
+                guest_socket.receive_json()
+
+        assert excinfo.value.code == 4404
+
+    def test_ending_a_room_clears_it_from_the_registry(self, client, auth_headers, other_auth_headers):
+        room = create_room(client, auth_headers)
+
+        with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as guest_socket:
+            guest_socket.receive_json()  # welcome
+            client.post(f"{API}/cowork-sessions/{room['slug']}/end", headers=auth_headers)
+            guest_socket.receive_json()  # room-ended
+            with pytest.raises(WebSocketDisconnect):
+                guest_socket.receive_json()
+
+        assert room_registry.participant_count(room["slug"]) == 0
+
+    def test_ending_an_empty_room_does_not_error(self, client, auth_headers):
+        room = create_room(client, auth_headers)
+
+        response = client.post(f"{API}/cowork-sessions/{room['slug']}/end", headers=auth_headers)
+
+        assert response.status_code == 200
+
+    def test_room_that_lapses_while_occupied_evicts_on_the_next_heartbeat(
+        self, client, db, auth_headers, other_auth_headers
+    ):
+        # A room can reach its expiry with people still inside it. The handler
+        # holds expires_at from join time, so this joins a room that is still
+        # valid and then lets it genuinely lapse underneath the participant.
+        room = create_room(client, auth_headers)
+        stored = db.get(CoworkSession, room["id"])
+        stored.expires_at = datetime.now(timezone.utc) + timedelta(seconds=1)
+        db.commit()
+
+        with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as guest_socket:
+            guest_socket.receive_json()  # welcome, while still valid
+
+            time.sleep(1.2)
+            guest_socket.send_json({"type": "ping"})
+
+            ended = guest_socket.receive_json()
+            assert ended["type"] == "room-ended"
+            assert ended["payload"]["reason"] == "expired"
+
+            with pytest.raises(WebSocketDisconnect):
+                guest_socket.receive_json()
 
     def test_participant_count_reflects_live_sockets(self, client, auth_headers, other_auth_headers):
         room = create_room(client, auth_headers)

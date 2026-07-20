@@ -10,6 +10,7 @@ import {
   OutgoingMessage,
   SharedTask,
   describeCloseCode,
+  describeRoomEnded,
   isFatalCloseCode,
   reconnectDelayMs,
 } from "../lib/coworkProtocol";
@@ -58,6 +59,9 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
   const heartbeatTimerRef = useRef<number | null>(null);
   // Distinguishes "we are tearing this down on purpose" from "the network died".
   const intentionalCloseRef = useRef(false);
+  // Set when the server already told us *why* it is about to close, so the
+  // close frame that follows does not replace it with generic wording.
+  const explainedCloseRef = useRef(false);
 
   const send = useCallback((message: OutgoingMessage) => {
     const socket = socketRef.current;
@@ -157,6 +161,14 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
           case "peer-left":
             setPeers(current => current.filter(peer => peer.peer_id !== message.payload.peer_id));
             break;
+          case "room-ended":
+            // The close frame follows immediately; record why now so the user
+            // sees "the host ended this room" rather than the generic code text.
+            explainedCloseRef.current = true;
+            setFatalError(describeRoomEnded(message.payload.reason));
+            setConnectionState("closed");
+            setPeers([]);
+            break;
           case "task-list":
             setPeers(current =>
               current.map(peer =>
@@ -180,8 +192,10 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
 
         // A room that is full, ended, or refusing our token will refuse us again
         // just as fast — stop and tell the user instead of looping.
-        if (isFatalCloseCode(event.code)) {
-          setFatalError(describeCloseCode(event.code));
+        if (explainedCloseRef.current || isFatalCloseCode(event.code)) {
+          if (!explainedCloseRef.current) {
+            setFatalError(describeCloseCode(event.code));
+          }
           setConnectionState("closed");
           return;
         }

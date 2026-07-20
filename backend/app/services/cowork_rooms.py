@@ -96,6 +96,24 @@ class RoomRegistry:
     def participant_count(self, slug: str) -> int:
         return len(self._rooms.get(slug, {}))
 
+    #evict everyone and drop the room — used when a room ends or expires under them
+    async def close_room(self, slug: str, code: int, reason: str) -> int:
+        # Pop under the lock so a peer joining mid-close cannot land in a room
+        # that is already being torn down.
+        async with self._lock:
+            room = self._rooms.pop(slug, None)
+
+        if not room:
+            return 0
+
+        for peer in room.values():
+            await _safe_send(peer, {"type": "room-ended", "payload": {"reason": reason}})
+            try:
+                await peer.websocket.close(code=code)
+            except Exception:
+                pass
+        return len(room)
+
     #send to one peer; returns False when the socket is already gone
     async def send_to(self, slug: str, peer_id: str, message: dict[str, Any]) -> bool:
         peer = await self.get_peer(slug, peer_id)

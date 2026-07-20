@@ -53,12 +53,19 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [mediaAttempt, setMediaAttempt] = useState(0);
+  // Whether getUserMedia has finished, succeeded or not. Connections wait for
+  // this so they are built with the right tracks, but they are NOT gated on
+  // actually having a camera — someone who declined permission or has no webcam
+  // still gets to watch and hear everyone else.
+  const [isMediaSettled, setIsMediaSettled] = useState(false);
 
   const connectionsRef = useRef(new Map<string, RTCPeerConnection>());
   // Candidates can arrive before the answer's remote description is set; holding
   // them avoids the "remote description not set" error and a dropped candidate.
   const pendingCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const localStreamRef = useRef<MediaStream | null>(null);
+  // Sentinel so the first run never counts as a stream change.
+  const streamIdRef = useRef<string | null | undefined>(undefined);
   const sendSignalRef = useRef(sendSignal);
   const iceServersRef = useRef(iceServers);
 
@@ -93,6 +100,7 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
         localStreamRef.current = acquired;
         setLocalStream(acquired);
         setMediaError(null);
+        setIsMediaSettled(true);
       })
       .catch((error: DOMException) => {
         if (cancelled) {
@@ -100,9 +108,11 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
         }
         setMediaError(
           error.name === "NotAllowedError"
-            ? "Camera and microphone access was blocked. Allow it in your browser to be seen."
-            : "No camera or microphone was found.",
+            ? "Camera and microphone access was blocked, so nobody can see or hear you. You can still see and hear everyone else."
+            : "No camera or microphone was found. You can still see and hear everyone else.",
         );
+        // Settled, just without media: proceed and join receive-only.
+        setIsMediaSettled(true);
       });
 
     return () => {
@@ -115,6 +125,9 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
 
   const retryMedia = useCallback(() => {
     setMediaError(null);
+    // Park the mesh until the new attempt resolves, otherwise connections would
+    // be rebuilt receive-only mid-retry and then rebuilt again on success.
+    setIsMediaSettled(false);
     setMediaAttempt(attempt => attempt + 1);
   }, []);
 
@@ -174,6 +187,12 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
       if (stream) {
         stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
         void capVideoBitrate(peerConnection);
+      } else {
+        // No camera: still declare receive-only transceivers. Without them the
+        // offer carries no media lines at all and nothing would flow in either
+        // direction, leaving this person staring at an empty room.
+        peerConnection.addTransceiver("video", { direction: "recvonly" });
+        peerConnection.addTransceiver("audio", { direction: "recvonly" });
       }
 
       peerConnection.onicecandidate = event => {
@@ -212,8 +231,18 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
 
   // Open a connection to everyone in the roster, drop the ones who left.
   useEffect(() => {
-    if (!selfPeerId || !localStream) {
+    // Waits for media to settle, but not for media to exist.
+    if (!selfPeerId || !isMediaSettled) {
       return;
+    }
+
+    // If the local stream itself changed (first acquisition, or a successful
+    // retry after a denial), every existing connection was negotiated against
+    // the old set of tracks and has to be rebuilt.
+    const currentStreamId = localStream?.id ?? null;
+    if (streamIdRef.current !== currentStreamId) {
+      streamIdRef.current = currentStreamId;
+      connectionsRef.current.forEach((_connection, peerId) => closeConnection(peerId));
     }
 
     const currentIds = new Set(peers.map(peer => peer.peer_id).filter(id => id !== selfPeerId));
@@ -235,7 +264,7 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
         void dial(peerId, peerConnection);
       }
     });
-  }, [closeConnection, createConnection, dial, localStream, peerIds, peers, selfPeerId]);
+  }, [closeConnection, createConnection, dial, isMediaSettled, localStream, peerIds, peers, selfPeerId]);
 
   // Handle the signaling messages our peers send back.
   useEffect(() => {

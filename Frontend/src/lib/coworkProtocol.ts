@@ -39,6 +39,7 @@ export type IncomingMessage =
     }
   | { type: "peer-joined"; payload: CoworkPeer }
   | { type: "peer-left"; payload: { peer_id: string } }
+  | { type: "room-ended"; payload: { reason: "host-ended" | "expired" } }
   | { type: "task-list"; from: string; payload: { tasks: SharedTask[] } }
   | { type: "offer" | "answer" | "ice-candidate"; from: string; payload: Record<string, unknown> }
   | { type: "pong" }
@@ -65,6 +66,12 @@ const FATAL_CLOSE_CODES: number[] = [
 // Retrying these would just fail again in a loop — surface them to the user instead.
 export function isFatalCloseCode(code: number) {
   return FATAL_CLOSE_CODES.includes(code);
+}
+
+export function describeRoomEnded(reason: "host-ended" | "expired") {
+  return reason === "expired"
+    ? "This room expired and has been closed."
+    : "The host ended this room.";
 }
 
 export function describeCloseCode(code: number) {

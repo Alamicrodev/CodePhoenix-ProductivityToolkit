@@ -172,6 +172,42 @@ describe("useCoworkRoom", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
+  it("explains a host-ended room and does not reconnect", async () => {
+    vi.useFakeTimers();
+    const view = renderHook(() => useCoworkRoom("abc", "tok-1"));
+    await act(async () => {
+      latestSocket().serverAccept();
+      latestSocket().serverSend(welcome());
+    });
+
+    // The server sends the reason, then closes.
+    await act(async () => {
+      latestSocket().serverSend({ type: "room-ended", payload: { reason: "host-ended" } });
+      latestSocket().serverClose(CLOSE_CODES.roomNotFound);
+    });
+
+    // The specific reason must survive the close frame that follows it, rather
+    // than being overwritten by the generic close-code wording.
+    expect(view.result.current.fatalError).toBe("The host ended this room.");
+    expect(view.result.current.connectionState).toBe("closed");
+    expect(view.result.current.peers).toEqual([]);
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  it("distinguishes an expired room from one the host closed", async () => {
+    const view = await connectedRoom();
+
+    await act(async () =>
+      latestSocket().serverSend({ type: "room-ended", payload: { reason: "expired" } }),
+    );
+
+    expect(view.result.current.fatalError).toMatch(/expired/i);
+  });
+
   it("reconnects after an ordinary drop", async () => {
     vi.useFakeTimers();
     const view = renderHook(() => useCoworkRoom("abc", "tok-1"));

@@ -8,6 +8,7 @@ the browsers talk directly, which is the only reason this fits on a free plan.
 
 import asyncio
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
@@ -33,6 +34,9 @@ WS_UNAUTHORIZED = 4401
 WS_ROOM_FULL = 4403
 WS_ROOM_NOT_FOUND = 4404
 WS_ALREADY_JOINED = 4409
+# Reuses 4404: from the client's point of view "the host ended it" and "it
+# expired" both mean the room is gone, and the UI copy already says so.
+WS_ROOM_ENDED = 4404
 
 # The client pings every 30s; three missed pings and we assume the socket is a
 # half-open zombie (common when a laptop sleeps or a phone changes network).
@@ -87,6 +91,9 @@ async def cowork_socket(
     # call — the Supabase pooler has a small connection budget on the free tier.
     room_title = cowork_session.title
     host_user_id = cowork_session.host_user_id
+    # Held locally so the expiry check below costs nothing — re-querying per
+    # heartbeat would mean a database round trip every 30s per participant.
+    expires_at = cowork_session.expires_at
     display_name = user.full_name
     db.close()
 
@@ -133,6 +140,14 @@ async def cowork_socket(
                 raw = await asyncio.wait_for(websocket.receive_json(), timeout=IDLE_TIMEOUT_SECONDS)
             except asyncio.TimeoutError:
                 break
+
+            # A room can lapse while people are still inside it. Clients ping
+            # every 30s, so checking on inbound traffic evicts them promptly
+            # without a timer or a database hit.
+            if datetime.now(timezone.utc) >= expires_at:
+                await room_registry.close_room(slug, WS_ROOM_ENDED, "expired")
+                break
+
             await _handle_message(slug, peer, raw)
     except WebSocketDisconnect:
         pass
