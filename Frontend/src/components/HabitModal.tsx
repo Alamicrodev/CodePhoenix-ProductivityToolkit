@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useData } from "../context/DataContext";
+import type { Habit } from "../context/DataContext";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ import { splitClockTime12, toClockTime24 } from "../lib/timeFormat";
 interface HabitModalProps {
   isOpen: boolean;
   onClose: () => void;
+  habit?: Habit;
 }
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
@@ -96,15 +98,18 @@ function TimePicker12({
   );
 }
 
-export function HabitModal({ isOpen, onClose }: HabitModalProps) {
-  const { addHabit, isSyncing } = useData();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [frequency, setFrequency] = useState<"hourly" | "daily" | "weekly">("daily");
-  const [hourlyInterval, setHourlyInterval] = useState<number>(1);
-  const [activeHoursStart, setActiveHoursStart] = useState("07:00");
-  const [activeHoursEnd, setActiveHoursEnd] = useState("22:00");
-  const [activeDays, setActiveDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // All days by default
+export function HabitModal({ isOpen, onClose, habit }: HabitModalProps) {
+  const { addHabit, updateHabit, isSyncing } = useData();
+  const isEditing = Boolean(habit);
+  const [title, setTitle] = useState(habit?.title ?? "");
+  const [description, setDescription] = useState(habit?.description ?? "");
+  const [frequency, setFrequency] = useState<"hourly" | "daily" | "weekly">(habit?.frequency ?? "daily");
+  const [hourlyInterval, setHourlyInterval] = useState<number>(habit?.hourlyInterval ?? 1);
+  const [activeHoursStart, setActiveHoursStart] = useState(habit?.activeHours?.start ?? "07:00");
+  const [activeHoursEnd, setActiveHoursEnd] = useState(habit?.activeHours?.end ?? "22:00");
+  const [activeDays, setActiveDays] = useState<number[]>(
+    habit?.activeDays && habit.activeDays.length > 0 ? habit.activeDays : [0, 1, 2, 3, 4, 5, 6],
+  );
 
   const daysOfWeek = [
     { value: 0, label: "Sun" },
@@ -136,7 +141,8 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await addHabit({
+
+    const scheduleFields = {
       title,
       description,
       frequency,
@@ -145,12 +151,21 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
         activeHours: { start: activeHoursStart, end: activeHoursEnd },
       }),
       ...(frequency !== "weekly" && { activeDays }), // Add activeDays for hourly and daily
-      streak: 0,
-      lastCompleted: null,
-      completedDates: [],
-      occurrences: [],
-    });
-    resetForm();
+    };
+
+    if (habit) {
+      await updateHabit(habit.id, scheduleFields);
+    } else {
+      await addHabit({
+        ...scheduleFields,
+        streak: 0,
+        lastCompleted: null,
+        completedDates: [],
+        occurrences: [],
+      });
+      resetForm();
+    }
+
     onClose();
   };
 
@@ -158,9 +173,9 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Habit</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Habit" : "Create New Habit"}</DialogTitle>
           <DialogDescription>
-            Add a new habit to track your progress.
+            {isEditing ? "Update this habit's details." : "Add a new habit to track your progress."}
           </DialogDescription>
         </DialogHeader>
 
@@ -282,7 +297,13 @@ export function HabitModal({ isOpen, onClose }: HabitModalProps) {
             </Button>
             <Button type="submit" disabled={isSyncing} className="gap-2">
               {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isSyncing ? "Creating..." : "Create Habit"}
+              {isSyncing
+                ? isEditing
+                  ? "Saving..."
+                  : "Creating..."
+                : isEditing
+                  ? "Save Changes"
+                  : "Create Habit"}
             </Button>
           </DialogFooter>
         </form>

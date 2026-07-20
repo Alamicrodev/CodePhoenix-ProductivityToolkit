@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router";
 import AuthGuard from "./AuthGuard";
 import DashboardPage from "../pages/DashboardPage";
 import FocusPage from "../pages/FocusPage";
+import HabitDetailPage from "../pages/HabitDetailPage";
 import HabitsPage from "../pages/HabitsPage";
 import LoginPage from "../pages/LoginPage";
 import ProfilePage from "../pages/ProfilePage";
@@ -26,6 +27,7 @@ export const appRouter = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: "tasks", element: <TasksPage /> },
       { path: "habits", element: <HabitsPage /> },
+      { path: "habits/:habitId", element: <HabitDetailPage /> },
       { path: "focus", element: <FocusPage /> },
       { path: "schedule", element: <SchedulePage /> },
       { path: "profile", element: <ProfilePage /> },

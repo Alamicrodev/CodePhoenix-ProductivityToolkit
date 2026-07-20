@@ -20,19 +20,19 @@ function cloneDate(date: Date) {
   return new Date(date.getTime());
 }
 
-function startOfLocalDay(date: Date) {
+export function startOfLocalDay(date: Date) {
   const copy = cloneDate(date);
   copy.setHours(0, 0, 0, 0);
   return copy;
 }
 
-function endOfLocalDay(date: Date) {
+export function endOfLocalDay(date: Date) {
   const copy = cloneDate(date);
   copy.setHours(23, 59, 59, 999);
   return copy;
 }
 
-function addDays(date: Date, amount: number) {
+export function addDays(date: Date, amount: number) {
   const copy = cloneDate(date);
   copy.setDate(copy.getDate() + amount);
   return copy;
@@ -42,13 +42,13 @@ function addHours(date: Date, amount: number) {
   return new Date(date.getTime() + amount * HOUR_MS);
 }
 
-function startOfWeek(date: Date) {
+export function startOfWeek(date: Date) {
   const copy = startOfLocalDay(date);
   copy.setDate(copy.getDate() - copy.getDay());
   return copy;
 }
 
-function parseStoredDate(value: string) {
+export function parseStoredDate(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split("-").map(Number);
     return new Date(year, month - 1, day);
@@ -57,7 +57,7 @@ function parseStoredDate(value: string) {
   return new Date(value);
 }
 
-function localDateKey(date: Date) {
+export function localDateKey(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
@@ -108,7 +108,7 @@ function formatHabitDueSoonLabel(habit: Habit, now: Date) {
   return "Due this week";
 }
 
-function isActiveDay(habit: Habit, date: Date) {
+export function isActiveDay(habit: Habit, date: Date) {
   const activeDays = habit.activeDays ?? [];
   return activeDays.length === 0 || activeDays.includes(date.getDay());
 }
@@ -135,7 +135,7 @@ function isWithinActiveHours(habit: Habit, date: Date) {
   return currentMinutes >= startMinutesOfDay || currentMinutes < endMinutesOfDay;
 }
 
-function getHourlyWindowBounds(habit: Habit, date: Date) {
+export function getHourlyWindowBounds(habit: Habit, date: Date) {
   const dayStart = startOfLocalDay(date);
 
   if (!habit.activeHours) {
@@ -160,7 +160,7 @@ function getHourlyWindowBounds(habit: Habit, date: Date) {
   return { start, end };
 }
 
-function hasCompletionInRange(habit: Habit, start: Date, end: Date) {
+export function hasCompletionInRange(habit: Habit, start: Date, end: Date) {
   if (habit.frequency === "hourly") {
     return habit.completedDates.some(entry => {
       const completion = new Date(entry);
@@ -186,7 +186,7 @@ function hasCompletionInRange(habit: Habit, start: Date, end: Date) {
   });
 }
 
-function hasSkipInRange(habit: Habit, start: Date, end: Date) {
+export function hasSkipInRange(habit: Habit, start: Date, end: Date) {
   const skips = habit.occurrences ?? [];
 
   if (habit.frequency === "hourly") {
@@ -245,7 +245,7 @@ function createSlot(
   return { start, end, status, label };
 }
 
-function buildHourlySlotsForDay(habit: Habit, day: Date, cutoff: Date, createdAt?: Date | null) {
+export function buildHourlySlotsForDay(habit: Habit, day: Date, cutoff: Date, createdAt?: Date | null) {
   const intervalHours = habit.hourlyInterval || 1;
   const slots: HabitHistorySlot[] = [];
   const { start: activeStart, end: activeEnd } = getHourlyWindowBounds(habit, day);

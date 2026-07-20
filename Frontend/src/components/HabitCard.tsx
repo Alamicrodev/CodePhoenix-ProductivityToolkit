@@ -1,5 +1,6 @@
 import { Habit } from "../context/DataContext";
 import { useData } from "../context/DataContext";
+import { Link } from "react-router";
 import { Button } from "./ui/button";
 import { Check, Flame, MoreVertical, Trash2, Clock, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -116,7 +117,11 @@ export function HabitCard({ habit }: HabitCardProps) {
 
       <div className="flex items-start justify-between mb-4 pr-8">
         <div className="flex-1 pr-4">
-          <h3 className="font-semibold mb-1">{habit.title}</h3>
+          <h3 className="font-semibold mb-1">
+            <Link to={`/habits/${habit.id}`} className="hover:underline">
+              {habit.title}
+            </Link>
+          </h3>
           <p className="text-sm text-muted-foreground line-clamp-2">
             {habit.description}
           </p>
