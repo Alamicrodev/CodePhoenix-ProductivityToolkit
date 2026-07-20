@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, useLocation, Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../lib/api";
 import { Button } from "../components/ui/button";
@@ -15,6 +15,12 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Same deep-link handoff as LoginPage: an invite link that lands on /register
+  // should still finish at the room the user was invited to.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +28,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       await register(email, password, name);
-      navigate("/");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to create your account. Please try again."));
     } finally {
@@ -110,7 +116,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Link to="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            <Link to="/login" state={location.state} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
               Sign in
             </Link>
           </div>

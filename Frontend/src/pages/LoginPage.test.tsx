@@ -10,14 +10,15 @@ import LoginPage from "./LoginPage";
 
 const API_USER = { id: "u1", email: "user@example.com", full_name: "Test User" };
 
-function renderLogin() {
+function renderLogin(initialEntry: string | { pathname: string; state?: unknown } = "/login") {
   const router = createMemoryRouter(
     [
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <div>REGISTER PAGE</div> },
+      { path: "/cowork/:slug", element: <div>ROOM PAGE</div> },
       { path: "/", element: <div>HOME</div> },
     ],
-    { initialEntries: ["/login"] },
+    { initialEntries: [initialEntry] },
   );
   return render(
     <AuthProvider>
@@ -42,6 +43,23 @@ describe("LoginPage", () => {
 
     expect(await screen.findByText("HOME")).toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBe("tok-1");
+  });
+
+  it("returns to the page the guard redirected away from", async () => {
+    server.use(
+      http.post(`${API}/auth/login`, () =>
+        HttpResponse.json({ access_token: "tok-1", token_type: "bearer" }),
+      ),
+      http.get(`${API}/auth/me`, () => HttpResponse.json(API_USER)),
+    );
+    // AuthGuard sends this state along when it bounces an unauthenticated visitor.
+    renderLogin({ pathname: "/login", state: { from: { pathname: "/cowork/abc123", search: "" } } });
+
+    await userEvent.type(screen.getByLabelText("Email"), "user@example.com");
+    await userEvent.type(screen.getByLabelText("Password"), "password123");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("ROOM PAGE")).toBeInTheDocument();
   });
 
   it("shows the backend error and stays on the page when credentials are rejected", async () => {

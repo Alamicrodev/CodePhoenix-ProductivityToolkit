@@ -20,8 +20,25 @@ class Settings(BaseSettings):
             "http://localhost:5173",    #lambda (just assume theres a function here which returns this list), we do this to create a new list(with diff reference each time)
             "http://127.0.0.1:5173",    #this means everytime you call settings() we get a new list with different memory address
         ],                                 
-        alias="CORS_ORIGINS",             
-    )                                      
+        alias="CORS_ORIGINS",
+    )
+
+    # WebRTC ICE servers, served to the browser by GET /cowork-sessions/ice-config.
+    # Keeping them server-side (instead of baking them into the Vite bundle) means
+    # TURN credentials stay out of the frontend build and the provider can be
+    # swapped without redeploying the frontend.
+    stun_urls: List[str] = Field(
+        default_factory=lambda: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+        ],
+        alias="STUN_URLS",
+    )
+    # Without TURN, peers behind symmetric NAT (corporate / campus / some mobile
+    # networks) simply cannot connect to each other.
+    turn_urls: List[str] = Field(default_factory=list, alias="TURN_URLS")
+    turn_username: str | None = Field(default=None, alias="TURN_USERNAME")
+    turn_credential: str | None = Field(default=None, alias="TURN_CREDENTIAL")
 
     model_config = SettingsConfigDict(    
         env_file=".env",                    #look for this file for env vars
