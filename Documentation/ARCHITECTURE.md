@@ -220,7 +220,11 @@ Operational notes:
   case. Peer-to-peer video keeps flowing while signaling is down.
 - ICE servers are served by `GET /cowork-sessions/ice-config` so TURN
   credentials stay out of the frontend bundle and the provider can be swapped
-  without a frontend deploy.
+  without a frontend deploy. TURN is Cloudflare Realtime, which issues
+  short-lived credentials rather than a fixed username/password: the backend
+  holds the long-term key and mints one per request. If Cloudflare is
+  unreachable the endpoint degrades to STUN-only and flags `has_turn: false`
+  rather than failing the room.
 
 ## API Design
 

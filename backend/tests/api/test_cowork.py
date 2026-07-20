@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.websockets import WebSocketDisconnect
 
+from app.api.routes import cowork as cowork_route
 from app.models.cowork import CoworkSession
 from app.services import cowork_rooms
 from app.services.cowork_rooms import room_registry
@@ -119,13 +120,38 @@ class TestCoworkRoomsApi:
         db.expire_all()
         assert db.get(CoworkSession, room["id"]).status == "ended"
 
-    def test_ice_config_exposes_stun_and_reports_missing_turn(self, client, auth_headers):
+    def test_ice_config_falls_back_to_stun_when_turn_is_unavailable(self, client, monkeypatch, auth_headers):
+        # Either unconfigured or Cloudflare failing — both land here.
+        monkeypatch.setattr(cowork_route, "fetch_turn_ice_servers", lambda: None)
+
         config = client.get(f"{API}/cowork-sessions/ice-config", headers=auth_headers).json()
 
         assert any("stun:" in url for server in config["ice_servers"] for url in server["urls"])
-        # No TURN configured in the test environment, and the flag must say so
-        # rather than pretending peers behind symmetric NAT will connect.
+        # The flag must say so rather than pretending peers behind symmetric NAT
+        # will connect — the room UI renders a warning off this.
         assert config["has_turn"] is False
+
+    def test_ice_config_serves_minted_turn_credentials(self, client, monkeypatch, auth_headers):
+        monkeypatch.setattr(
+            cowork_route,
+            "fetch_turn_ice_servers",
+            lambda: [
+                {
+                    "urls": ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"],
+                    "username": "minted-user",
+                    "credential": "minted-secret",
+                }
+            ],
+        )
+
+        config = client.get(f"{API}/cowork-sessions/ice-config", headers=auth_headers).json()
+
+        assert config["has_turn"] is True
+        assert config["ice_servers"][0]["username"] == "minted-user"
+
+    def test_ice_config_requires_authentication(self, client):
+        # The credential is short-lived but still a credential.
+        assert client.get(f"{API}/cowork-sessions/ice-config").status_code == 401
 
 
 class TestCoworkSocket:

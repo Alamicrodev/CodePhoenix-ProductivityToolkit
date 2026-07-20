@@ -7,7 +7,10 @@
 > **Not yet verified: two real webcams connecting.** The verification browser
 > blocks camera access, so the WebRTC mesh has only been exercised through its
 > signaling path. The manual NAT test matrix in Phase 3 is still outstanding and
-> is the remaining risk. Remaining: WS ticket auth, guest access, Phase 5.
+> is the remaining risk. Cloudflare Realtime TURN is wired and confirmed minting
+> live credentials. Remaining: the NAT matrix, evicting live participants when a
+> room ends, receive-only mode for users without a camera, WS ticket auth,
+> guest access, Phase 5.
 
 Shareable coworking rooms: a user creates a room, shares a link, and up to ~5 people
 see each other's webcams and each other's "working on" task lists in real time.

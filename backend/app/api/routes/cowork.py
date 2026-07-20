@@ -20,6 +20,7 @@ from app.services.cowork import (
     serialize_cowork_session,
 )
 from app.services.cowork_rooms import room_registry
+from app.services.turn import fetch_turn_ice_servers
 
 router = APIRouter(prefix="/cowork-sessions", tags=["cowork-sessions"])
 settings = get_settings()
@@ -50,16 +51,21 @@ def create_cowork_session_route(
 #declared before /{slug} so the literal path wins the match.
 @router.get("/ice-config", response_model=IceConfigResponse)
 def get_ice_config(current_user: User = Depends(get_current_user)):
-    ice_servers = [IceServerResponse(urls=list(settings.stun_urls))]
-    if settings.turn_urls:
-        ice_servers.append(
-            IceServerResponse(
-                urls=list(settings.turn_urls),
-                username=settings.turn_username,
-                credential=settings.turn_credential,
-            )
+    # Cloudflare's response already bundles STUN alongside the relay, so it
+    # replaces the fallback list rather than adding to it.
+    turn_servers = fetch_turn_ice_servers()
+    if turn_servers:
+        return IceConfigResponse(
+            ice_servers=[IceServerResponse(**server) for server in turn_servers],
+            has_turn=True,
         )
-    return IceConfigResponse(ice_servers=ice_servers, has_turn=bool(settings.turn_urls))
+
+    # Degrade to STUN-only rather than breaking the room: most home networks
+    # still connect, and the UI warns about the ones that will not.
+    return IceConfigResponse(
+        ice_servers=[IceServerResponse(urls=list(settings.stun_urls))],
+        has_turn=False,
+    )
 
 
 #room details for the join page — 404s once the room has ended or expired

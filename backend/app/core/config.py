@@ -36,9 +36,15 @@ class Settings(BaseSettings):
     )
     # Without TURN, peers behind symmetric NAT (corporate / campus / some mobile
     # networks) simply cannot connect to each other.
-    turn_urls: List[str] = Field(default_factory=list, alias="TURN_URLS")
-    turn_username: str | None = Field(default=None, alias="TURN_USERNAME")
-    turn_credential: str | None = Field(default=None, alias="TURN_CREDENTIAL")
+    #
+    # Cloudflare Realtime issues short-lived credentials rather than a fixed
+    # username/password, so the backend holds the long-term key and mints a fresh
+    # credential per request. The key must never reach the browser.
+    turn_key_id: str | None = Field(default=None, alias="TURN_KEY_ID")
+    turn_key_api_token: str | None = Field(default=None, alias="TURN_KEY_API_TOKEN")
+    # Credentials that expire mid-call kill the relay, so this wants to be longer
+    # than the longest plausible cowork session. Cloudflare's ceiling is 48h.
+    turn_credential_ttl_seconds: int = Field(21600, alias="TURN_CREDENTIAL_TTL_SECONDS")
 
     model_config = SettingsConfigDict(    
         env_file=".env",                    #look for this file for env vars
