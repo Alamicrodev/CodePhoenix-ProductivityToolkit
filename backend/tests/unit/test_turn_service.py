@@ -73,13 +73,21 @@ def test_mints_a_credential_with_the_key_and_ttl(configured, monkeypatch):
     assert captured["json"] == {"ttl": 21600}
     assert servers[0]["username"] == "user-xyz"
     assert any(url.startswith("turn:") for url in servers[0]["urls"])
+    # The TLS relay on 5349 is the only fallback that works through firewalls
+    # that block UDP and plain TCP — it must survive normalization.
+    assert "turns:turn.cloudflare.com:5349?transport=tcp" in servers[0]["urls"]
 
 
 def test_drops_port_53_urls_browsers_cannot_use(configured, monkeypatch):
     payload = {
         "iceServers": [
             {
-                "urls": ["turn:turn.cloudflare.com:3478", "turn:turn.cloudflare.com:53"],
+                "urls": [
+                    "turn:turn.cloudflare.com:3478",
+                    "turn:turn.cloudflare.com:53",
+                    "turn:turn.cloudflare.com:53?transport=udp",
+                    "turns:turn.cloudflare.com:5349?transport=tcp",
+                ],
                 "username": "u",
                 "credential": "c",
             }
@@ -89,8 +97,12 @@ def test_drops_port_53_urls_browsers_cannot_use(configured, monkeypatch):
 
     servers = turn.fetch_turn_ice_servers()
 
-    # Browsers block port 53, so gathering candidates for it only wastes time.
-    assert servers[0]["urls"] == ["turn:turn.cloudflare.com:3478"]
+    # Browsers block port 53, so gathering candidates for it only wastes time —
+    # but ":53" must match as a whole port, not as a prefix of ":5349".
+    assert servers[0]["urls"] == [
+        "turn:turn.cloudflare.com:3478",
+        "turns:turn.cloudflare.com:5349?transport=tcp",
+    ]
 
 
 def test_accepts_a_single_server_object_as_well_as_a_list(configured, monkeypatch):

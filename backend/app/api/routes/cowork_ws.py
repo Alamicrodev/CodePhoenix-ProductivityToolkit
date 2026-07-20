@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,6 @@ from app.models.user import User
 from app.services.cowork import get_joinable_cowork_session_or_404
 from app.services.cowork_rooms import (
     MAX_ROOM_PARTICIPANTS,
-    AlreadyJoinedError,
     Peer,
     RoomFullError,
     room_registry,
@@ -66,6 +65,13 @@ async def cowork_socket(
     token: str = Query(..., description="JWT access token"),
     db: Session = Depends(get_db),
 ):
+    # Accept before any of the checks below: closing a socket that was never
+    # accepted rejects the handshake at the HTTP layer (403), which browsers
+    # surface as an opaque 1006 — the client could then never tell "sign in
+    # again" or "room is gone" apart from a transient drop, and would retry a
+    # rejection forever.
+    await websocket.accept()
+
     # Browsers cannot set headers on a WebSocket handshake, so the JWT arrives as
     # a query param. Phase 4 replaces this with a short-lived single-use ticket so
     # long-lived tokens stay out of URLs and proxy access logs.
@@ -80,9 +86,12 @@ async def cowork_socket(
         await websocket.close(code=WS_UNAUTHORIZED)
         return
 
+    # Only a genuine missing/ended room may read as "not found" — anything else
+    # (say, a database hiccup) must stay a transient error the client retries,
+    # not a fatal "this room has ended".
     try:
         cowork_session = get_joinable_cowork_session_or_404(db, slug)
-    except Exception:
+    except HTTPException:
         await websocket.close(code=WS_ROOM_NOT_FOUND)
         return
 
@@ -97,8 +106,6 @@ async def cowork_socket(
     display_name = user.full_name
     db.close()
 
-    await websocket.accept()
-
     peer = Peer(
         peer_id=str(uuid.uuid4()),
         user_id=user_id,
@@ -107,13 +114,25 @@ async def cowork_socket(
     )
 
     try:
-        existing_peers = await room_registry.join(slug, peer)
+        existing_peers, evicted = await room_registry.join(slug, peer)
     except RoomFullError:
         await websocket.close(code=WS_ROOM_FULL)
         return
-    except AlreadyJoinedError:
-        await websocket.close(code=WS_ALREADY_JOINED)
-        return
+
+    if evicted:
+        # Usually our own zombie socket left over from a network change; closing
+        # it is a formality. If it is a live second tab, that tab gets told it
+        # was replaced (4409 is fatal client-side, so it will not reconnect and
+        # start an eviction ping-pong).
+        try:
+            await evicted.websocket.close(code=WS_ALREADY_JOINED)
+        except Exception:
+            pass
+        await room_registry.broadcast(
+            slug,
+            {"type": "peer-left", "payload": {"peer_id": evicted.peer_id}},
+            exclude_peer_id=peer.peer_id,
+        )
 
     # The joiner gets the full roster so it can open a peer connection to each
     # person already inside; existing peers only need to hear about the new one.
@@ -156,8 +175,11 @@ async def cowork_socket(
         # connection, never the room.
         pass
     finally:
-        await room_registry.leave(slug, peer.peer_id)
-        await room_registry.broadcast(slug, {"type": "peer-left", "payload": {"peer_id": peer.peer_id}})
+        # leave() reports False when this peer was already removed — evicted by
+        # its own reconnect, or swept out by close_room — in which case the room
+        # has already heard about the departure (or no longer exists).
+        if await room_registry.leave(slug, peer.peer_id):
+            await room_registry.broadcast(slug, {"type": "peer-left", "payload": {"peer_id": peer.peer_id}})
 
 
 #route one inbound frame; unknown types are ignored rather than fatal

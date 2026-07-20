@@ -83,7 +83,9 @@ export function describeCloseCode(code: number) {
     case CLOSE_CODES.roomNotFound:
       return "This cowork session has ended.";
     case CLOSE_CODES.alreadyJoined:
-      return "You're already in this room in another tab.";
+      // Sent to the OLDER of two connections from the same user: joining from a
+      // new tab (or reconnecting after a network change) replaces this one.
+      return "You joined this room in another tab, so this one was disconnected.";
     default:
       return "Lost connection to the room.";
   }

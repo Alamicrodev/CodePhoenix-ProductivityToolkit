@@ -116,6 +116,11 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
         return;
       }
 
+      // A leftover `true` from a previous room's ended frame would make this
+      // connection's first ordinary drop look already-explained: no banner and
+      // no reconnect. Every fresh connection starts unexplained.
+      explainedCloseRef.current = false;
+
       const socket = new WebSocket(getWebSocketUrl(`/ws/cowork/${slug}`, { token }));
       socketRef.current = socket;
 

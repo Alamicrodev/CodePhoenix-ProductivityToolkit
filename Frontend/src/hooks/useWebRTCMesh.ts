@@ -11,6 +11,7 @@ const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
   frameRate: { ideal: 15, max: 24 },
 };
 const MAX_VIDEO_BITRATE = 300_000;
+const MEDIA_KINDS = ["video", "audio"] as const;
 
 export interface RemotePeerMedia {
   stream: MediaStream | null;
@@ -34,15 +35,28 @@ interface MeshOptions {
   enabled: boolean;
 }
 
+// Per-pair negotiation state for the "perfect negotiation" pattern.
+interface PeerState {
+  pc: RTCPeerConnection;
+  /** The polite side yields on glare: it drops its own offer and answers. */
+  polite: boolean;
+  makingOffer: boolean;
+  ignoreOffer: boolean;
+  settingRemoteAnswer: boolean;
+}
+
 /**
  * Builds a peer-to-peer mesh: one RTCPeerConnection per other participant, with
  * the signaling handshake relayed through the room socket. Media never reaches
  * our backend, which is the whole reason this runs on a free instance.
  *
- * Glare (both sides offering at once) is avoided by deciding the offerer
- * deterministically — the peer with the smaller id dials — rather than by
- * implementing rollback. Both ends compute the same answer from the same two
- * ids, so exactly one offer is ever created per pair.
+ * Negotiation follows the W3C "perfect negotiation" pattern: either side may
+ * (re)negotiate whenever it needs to — the initial handshake, an ICE restart
+ * after a network change, a camera granted mid-call — and when offers cross,
+ * the polite side (the larger peer id) abandons its own offer and answers while
+ * the impolite side ignores the incoming one. Media changes swap tracks on the
+ * live connection instead of rebuilding it: a teardown is invisible to the
+ * remote side, so only one end would ever re-dial and the pair would strand.
  */
 export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions): WebRTCMesh {
   const { peers, selfPeerId, sendSignal, subscribe } = connection;
@@ -59,13 +73,17 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   // still gets to watch and hear everyone else.
   const [isMediaSettled, setIsMediaSettled] = useState(false);
 
-  const connectionsRef = useRef(new Map<string, RTCPeerConnection>());
+  const connectionsRef = useRef(new Map<string, PeerState>());
   // Candidates can arrive before the answer's remote description is set; holding
   // them avoids the "remote description not set" error and a dropped candidate.
   const pendingCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const localStreamRef = useRef<MediaStream | null>(null);
   // Sentinel so the first run never counts as a stream change.
   const streamIdRef = useRef<string | null | undefined>(undefined);
+  // The peer id this mesh was built as. A reconnect issues a fresh id, everyone
+  // else saw the old id leave, and negotiation roles derive from the id — so a
+  // change invalidates every existing connection.
+  const meshSelfIdRef = useRef<string | null>(null);
   const sendSignalRef = useRef(sendSignal);
   const iceServersRef = useRef(iceServers);
 
@@ -89,8 +107,7 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
     let cancelled = false;
     let stream: MediaStream | null = null;
 
-    navigator.mediaDevices
-      .getUserMedia({ video: VIDEO_CONSTRAINTS, audio: true })
+    acquireLocalMedia()
       .then(acquired => {
         if (cancelled) {
           acquired.getTracks().forEach(track => track.stop());
@@ -99,7 +116,11 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
         stream = acquired;
         localStreamRef.current = acquired;
         setLocalStream(acquired);
-        setMediaError(null);
+        // Success can still mean a partial device set (camera but no mic, or
+        // the reverse) — send what exists and say what is missing.
+        setMediaError(describeMissingDevices(acquired));
+        setIsMicOn(acquired.getAudioTracks().length > 0);
+        setIsCameraOn(acquired.getVideoTracks().length > 0);
         setIsMediaSettled(true);
       })
       .catch((error: DOMException) => {
@@ -125,8 +146,8 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
 
   const retryMedia = useCallback(() => {
     setMediaError(null);
-    // Park the mesh until the new attempt resolves, otherwise connections would
-    // be rebuilt receive-only mid-retry and then rebuilt again on success.
+    // Park the roster effect until the new attempt resolves so connections are
+    // not resynced against a half-changed stream mid-retry.
     setIsMediaSettled(false);
     setMediaAttempt(attempt => attempt + 1);
   }, []);
@@ -162,12 +183,13 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   }, []);
 
   const closeConnection = useCallback((peerId: string) => {
-    const connectionToClose = connectionsRef.current.get(peerId);
-    if (connectionToClose) {
-      connectionToClose.onicecandidate = null;
-      connectionToClose.ontrack = null;
-      connectionToClose.onconnectionstatechange = null;
-      connectionToClose.close();
+    const state = connectionsRef.current.get(peerId);
+    if (state) {
+      state.pc.onnegotiationneeded = null;
+      state.pc.onicecandidate = null;
+      state.pc.ontrack = null;
+      state.pc.onconnectionstatechange = null;
+      state.pc.close();
       connectionsRef.current.delete(peerId);
     }
     pendingCandidatesRef.current.delete(peerId);
@@ -178,54 +200,123 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   }, []);
 
   const createConnection = useCallback(
-    (peerId: string) => {
-      const peerConnection = new RTCPeerConnection({ iceServers: iceServersRef.current });
-      connectionsRef.current.set(peerId, peerConnection);
+    (peerId: string, selfId: string) => {
+      const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
+      const state: PeerState = {
+        pc,
+        // Roles must come out opposite at the two ends, and both ends compute
+        // them from the same pair of ids.
+        polite: selfId > peerId,
+        makingOffer: false,
+        ignoreOffer: false,
+        settingRemoteAnswer: false,
+      };
+      connectionsRef.current.set(peerId, state);
       updateRemote(peerId, { connectionState: "new" });
 
       const stream = localStreamRef.current;
+      for (const kind of MEDIA_KINDS) {
+        const track = stream?.getTracks().find(entry => entry.kind === kind);
+        if (track && stream) {
+          pc.addTransceiver(track, { direction: "sendrecv", streams: [stream] });
+        } else {
+          // No device of this kind (yet): a receive-only transceiver keeps the
+          // m-line in the SDP so media flows inbound now and can turn outbound
+          // later (replaceTrack + direction) without rebuilding the connection.
+          pc.addTransceiver(kind, { direction: "recvonly" });
+        }
+      }
       if (stream) {
-        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-        void capVideoBitrate(peerConnection);
-      } else {
-        // No camera: still declare receive-only transceivers. Without them the
-        // offer carries no media lines at all and nothing would flow in either
-        // direction, leaving this person staring at an empty room.
-        peerConnection.addTransceiver("video", { direction: "recvonly" });
-        peerConnection.addTransceiver("audio", { direction: "recvonly" });
+        void capVideoBitrate(pc);
       }
 
-      peerConnection.onicecandidate = event => {
+      // The transceivers added above queue a negotiationneeded event — this is
+      // what sends the initial offer, and every later one (ICE restart, a
+      // direction change). Both ends fire it; glare resolves via politeness.
+      pc.onnegotiationneeded = async () => {
+        try {
+          state.makingOffer = true;
+          await pc.setLocalDescription();
+          const description = pc.localDescription;
+          if (description) {
+            sendSignalRef.current("offer", peerId, { sdp: description.sdp, type: description.type });
+          }
+        } catch {
+          // A failed offer is superseded by the next negotiationneeded event.
+        } finally {
+          state.makingOffer = false;
+        }
+      };
+
+      pc.onicecandidate = event => {
         if (event.candidate) {
           sendSignalRef.current("ice-candidate", peerId, event.candidate.toJSON() as Record<string, unknown>);
         }
       };
 
-      peerConnection.ontrack = event => {
-        updateRemote(peerId, { stream: event.streams[0] ?? null });
+      pc.ontrack = event => {
+        const eventStream = event.streams[0] ?? null;
+        setRemoteMedia(current => {
+          const existing = current[peerId] ?? { stream: null, connectionState: "new" as RTCPeerConnectionState };
+          let stream = eventStream ?? existing.stream;
+          if (!eventStream) {
+            // A track renegotiated onto a live pair (a camera granted after the
+            // handshake) may carry no stream association; collect such tracks
+            // into the stream already rendered for this peer.
+            stream = stream ?? new MediaStream();
+            if (!stream.getTracks().includes(event.track)) {
+              stream.addTrack(event.track);
+            }
+          }
+          return { ...current, [peerId]: { ...existing, stream } };
+        });
       };
 
-      peerConnection.onconnectionstatechange = () => {
-        updateRemote(peerId, { connectionState: peerConnection.connectionState });
+      pc.onconnectionstatechange = () => {
+        updateRemote(peerId, { connectionState: pc.connectionState });
         // A failed pair usually means the network path changed (or there is no
-        // TURN and this pair needs one). An ICE restart is cheap; try once.
-        if (peerConnection.connectionState === "failed") {
-          peerConnection.restartIce();
+        // TURN and this pair needs one). restartIce() queues negotiationneeded,
+        // so the handler above ships a fresh offer with new ICE credentials.
+        if (pc.connectionState === "failed") {
+          pc.restartIce();
         }
       };
 
-      return peerConnection;
+      return state;
     },
     [updateRemote],
   );
 
-  const dial = useCallback(async (peerId: string, peerConnection: RTCPeerConnection) => {
-    try {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      sendSignalRef.current("offer", peerId, { sdp: offer.sdp, type: offer.type });
-    } catch {
-      // The pair will retry when either side reconnects.
+  // Push the current local stream into a live connection. replaceTrack swaps
+  // media without renegotiating; the direction change is what queues
+  // negotiationneeded and renegotiates the pair in place.
+  const applyLocalStream = useCallback((state: PeerState) => {
+    const stream = localStreamRef.current;
+    for (const kind of MEDIA_KINDS) {
+      const track = stream?.getTracks().find(entry => entry.kind === kind) ?? null;
+      const transceiver = state.pc.getTransceivers().find(entry => entry.receiver.track.kind === kind);
+      if (!transceiver) {
+        continue;
+      }
+      const sender = transceiver.sender as RTCRtpSender & {
+        setStreams?: (...streams: MediaStream[]) => void;
+      };
+      try {
+        void sender.replaceTrack(track).catch(() => undefined);
+        if (track && stream) {
+          // Associates the track with our stream id so the remote's ontrack
+          // sees event.streams; browsers without setStreams are covered by the
+          // bare-track fallback in ontrack.
+          sender.setStreams?.(stream);
+        }
+        transceiver.direction = track ? "sendrecv" : "recvonly";
+      } catch {
+        // A transceiver in a closing connection can reject any of these; the
+        // roster effect will drop the connection shortly.
+      }
+    }
+    if (stream) {
+      void capVideoBitrate(state.pc);
     }
   }, []);
 
@@ -236,35 +327,38 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
       return;
     }
 
-    // If the local stream itself changed (first acquisition, or a successful
-    // retry after a denial), every existing connection was negotiated against
-    // the old set of tracks and has to be rebuilt.
+    // Reconnected under a fresh peer id: everyone else saw our old id leave and
+    // a "new" peer arrive, so their end of each old connection is going away.
+    // Start the mesh over; the roster below re-dials with the new roles.
+    if (meshSelfIdRef.current !== selfPeerId) {
+      meshSelfIdRef.current = selfPeerId;
+      connectionsRef.current.forEach((_state, peerId) => closeConnection(peerId));
+    }
+
+    // The local stream changed (first acquisition, or a retry after a denial):
+    // swap the tracks into every live connection. The pairs renegotiate in
+    // place — tearing them down would strand every pair whose remote end never
+    // learns it needs to dial again.
     const currentStreamId = localStream?.id ?? null;
     if (streamIdRef.current !== currentStreamId) {
       streamIdRef.current = currentStreamId;
-      connectionsRef.current.forEach((_connection, peerId) => closeConnection(peerId));
+      connectionsRef.current.forEach(state => applyLocalStream(state));
     }
 
-    const currentIds = new Set(peers.map(peer => peer.peer_id).filter(id => id !== selfPeerId));
+    const currentIds = new Set(peerIds.split(",").filter(id => id && id !== selfPeerId));
 
-    connectionsRef.current.forEach((_connection, peerId) => {
+    connectionsRef.current.forEach((_state, peerId) => {
       if (!currentIds.has(peerId)) {
         closeConnection(peerId);
       }
     });
 
     currentIds.forEach(peerId => {
-      if (connectionsRef.current.has(peerId)) {
-        return;
-      }
-      const peerConnection = createConnection(peerId);
-      // Deterministic offerer: both ends compare the same pair of ids, so exactly
-      // one of them dials and there is no glare to resolve.
-      if (selfPeerId < peerId) {
-        void dial(peerId, peerConnection);
+      if (!connectionsRef.current.has(peerId)) {
+        createConnection(peerId, selfPeerId);
       }
     });
-  }, [closeConnection, createConnection, dial, isMediaSettled, localStream, peerIds, peers, selfPeerId]);
+  }, [applyLocalStream, closeConnection, createConnection, isMediaSettled, localStream, peerIds, selfPeerId]);
 
   // Handle the signaling messages our peers send back.
   useEffect(() => {
@@ -278,44 +372,68 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
       }
 
       const peerId = message.from;
-      let peerConnection = connectionsRef.current.get(peerId);
+      let state = connectionsRef.current.get(peerId);
 
-      if (message.type === "offer") {
-        // The offer may arrive before the roster update that would have created
-        // this connection, so build it on demand.
-        if (!peerConnection) {
-          peerConnection = createConnection(peerId);
+      if (message.type === "offer" || message.type === "answer") {
+        const description = message.payload as unknown as RTCSessionDescriptionInit;
+
+        if (!state) {
+          if (description.type !== "offer") {
+            return;
+          }
+          // The offer may arrive before the roster update that would have
+          // created this connection, so build it on demand.
+          state = createConnection(peerId, selfPeerId);
         }
-        await peerConnection.setRemoteDescription(message.payload as unknown as RTCSessionDescriptionInit);
-        await drainCandidates(peerConnection, pendingCandidatesRef.current, peerId);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        sendSignalRef.current("answer", peerId, { sdp: answer.sdp, type: answer.type });
+        const { pc } = state;
+
+        // Glare check: an offer landing while our own offer is in flight. The
+        // impolite side ignores it (its own offer will win); the polite side
+        // lets setRemoteDescription implicitly roll its half-made offer back.
+        const readyForOffer =
+          !state.makingOffer && (pc.signalingState === "stable" || state.settingRemoteAnswer);
+        const offerCollision = description.type === "offer" && !readyForOffer;
+        state.ignoreOffer = !state.polite && offerCollision;
+        if (state.ignoreOffer) {
+          return;
+        }
+
+        state.settingRemoteAnswer = description.type === "answer";
+        try {
+          await pc.setRemoteDescription(description);
+        } finally {
+          state.settingRemoteAnswer = false;
+        }
+        await drainCandidates(pc, pendingCandidatesRef.current, peerId);
+
+        if (description.type === "offer") {
+          await pc.setLocalDescription();
+          const answer = pc.localDescription;
+          if (answer) {
+            sendSignalRef.current("answer", peerId, { sdp: answer.sdp, type: answer.type });
+          }
+        }
         return;
       }
 
-      if (!peerConnection) {
-        return;
-      }
-
-      if (message.type === "answer") {
-        await peerConnection.setRemoteDescription(message.payload as unknown as RTCSessionDescriptionInit);
-        await drainCandidates(peerConnection, pendingCandidatesRef.current, peerId);
+      if (!state) {
         return;
       }
 
       const candidate = message.payload as unknown as RTCIceCandidateInit;
-      if (!peerConnection.remoteDescription) {
+      if (!state.pc.remoteDescription) {
         const queued = pendingCandidatesRef.current.get(peerId) ?? [];
         queued.push(candidate);
         pendingCandidatesRef.current.set(peerId, queued);
         return;
       }
-      await peerConnection.addIceCandidate(candidate).catch(() => undefined);
+      // Candidates belonging to an offer we chose to ignore fail against the
+      // wrong remote description — expected during glare, not an error.
+      await state.pc.addIceCandidate(candidate).catch(() => undefined);
     };
 
     return subscribe(message => {
-      void handle(message);
+      handle(message).catch(() => undefined);
     });
   }, [createConnection, selfPeerId, subscribe]);
 
@@ -323,7 +441,7 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   useEffect(() => {
     const connections = connectionsRef.current;
     return () => {
-      connections.forEach(peerConnection => peerConnection.close());
+      connections.forEach(state => state.pc.close());
       connections.clear();
       pendingCandidatesRef.current.clear();
     };
@@ -339,6 +457,39 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
     mediaError,
     retryMedia,
   };
+}
+
+// Ask for camera+mic, then fall back to whichever single device exists — a user
+// with a webcam but no microphone must still be seen, and vice versa. A denied
+// permission stays denied no matter how little is asked for, so stop there.
+async function acquireLocalMedia(): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    { video: VIDEO_CONSTRAINTS, audio: true },
+    { video: VIDEO_CONSTRAINTS, audio: false },
+    { video: false, audio: true },
+  ];
+  let lastError: unknown = null;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+      if ((error as DOMException).name === "NotAllowedError") {
+        break;
+      }
+    }
+  }
+  throw lastError;
+}
+
+function describeMissingDevices(stream: MediaStream): string | null {
+  if (!stream.getVideoTracks().length) {
+    return "No camera was found — others will hear you but not see you.";
+  }
+  if (!stream.getAudioTracks().length) {
+    return "No microphone was found — others will see you but not hear you.";
+  }
+  return null;
 }
 
 //keep each outgoing video stream small enough that N-1 copies still fit upstream

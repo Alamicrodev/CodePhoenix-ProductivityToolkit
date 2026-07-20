@@ -305,17 +305,50 @@ class TestCoworkSocket:
 
         assert excinfo.value.code == 4404
 
-    def test_same_user_cannot_occupy_two_tiles(self, client, auth_headers):
+    def test_reconnecting_user_replaces_their_own_stale_socket(self, client, auth_headers):
+        # After a network change the server can still hold a half-open socket for
+        # this user (it only notices at the idle timeout). The reconnect must win
+        # — refusing it would lock the user out until the zombie is pruned.
         room = create_room(client, auth_headers)
 
-        with client.websocket_connect(socket_url(room["slug"], auth_headers)) as socket:
-            socket.receive_json()
+        with client.websocket_connect(socket_url(room["slug"], auth_headers)) as stale:
+            stale.receive_json()  # welcome
 
-            with pytest.raises(WebSocketDisconnect) as excinfo:
-                with client.websocket_connect(socket_url(room["slug"], auth_headers)) as duplicate:
-                    duplicate.receive_json()
+            with client.websocket_connect(socket_url(room["slug"], auth_headers)) as fresh:
+                fresh_welcome = fresh.receive_json()
+                # The replacement starts clean — it must not see its own ghost.
+                assert fresh_welcome["type"] == "welcome"
+                assert fresh_welcome["payload"]["peers"] == []
+
+                # The older connection is told it was replaced; 4409 is fatal on
+                # the client so the losing tab will not reconnect and ping-pong.
+                with pytest.raises(WebSocketDisconnect) as excinfo:
+                    stale.receive_json()
 
         assert excinfo.value.code == 4409
+
+    def test_replacing_a_stale_socket_notifies_the_rest_of_the_room(
+        self, client, auth_headers, other_auth_headers
+    ):
+        room = create_room(client, auth_headers)
+
+        with client.websocket_connect(socket_url(room["slug"], auth_headers)) as host_socket:
+            host_socket.receive_json()  # welcome
+
+            with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as stale:
+                old_id = stale.receive_json()["payload"]["peer_id"]
+                assert host_socket.receive_json()["payload"]["peer_id"] == old_id  # peer-joined
+
+                with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as fresh:
+                    new_id = fresh.receive_json()["payload"]["peer_id"]
+
+                    # The host must swap the old tile for the new one, not stack them.
+                    left = host_socket.receive_json()
+                    joined = host_socket.receive_json()
+
+        assert left == {"type": "peer-left", "payload": {"peer_id": old_id}}
+        assert joined["type"] == "peer-joined"
+        assert joined["payload"]["peer_id"] == new_id
 
     def test_room_is_capped(self, client, monkeypatch, auth_headers, other_auth_headers):
         # The mesh cap is about participants' upload bandwidth, so verify the

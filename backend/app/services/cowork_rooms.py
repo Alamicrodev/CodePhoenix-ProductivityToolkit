@@ -25,10 +25,6 @@ class RoomFullError(Exception):
     """Raised when a room already holds MAX_ROOM_PARTICIPANTS peers."""
 
 
-class AlreadyJoinedError(Exception):
-    """Raised when the same user is already connected to the room elsewhere."""
-
-
 @dataclass
 class Peer:
     peer_id: str
@@ -53,29 +49,40 @@ class RoomRegistry:
         self._rooms: dict[str, dict[str, Peer]] = {}
         self._lock = asyncio.Lock()
 
-    #add a peer and hand back everyone who was already inside
-    async def join(self, slug: str, peer: Peer) -> list[Peer]:
+    #add a peer and hand back everyone who was already inside, plus the peer this
+    #join replaced (if any)
+    async def join(self, slug: str, peer: Peer) -> tuple[list[Peer], Peer | None]:
         async with self._lock:
             room = self._rooms.setdefault(slug, {})
+            # A connection from a user who is already registered is almost always
+            # a reconnect racing its own zombie socket (the server only notices a
+            # half-open socket after the idle timeout). Replace the old peer
+            # rather than refusing — the caller closes the evicted socket, which
+            # also handles the genuine two-tabs case by kicking the older tab.
+            evicted = next(
+                (existing for existing in room.values() if existing.user_id == peer.user_id),
+                None,
+            )
+            if evicted:
+                room.pop(evicted.peer_id, None)
             if len(room) >= MAX_ROOM_PARTICIPANTS:
-                if not room:
-                    self._rooms.pop(slug, None)
                 raise RoomFullError
-            if any(existing.user_id == peer.user_id for existing in room.values()):
-                raise AlreadyJoinedError
             existing_peers = list(room.values())
             room[peer.peer_id] = peer
-            return existing_peers
+            return existing_peers, evicted
 
-    #remove a peer, dropping the room entirely once it empties
-    async def leave(self, slug: str, peer_id: str) -> None:
+    #remove a peer, dropping the room entirely once it empties; returns False when
+    #the peer was already gone (e.g. evicted by its own reconnect) so the caller
+    #knows not to announce a departure that was already announced
+    async def leave(self, slug: str, peer_id: str) -> bool:
         async with self._lock:
             room = self._rooms.get(slug)
-            if not room:
-                return
-            room.pop(peer_id, None)
+            if not room or peer_id not in room:
+                return False
+            room.pop(peer_id)
             if not room:
                 self._rooms.pop(slug, None)
+            return True
 
     async def get_peer(self, slug: str, peer_id: str) -> Peer | None:
         async with self._lock:

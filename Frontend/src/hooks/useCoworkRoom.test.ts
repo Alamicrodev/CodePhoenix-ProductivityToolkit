@@ -198,6 +198,35 @@ describe("useCoworkRoom", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
+  it("treats a drop on a fresh connection as ordinary even after an earlier room ended", async () => {
+    vi.useFakeTimers();
+    const view = renderHook(({ token }) => useCoworkRoom("abc", token), {
+      initialProps: { token: "tok-1" },
+    });
+    await act(async () => {
+      latestSocket().serverAccept();
+      latestSocket().serverSend(welcome());
+    });
+
+    // Room ends: the explained close must stick for THIS connection...
+    await act(async () => {
+      latestSocket().serverSend({ type: "room-ended", payload: { reason: "host-ended" } });
+      latestSocket().serverClose(CLOSE_CODES.roomNotFound);
+    });
+    expect(view.result.current.fatalError).toBe("The host ended this room.");
+
+    // ...but a new connection (same hook instance) starts unexplained: an
+    // ordinary 1006 on it must reconnect, not silently die.
+    view.rerender({ token: "tok-2" });
+    await act(async () => {
+      latestSocket().serverAccept();
+      latestSocket().serverSend(welcome());
+    });
+    await act(async () => latestSocket().serverClose(1006));
+
+    expect(view.result.current.connectionState).toBe("reconnecting");
+  });
+
   it("distinguishes an expired room from one the host closed", async () => {
     const view = await connectedRoom();
 

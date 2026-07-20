@@ -6,6 +6,7 @@ frontend asks the backend for ICE servers instead of holding any secret itself.
 """
 
 import logging
+import re
 
 import httpx
 
@@ -19,8 +20,10 @@ CLOUDFLARE_TURN_ENDPOINT = (
 )
 REQUEST_TIMEOUT_SECONDS = 5.0
 # Cloudflare returns primary and alternate ports; browsers block 53, so those
-# candidates would only waste time during ICE gathering.
-BLOCKED_PORTS = (":53",)
+# candidates would only waste time during ICE gathering. The port must match
+# whole (end of URL or before the ?transport suffix) — a bare substring test
+# would also swallow the TLS relay on 5349.
+BLOCKED_PORT_PATTERN = re.compile(r":53(?=\?|$)")
 
 
 def is_turn_configured() -> bool:
@@ -65,7 +68,7 @@ def _normalize(ice_servers: object) -> list[dict] | None:
             continue
         raw_urls = server.get("urls") or server.get("url")
         urls = [raw_urls] if isinstance(raw_urls, str) else list(raw_urls or [])
-        usable = [url for url in urls if not any(port in url for port in BLOCKED_PORTS)]
+        usable = [url for url in urls if not BLOCKED_PORT_PATTERN.search(url)]
         if not usable:
             continue
         normalized.append(
