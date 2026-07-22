@@ -1,0 +1,89 @@
+/*
+ * Design tokens for the Linear-inspired FlowManager Tasks redesign.
+ * Namespaced with --f- so they never collide with the app-wide theme
+ * variables in theme.css (--accent, --border, ...). Scoped to .flow-shell
+ * so the rest of the app keeps its existing look.
+ */
+.flow-shell {
+  --f-bg: #fafafa;
+  --f-panel: #ffffff;
+  --f-panel2: #f4f4f6;
+  --f-border: #e5e5ea;
+  --f-border2: #ececf0;
+  --f-text: #1b1c20;
+  --f-text2: #6b6f76;
+  --f-text3: #9a9ca3;
+  --f-accent: #5e6ad2;
+  --f-accent-soft: rgba(94, 106, 210, 0.1);
+  --f-hover: rgba(0, 0, 0, 0.035);
+  --f-kbd-bg: #f1f1f4;
+  --f-kbd-border: #dcdce2;
+  --f-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --f-hi: #de5c4a;
+  --f-med: #d9a03c;
+  --f-low: #9a9ca3;
+  --f-done: #4ca66b;
+  --f-qdo: #de5c4a;
+  --f-qsch: #5e6ad2;
+  --f-qdel: #d9a03c;
+  --f-qeli: #9a9ca3;
+
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--f-text);
+  background: var(--f-bg);
+  transition: background 0.2s;
+}
+
+.dark .flow-shell {
+  --f-bg: #0e0f13;
+  --f-panel: #15161b;
+  --f-panel2: #1b1c22;
+  --f-border: #26272e;
+  --f-border2: #202128;
+  --f-text: #eceef2;
+  --f-text2: #9a9ca6;
+  --f-text3: #62646d;
+  --f-accent: #7c88e0;
+  --f-accent-soft: rgba(124, 136, 224, 0.13);
+  --f-hover: rgba(255, 255, 255, 0.045);
+  --f-kbd-bg: #1f2027;
+  --f-kbd-border: #2d2e36;
+  --f-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --f-hi: #e5695a;
+  --f-med: #d9a44c;
+  --f-low: #6e7078;
+  --f-done: #58b47a;
+  --f-qdo: #e5695a;
+  --f-qsch: #7c88e0;
+  --f-qdel: #d9a44c;
+  --f-qeli: #6e7078;
+}
+
+.flow-shell ::selection {
+  background: var(--f-accent-soft);
+}
+
+/* Keyboard-shortcut chip (Geist Mono per the handoff) */
+.flow-kbd {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  background: var(--f-kbd-bg);
+  border: 1px solid var(--f-kbd-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--f-text3);
+  white-space: nowrap;
+}
+
+/* Chip on the accent "New task" button uses white alpha instead */
+.flow-kbd--accent {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+}
+
+.flow-shell input::placeholder {
+  color: var(--f-text3);
+}

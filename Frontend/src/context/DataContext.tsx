@@ -569,6 +569,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Optimistic insert: quick-add expects the task to appear instantly and
+      // the row is reconciled with the server copy once the request lands.
+      const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setTasks(currentTasks => [{ ...task, id: optimisticId }, ...currentTasks]);
+
       await runWithSync("Creating task...", async () => {
         try {
           const createdTask = await apiRequest<ApiTask>("/tasks", {
@@ -577,8 +582,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify(buildTaskCreatePayload(task)),
           });
 
-          setTasks(currentTasks => [mapTaskFromApi(createdTask), ...currentTasks]);
+          setTasks(currentTasks =>
+            currentTasks.map(entry => (entry.id === optimisticId ? mapTaskFromApi(createdTask) : entry)),
+          );
         } catch (error) {
+          setTasks(currentTasks => currentTasks.filter(entry => entry.id !== optimisticId));
           handleApiError(error, "Failed to create task.");
         }
       });
