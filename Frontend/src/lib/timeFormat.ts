@@ -40,6 +40,10 @@ export function parseDateOnlyLocal(value: string) {
   return new Date(year, month - 1, day);
 }
 
+export function formatDateKeyLocal(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function startOfLocalDay(date: Date) {
   const copy = new Date(date.getTime());
   copy.setHours(0, 0, 0, 0);

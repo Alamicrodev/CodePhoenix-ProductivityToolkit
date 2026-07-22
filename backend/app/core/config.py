@@ -21,7 +21,10 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5173",    #this means everytime you call settings() we get a new list with different memory address
         ],                                 
         alias="CORS_ORIGINS",             
-    )                                      
+    )
+    gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
+    scheduler_model: str = Field("gemini-3.5-flash", alias="SCHEDULER_MODEL")
+    scheduler_model_timeout_seconds: int = Field(60, alias="SCHEDULER_MODEL_TIMEOUT_SECONDS")
 
     model_config = SettingsConfigDict(    
         env_file=".env",                    #look for this file for env vars

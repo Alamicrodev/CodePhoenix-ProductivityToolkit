@@ -1,15 +1,47 @@
+import { useEffect, useState } from "react";
 import { useData } from "../context/DataContext";
+import { useAuth } from "../context/AuthContext";
 import DashboardLayout from "../components/DashboardLayout";
-import { Calendar, Clock, Sparkles, TrendingUp } from "lucide-react";
-import { formatClockTime12, formatRelativeDueLabel, parseDateOnlyLocal } from "../lib/timeFormat";
+import { Calendar, Clock, RefreshCw, Sparkles, Loader2 } from "lucide-react";
+import { apiRequest } from "../lib/api";
+import {
+  formatClockTime12,
+  formatDateKeyLocal,
+  formatRelativeDueLabel,
+  parseDateOnlyLocal,
+} from "../lib/timeFormat";
 import { formatHabitNextOccurrence } from "../lib/habitSchedule";
 
+interface AiScheduleItem {
+  time: string;
+  type: string;
+  title: string;
+  priority: string;
+  duration: string;
+  detail?: string | null;
+  source_id?: string | null;
+  source_type?: "task" | "habit" | "system" | null;
+}
+
+interface AiScheduleResponse {
+  generated_at: string;
+  model: string | null;
+  fallback_used: boolean;
+  items: AiScheduleItem[];
+  summary: string | null;
+}
+
 export default function SchedulePage() {
+  const { accessToken } = useAuth();
   const { tasks, habits, focusSessions } = useData();
+  const [remoteSuggestions, setRemoteSuggestions] = useState<AiScheduleItem[] | null>(null);
+  const [schedulerSummary, setSchedulerSummary] = useState<string | null>(null);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   // Get today's date
   const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = formatDateKeyLocal(today);
   const nextWeek = new Date(today);
   nextWeek.setDate(today.getDate() + 7);
 
@@ -60,6 +92,63 @@ export default function SchedulePage() {
     
     return true; // Include weekly/monthly habits
   });
+
+  useEffect(() => {
+    if (!accessToken) {
+      setRemoteSuggestions(null);
+      setSchedulerSummary(null);
+      setIsLoadingSchedule(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingSchedule(true);
+    setRemoteSuggestions(null);
+    setSchedulerSummary(null);
+
+    const loadScheduler = async () => {
+      try {
+        const response = await apiRequest<AiScheduleResponse>("/ai-scheduler/suggest", {
+          method: "POST",
+          token: accessToken,
+          body: JSON.stringify({
+            current_time: new Date().toISOString(),
+            time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setRemoteSuggestions(response.items || null);
+        setSchedulerSummary(response.summary || null);
+      } catch (error) {
+        if (!cancelled) {
+          setRemoteSuggestions(null);
+          setSchedulerSummary(null);
+          console.error("Failed to load AI schedule", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSchedule(false);
+        }
+      }
+    };
+
+    void loadScheduler();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, todayStr, refreshNonce]);
+
+  const requestNewSchedule = () => {
+    if (isLoadingSchedule) {
+      return;
+    }
+    setRefreshNonce(value => value + 1);
+  };
 
   // Generate dynamic schedule from actual tasks and habits
   const generateSchedule = () => {
@@ -163,7 +252,9 @@ export default function SchedulePage() {
     return schedule;
   };
 
-  const aiSuggestions = generateSchedule();
+  const localSuggestions = generateSchedule();
+  const aiSuggestions = remoteSuggestions && remoteSuggestions.length > 0 ? remoteSuggestions : localSuggestions;
+  const scheduleItems = isLoadingSchedule ? [] : aiSuggestions;
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -186,9 +277,20 @@ export default function SchedulePage() {
             <h1 className="text-3xl font-semibold mb-2">AI Smart Schedule</h1>
             <p className="text-muted-foreground">Your personalized daily plan optimized for productivity</p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-900">
-            <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-medium">AI Optimized</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={requestNewSchedule}
+              disabled={isLoadingSchedule}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoadingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span>{isLoadingSchedule ? "Generating..." : "New schedule"}</span>
+            </button>
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-900">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-medium">AI Optimized</span>
+            </div>
           </div>
         </div>
 
@@ -206,76 +308,102 @@ export default function SchedulePage() {
                     day: "numeric",
                   })}
                 </span>
+                {schedulerSummary && (
+                  <span className="ml-2 text-xs text-muted-foreground">{schedulerSummary}</span>
+                )}
               </div>
 
               <div className="space-y-3">
-                {aiSuggestions.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-4 p-4 rounded-lg bg-accent hover:bg-accent/80 transition-colors border border-border"
-                  >
-                    <div className="flex items-center justify-center w-20 h-20 rounded-lg bg-background border border-border">
-                      <div className="text-center">
-                        <div className="text-sm font-semibold">
-                          {item.time.split(" ")[0]}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.time.split(" ")[1]}
-                        </div>
+                {isLoadingSchedule ? (
+                  <div className="rounded-xl border border-border bg-accent/50 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p className="font-medium">Generating your schedule</p>
+                        <p className="text-sm text-muted-foreground">
+                          Pulling your latest tasks, habits, and focus sessions.
+                        </p>
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <h4 className="font-medium">{item.title}</h4>
-                          {item.detail && (
-                            <p className="text-xs text-muted-foreground mt-1">{item.detail}</p>
-                          )}
+                    <div className="space-y-3">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="flex items-start gap-4 p-4 rounded-lg bg-background border border-border animate-pulse"
+                        >
+                          <div className="flex items-center justify-center w-20 h-20 rounded-lg bg-muted/40 border border-border">
+                            <div className="h-4 w-10 rounded bg-muted" />
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-2 w-full">
+                                <div className="h-4 w-2/3 rounded bg-muted" />
+                                <div className="h-3 w-1/2 rounded bg-muted/70" />
+                              </div>
+                              <div className="h-3 w-16 rounded bg-muted/70" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="h-5 w-14 rounded bg-muted/70" />
+                              <div className="h-5 w-16 rounded bg-muted/70" />
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {item.duration}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border capitalize ${getTypeColor(
-                            item.type
-                          )}`}
-                        >
-                          {item.type}
-                        </span>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            item.priority === "high"
-                              ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400"
-                              : item.priority === "medium"
-                              ? "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
-                          }`}
-                        >
-                          {item.priority}
-                        </span>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  scheduleItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-4 p-4 rounded-lg bg-accent hover:bg-accent/80 transition-colors border border-border"
+                    >
+                      <div className="flex items-center justify-center w-20 h-20 rounded-lg bg-background border border-border">
+                        <div className="text-center px-2">
+                          <div className="text-xs font-semibold leading-tight">
+                            {item.time}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <h4 className="font-medium">{item.title}</h4>
+                            {item.detail && (
+                              <p className="text-xs text-muted-foreground mt-1">{item.detail}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {item.duration}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border capitalize ${getTypeColor(
+                              item.type
+                            )}`}
+                          >
+                            {item.type}
+                          </span>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              item.priority === "high"
+                                ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400"
+                                : item.priority === "medium"
+                                ? "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
+                                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
+                            }`}
+                          >
+                            {item.priority}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
-            {/* Productivity Insights */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100">AI Insights</h3>
-              </div>
-              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-                <li>• Your peak productivity hours are 10 AM - 12 PM</li>
-                <li>• Consider scheduling deep work during morning hours</li>
-                <li>• You've completed {focusSessions.length} focus sessions this week</li>
-                <li>• Average task completion time: 45 minutes</li>
-              </ul>
-            </div>
           </div>
 
           {/* Sidebar */}
