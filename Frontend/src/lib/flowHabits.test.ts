@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { habitFrequencyLabel, parseHabitQuickAdd, trailingWeekLabels } from "./flowHabits";
+import { habitFrequencyLabel, trailingWeekLabels } from "./flowHabits";
 import type { Habit } from "../context/DataContext";
 
 function habit(overrides: Partial<Habit>): Habit {
@@ -17,42 +17,6 @@ function habit(overrides: Partial<Habit>): Habit {
     ...overrides,
   };
 }
-
-describe("parseHabitQuickAdd", () => {
-  it("returns null for empty or token-only input", () => {
-    expect(parseHabitQuickAdd("")).toBeNull();
-    expect(parseHabitQuickAdd("10m every weekday")).toBeNull();
-  });
-
-  it("parses the handoff example", () => {
-    expect(parseHabitQuickAdd("meditate 10m every weekday")).toEqual({
-      title: "Meditate",
-      description: "10m",
-      frequency: "daily",
-      activeDays: [1, 2, 3, 4, 5],
-    });
-  });
-
-  it("defaults to daily on all days", () => {
-    expect(parseHabitQuickAdd("read 20 pages")).toEqual({
-      title: "Read 20 pages",
-      description: "",
-      frequency: "daily",
-      activeDays: [0, 1, 2, 3, 4, 5, 6],
-    });
-  });
-
-  it("parses day lists and weekly", () => {
-    expect(parseHabitQuickAdd("gym every mon/wed/fri")).toMatchObject({
-      title: "Gym",
-      activeDays: [1, 3, 5],
-    });
-    expect(parseHabitQuickAdd("meal prep weekly")).toMatchObject({
-      title: "Meal prep",
-      frequency: "weekly",
-    });
-  });
-});
 
 describe("habitFrequencyLabel", () => {
   it("labels daily, weekdays, day lists, weekly, and hourly", () => {

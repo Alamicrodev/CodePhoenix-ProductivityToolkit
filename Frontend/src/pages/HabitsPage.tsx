@@ -1,16 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useData, Habit } from "../context/DataContext";
 import { FlowShell } from "../components/flow/FlowShell";
-import { FlowPrimaryButton, FlowSectionHeader } from "../components/flow/FlowPrimitives";
-import { QuickAdd } from "../components/flow/QuickAdd";
+import { FlowPrimaryButton } from "../components/flow/FlowPrimitives";
 import { KbdChip } from "../components/flow/KbdChip";
-import {
-  habitFrequencyLabel,
-  parseHabitQuickAdd,
-  trailingWeekLabels,
-  trailingWeekSquares,
-} from "../lib/flowHabits";
+import { HabitModal } from "../components/HabitModal";
+import { habitFrequencyLabel, trailingWeekLabels, trailingWeekSquares } from "../lib/flowHabits";
 import { isHabitCheckedToday } from "../lib/flowSchedule";
 import { findCompletionMarkerForDay } from "../lib/habitStats";
 
@@ -81,33 +76,14 @@ function HabitRow({
 }
 
 export default function HabitsPage() {
-  const { habits, addHabit, completeHabit, undoCompleteHabit } = useData();
+  const { habits, completeHabit, undoCompleteHabit } = useData();
   const navigate = useNavigate();
-  const [draft, setDraft] = useState("");
-  const quickAddRef = useRef<HTMLInputElement>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const bestStreak = Math.max(...habits.map(habit => habit.streak), 0);
   const weekLabels = useMemo(() => trailingWeekLabels(), []);
 
-  const focusQuickAdd = useCallback(() => {
-    window.setTimeout(() => quickAddRef.current?.focus(), 30);
-  }, []);
-
-  const handleQuickAdd = useCallback(() => {
-    const parsed = parseHabitQuickAdd(draft);
-    if (!parsed) return;
-    setDraft("");
-    void addHabit({
-      title: parsed.title,
-      description: parsed.description,
-      frequency: parsed.frequency,
-      activeDays: parsed.activeDays,
-      streak: 0,
-      lastCompleted: null,
-      completedDates: [],
-      occurrences: [],
-    });
-  }, [addHabit, draft]);
+  const openCreateModal = useCallback(() => setIsModalOpen(true), []);
 
   const handleToggle = useCallback(
     (habit: Habit) => {
@@ -123,14 +99,14 @@ export default function HabitsPage() {
 
   // 1–9 checks in the corresponding row (only when not yet checked).
   const shortcuts = useMemo(() => {
-    const map: Record<string, () => void> = { c: focusQuickAdd };
+    const map: Record<string, () => void> = { c: openCreateModal };
     habits.slice(0, 9).forEach((habit, index) => {
       map[String(index + 1)] = () => {
         if (!isHabitCheckedToday(habit)) void completeHabit(habit.id);
       };
     });
     return map;
-  }, [completeHabit, focusQuickAdd, habits]);
+  }, [completeHabit, habits, openCreateModal]);
 
   return (
     <FlowShell
@@ -145,21 +121,13 @@ export default function HabitsPage() {
         { keys: "T", label: "theme" },
       ]}
       actions={
-        <FlowPrimaryButton onClick={focusQuickAdd}>
+        <FlowPrimaryButton onClick={openCreateModal}>
           <span>New habit</span>
           <KbdChip onAccent>C</KbdChip>
         </FlowPrimaryButton>
       }
     >
       <div className="mx-auto w-full max-w-[840px] px-4 pb-10 pt-[14px]">
-        <QuickAdd
-          ref={quickAddRef}
-          draft={draft}
-          onDraftChange={setDraft}
-          onSubmit={handleQuickAdd}
-          placeholder={'Add a habit…  try "meditate 10m every weekday"'}
-        />
-
         {/* Section header with weekday initials aligned over the squares */}
         <div className="flex items-center gap-[10px] px-2 pb-[6px] pt-[2px]">
           <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--f-text3)]">
@@ -191,7 +159,7 @@ export default function HabitsPage() {
           ))}
           {habits.length === 0 && (
             <div className="px-2 py-3 text-[12px] text-[var(--f-text3)]">
-              No habits yet — press C to add your first one.
+              No habits yet — press C to create your first one.
             </div>
           )}
         </div>
@@ -204,6 +172,8 @@ export default function HabitsPage() {
           </p>
         )}
       </div>
+
+      <HabitModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </FlowShell>
   );
 }
