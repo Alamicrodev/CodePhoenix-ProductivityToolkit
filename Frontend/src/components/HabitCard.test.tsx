@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockUseData } = vi.hoisted(() => ({ mockUseData: vi.fn() }));
@@ -50,7 +51,11 @@ describe("HabitCard heatmap", () => {
   it("does not render days from before the habit was created", () => {
     // habit created two days ago -> creation day, yesterday, today; NOT a
     // 30-day wall of "missed" boxes predating the habit's existence
-    const { container } = render(<HabitCard habit={makeHabit()} />);
+    const { container } = render(
+      <MemoryRouter>
+        <HabitCard habit={makeHabit()} />
+      </MemoryRouter>,
+    );
     const titles = boxTitles(container);
     expect(titles).toHaveLength(3);
     expect(titles.filter(title => title.endsWith("missed"))).toHaveLength(2);
@@ -58,14 +63,20 @@ describe("HabitCard heatmap", () => {
   });
 
   it("shows today as pending, not missed, while the day is still running", () => {
-    const { container } = render(<HabitCard habit={makeHabit()} />);
+    const { container } = render(
+      <MemoryRouter>
+        <HabitCard habit={makeHabit()} />
+      </MemoryRouter>,
+    );
     const titles = boxTitles(container);
     expect(titles[titles.length - 1].endsWith("pending")).toBe(true);
   });
 
   it("renders the full 30-day window for habits older than the window", () => {
     const { container } = render(
-      <HabitCard habit={makeHabit({ createdAt: "2026-05-01T00:00:00Z" })} />,
+      <MemoryRouter>
+        <HabitCard habit={makeHabit({ createdAt: "2026-05-01T00:00:00Z" })} />
+      </MemoryRouter>,
     );
     expect(boxTitles(container)).toHaveLength(30);
   });

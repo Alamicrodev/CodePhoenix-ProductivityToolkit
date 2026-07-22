@@ -1,3 +1,4 @@
+from app.models.cowork import CoworkSession
 from app.models.focus_session import FocusSession, FocusSessionItem
 from app.models.habit import Habit, HabitOccurrence
 from app.models.task import Subtask, Task
@@ -11,4 +12,5 @@ __all__ = [
     "HabitOccurrence",
     "FocusSession",
     "FocusSessionItem",
+    "CoworkSession",
 ]

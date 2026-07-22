@@ -1,8 +1,21 @@
+from datetime import datetime, timedelta, timezone
+
 from tests.factories import API, habit_payload
 
 TS_DAY1 = "2026-07-01T09:00:00Z"
 TS_DAY2 = "2026-07-02T09:00:00Z"
-TS_DAY2_LATER = "2026-07-02T15:00:00Z"
+
+
+# Streaks are recomputed relative to the real current time, so tests that
+# assert on streaks must use timestamps relative to "now" rather than fixed
+# dates (fixed dates rot as real time moves past them).
+def iso_ts(days_ago: int = 0, hours_ago: int = 0) -> str:
+    moment = datetime.now(timezone.utc) - timedelta(days=days_ago, hours=hours_ago)
+    return moment.isoformat().replace("+00:00", "Z")
+
+
+def day_key(days_ago: int = 0) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).date().isoformat()
 
 
 def create_habit(client, headers, **overrides):
@@ -51,32 +64,38 @@ def test_create_habit_invalid_frequency_rejected(client, auth_headers):
 
 
 def test_complete_daily_habit_records_streak_date_and_occurrence(client, auth_headers):
-    habit = create_habit(client, auth_headers)
-    body = complete(client, auth_headers, habit["id"], TS_DAY2)
+    habit = create_habit(client, auth_headers, active_days=[])
+    body = complete(client, auth_headers, habit["id"], iso_ts())
     assert body["streak"] == 1
-    assert body["completed_dates"] == ["2026-07-02"]
-    assert body["last_completed"] == "2026-07-02"
+    assert body["completed_dates"] == [day_key()]
+    assert body["last_completed"] == day_key()
     assert len(body["occurrences"]) == 1
     assert body["occurrences"][0]["status"] == "completed"
 
 
 def test_complete_daily_habit_twice_same_day_is_idempotent(client, auth_headers):
-    habit = create_habit(client, auth_headers)
-    complete(client, auth_headers, habit["id"], TS_DAY2)
-    body = complete(client, auth_headers, habit["id"], TS_DAY2_LATER)
+    habit = create_habit(client, auth_headers, active_days=[])
+    moment = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    complete(client, auth_headers, habit["id"], moment.isoformat())
+    body = complete(
+        client, auth_headers, habit["id"], (moment + timedelta(minutes=30)).isoformat()
+    )
     assert body["streak"] == 1
-    assert body["completed_dates"] == ["2026-07-02"]
+    assert body["completed_dates"] == [day_key()]
     assert len(body["occurrences"]) == 1
 
 
 def test_complete_hourly_habit_accumulates_per_timestamp(client, auth_headers):
-    habit = create_habit(client, auth_headers, frequency="hourly", hourly_interval=1)
-    complete(client, auth_headers, habit["id"], TS_DAY2)
-    body = complete(client, auth_headers, habit["id"], TS_DAY2_LATER)
-    assert body["streak"] == 2
+    habit = create_habit(
+        client, auth_headers, frequency="hourly", hourly_interval=1, active_days=[], active_hours=None
+    )
+    complete(client, auth_headers, habit["id"], iso_ts(hours_ago=1))
+    body = complete(client, auth_headers, habit["id"], iso_ts())
     assert len(body["completed_dates"]) == 2
-    assert all(marker.startswith("2026-07-02T") for marker in body["completed_dates"])
     assert len(body["occurrences"]) == 2
+    # Only the current slot counts toward the streak: the hour-ago slot ended
+    # before the habit's created_at, and slots predating creation are excluded.
+    assert body["streak"] == 1
 
 
 def test_undo_completion_reverts_streak_dates_and_occurrences(client, auth_headers):
@@ -96,20 +115,38 @@ def test_undo_completion_reverts_streak_dates_and_occurrences(client, auth_heade
 
 
 def test_undo_recomputes_last_completed_from_remaining_dates(client, auth_headers):
-    habit = create_habit(client, auth_headers)
-    complete(client, auth_headers, habit["id"], TS_DAY1)
-    complete(client, auth_headers, habit["id"], TS_DAY2)
+    habit = create_habit(client, auth_headers, active_days=[])
+    complete(client, auth_headers, habit["id"], iso_ts(days_ago=1))
+    complete(client, auth_headers, habit["id"], iso_ts())
     response = client.post(
         f"{API}/habits/{habit['id']}/undo",
-        json={"completion_timestamp": "2026-07-02"},
+        json={"completion_timestamp": day_key()},
         headers=auth_headers,
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["streak"] == 1
-    assert body["completed_dates"] == ["2026-07-01"]
-    assert body["last_completed"] == "2026-07-01"
+    # Yesterday's completion predates the habit's created_at, so it does not
+    # count toward the streak, but it still drives last_completed.
+    assert body["streak"] == 0
+    assert body["completed_dates"] == [day_key(1)]
+    assert body["last_completed"] == day_key(1)
     assert len(body["occurrences"]) == 1
+
+
+def test_backfill_past_day_records_marker_without_streak(client, auth_headers):
+    habit = create_habit(client, auth_headers, active_days=[])
+    body = complete(client, auth_headers, habit["id"], iso_ts(days_ago=3))
+    assert body["completed_dates"] == [day_key(3)]
+    assert body["last_completed"] == day_key(3)
+    assert body["streak"] == 0
+
+
+def test_backfill_streak_counts_only_days_since_creation(client, auth_headers):
+    habit = create_habit(client, auth_headers, active_days=[])
+    complete(client, auth_headers, habit["id"], iso_ts(days_ago=1))
+    body = complete(client, auth_headers, habit["id"], iso_ts())
+    assert body["completed_dates"] == [day_key(1), day_key()]
+    assert body["streak"] == 1
 
 
 def test_undo_without_completion_is_safe(client, auth_headers):

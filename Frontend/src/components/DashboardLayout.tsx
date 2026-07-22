@@ -20,6 +20,7 @@ import {
   Timer,
   Calendar,
   User,
+  Users,
   LogOut,
   Menu,
   Sparkles,
@@ -35,6 +36,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Habits", href: "/habits", icon: Target },
   { name: "Focus", href: "/focus", icon: Timer },
+  { name: "Cowork", href: "/cowork", icon: Users },
   { name: "Schedule", href: "/schedule", icon: Calendar },
   { name: "Profile", href: "/profile", icon: User },
 ];

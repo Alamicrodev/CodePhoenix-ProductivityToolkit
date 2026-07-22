@@ -15,16 +15,39 @@ class Settings(BaseSettings):
         "postgresql+psycopg://codephoenix:codephoenix@db:5432/codephoenix",
         alias="DATABASE_URL",
     )
+    gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
+    scheduler_model: str = Field("gemini-3.5-flash", alias="SCHEDULER_MODEL")
+    scheduler_model_timeout_seconds: int = Field(60, alias="SCHEDULER_MODEL_TIMEOUT_SECONDS")
     cors_origins: List[str] = Field(      
         default_factory=lambda: [    #default_factory expects a function that returns a list    
             "http://localhost:5173",    #lambda (just assume theres a function here which returns this list), we do this to create a new list(with diff reference each time)
             "http://127.0.0.1:5173",    #this means everytime you call settings() we get a new list with different memory address
         ],                                 
-        alias="CORS_ORIGINS",             
+        alias="CORS_ORIGINS",
     )
-    gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
-    scheduler_model: str = Field("gemini-3.5-flash", alias="SCHEDULER_MODEL")
-    scheduler_model_timeout_seconds: int = Field(60, alias="SCHEDULER_MODEL_TIMEOUT_SECONDS")
+
+    # WebRTC ICE servers, served to the browser by GET /cowork-sessions/ice-config.
+    # Keeping them server-side (instead of baking them into the Vite bundle) means
+    # TURN credentials stay out of the frontend build and the provider can be
+    # swapped without redeploying the frontend.
+    stun_urls: List[str] = Field(
+        default_factory=lambda: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+        ],
+        alias="STUN_URLS",
+    )
+    # Without TURN, peers behind symmetric NAT (corporate / campus / some mobile
+    # networks) simply cannot connect to each other.
+    #
+    # Cloudflare Realtime issues short-lived credentials rather than a fixed
+    # username/password, so the backend holds the long-term key and mints a fresh
+    # credential per request. The key must never reach the browser.
+    turn_key_id: str | None = Field(default=None, alias="TURN_KEY_ID")
+    turn_key_api_token: str | None = Field(default=None, alias="TURN_KEY_API_TOKEN")
+    # Credentials that expire mid-call kill the relay, so this wants to be longer
+    # than the longest plausible cowork session. Cloudflare's ceiling is 48h.
+    turn_credential_ttl_seconds: int = Field(21600, alias="TURN_CREDENTIAL_TTL_SECONDS")
 
     model_config = SettingsConfigDict(    
         env_file=".env",                    #look for this file for env vars

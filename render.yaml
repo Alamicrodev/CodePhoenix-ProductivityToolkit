@@ -31,3 +31,12 @@ services:
         sync: false
       - key: SECRET_KEY
         sync: false
+      # Cloudflare Realtime TURN, from the dashboard's TURN Server app. The
+      # backend exchanges this long-term key for short-lived credentials on each
+      # /cowork-sessions/ice-config call, so the key never reaches a browser.
+      # Without TURN, peers on restrictive networks (office / campus Wi-Fi)
+      # cannot connect to each other at all.
+      - key: TURN_KEY_ID
+        sync: false
+      - key: TURN_KEY_API_TOKEN
+        sync: false

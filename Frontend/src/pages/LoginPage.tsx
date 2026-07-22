@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, useLocation, Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../lib/api";
 import { Button } from "../components/ui/button";
@@ -14,6 +14,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // AuthGuard stashes the page the user originally asked for in router state, so a
+  // shared link survives the trip through login. Falls back to the dashboard.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +27,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate("/");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to sign in. Please try again."));
     } finally {
@@ -91,7 +97,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Link to="/register" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            <Link to="/register" state={location.state} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
               Sign up
             </Link>
           </div>

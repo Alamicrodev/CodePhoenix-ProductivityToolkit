@@ -179,6 +179,53 @@ Focus session fields include:
 
 Session items link the session to tasks or habits completed during the session.
 
+### CoworkSession
+
+Cowork sessions are shareable rooms: a host creates one, shares
+`/cowork/{slug}`, and participants see each other's cameras and shared task
+lists.
+
+Fields: `slug` (unguessable share token), `host_user_id`, `title`, `status`
+(`open` | `ended`), `expires_at` (24h default), `ended_at`.
+
+Only the room is persisted. Two things deliberately are not:
+
+- **Presence** lives in an in-memory registry (`app/services/cowork_rooms.py`).
+  A socket that died with the process is not "present", so persisting it would
+  only create ghosts. The free plan runs a single instance with one worker, so
+  no second process needs to see this state — that module is the one place that
+  would grow a Redis backing if the app ever scaled horizontally.
+- **Audio and video** never reach the backend. Participants connect peer-to-peer
+  over WebRTC in a full mesh; the server only relays the handshake. This is what
+  makes the feature viable on a free instance, and it is why rooms are capped at
+  five people (each participant uploads one copy of their camera per other
+  participant).
+
+## Realtime Layer
+
+`WS /api/v1/ws/cowork/{slug}` carries three things: presence, shared task lists,
+and WebRTC signaling (`offer` / `answer` / `ice-candidate`, relayed to a single
+target peer with a server-stamped sender so peers cannot impersonate each other).
+
+Operational notes:
+
+- The JWT arrives as a query parameter because browsers cannot set headers on a
+  WebSocket handshake. A short-lived single-use ticket endpoint is the planned
+  hardening.
+- The handler releases its database connection immediately after the join
+  handshake rather than pinning one for the socket's lifetime, which matters
+  against a Supabase pooler.
+- A free instance drops every socket it holds on deploy and on wake-from-idle,
+  so client reconnection with jittered backoff is normal operation, not an edge
+  case. Peer-to-peer video keeps flowing while signaling is down.
+- ICE servers are served by `GET /cowork-sessions/ice-config` so TURN
+  credentials stay out of the frontend bundle and the provider can be swapped
+  without a frontend deploy. TURN is Cloudflare Realtime, which issues
+  short-lived credentials rather than a fixed username/password: the backend
+  holds the long-term key and mints one per request. If Cloudflare is
+  unreachable the endpoint degrades to STUN-only and flags `has_turn: false`
+  rather than failing the room.
+
 ## API Design
 
 The backend exposes REST endpoints under `/api/v1`.

@@ -99,7 +99,7 @@ interface DataContextType {
   addHabit: (habit: Omit<Habit, "id">) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
-  completeHabit: (id: string) => Promise<string | null>;
+  completeHabit: (id: string, timestamp?: Date) => Promise<string | null>;
   undoCompleteHabit: (id: string, completionTimestamp: string) => Promise<void>;
   createFocusSession: (input: CreateFocusSessionInput) => Promise<string | null>;
   pauseFocusSession: (id: string) => Promise<void>;
@@ -704,7 +704,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
 
   const completeHabit = useCallback(
-    async (id: string) => {
+    async (id: string, timestamp?: Date) => {
       if (!accessToken) {
         return null;
       }
@@ -714,7 +714,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const completedHabit = await apiRequest<ApiHabit>(`/habits/${id}/complete`, {
             method: "POST",
             token: accessToken,
-            body: JSON.stringify({ timestamp: new Date().toISOString() }),
+            body: JSON.stringify({ timestamp: (timestamp ?? new Date()).toISOString() }),
           });
 
           const mappedHabit = mapHabitFromApi(completedHabit);

@@ -83,6 +83,30 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
 ```
 
+Optional, for cowork room video. Create a TURN Server app under **Realtime → TURN
+Server** in the Cloudflare dashboard, which yields a Turn Token ID and an API
+token:
+
+```env
+TURN_KEY_ID=<turn token id>
+TURN_KEY_API_TOKEN=<api token>
+TURN_CREDENTIAL_TTL_SECONDS=21600   # optional, default 6h, Cloudflare max 48h
+STUN_URLS=["stun:stun.l.google.com:19302"]   # optional fallback when TURN is off
+```
+
+Cloudflare does not issue a fixed username/password. The API token is a long-term
+secret held **server-side only**; `GET /cowork-sessions/ice-config` exchanges it
+for a short-lived credential per request, which is why the frontend asks the
+backend for ICE servers instead of holding anything itself.
+
+If the key is absent or Cloudflare is unreachable, the endpoint degrades to
+STUN-only and reports `has_turn: false`; the room still works and the UI warns
+that video may not connect on restrictive networks. Set the TTL longer than the
+longest session you expect — a credential expiring mid-call drops the relay.
+
+Billing note: 1,000 GB of egress is included (shared across TURN and SFU), then
+$0.05/GB. Only peer pairs that cannot connect directly consume relay bandwidth.
+
 ## Local Run
 
 ```bash

@@ -20,3 +20,4 @@ class User(Base):
     tasks = relationship("Task", back_populates="owner", cascade="all, delete-orphan")
     habits = relationship("Habit", back_populates="owner", cascade="all, delete-orphan")
     focus_sessions = relationship("FocusSession", back_populates="owner", cascade="all, delete-orphan")
+    cowork_sessions = relationship("CoworkSession", back_populates="host", cascade="all, delete-orphan")
