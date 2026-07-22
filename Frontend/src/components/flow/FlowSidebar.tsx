@@ -7,6 +7,7 @@ import {
   Timer,
   Users,
   CalendarDays,
+  CircleUser,
   Moon,
   Sun,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { name: "Focus", href: "/focus", icon: Timer },
   { name: "Cowork", href: "/cowork", icon: Users },
   { name: "Schedule", href: "/schedule", icon: CalendarDays },
+  { name: "Profile", href: "/profile", icon: CircleUser },
 ];
 
 interface FlowSidebarProps {

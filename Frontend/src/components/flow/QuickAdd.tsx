@@ -4,11 +4,19 @@ interface QuickAddProps {
   draft: string;
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
+  placeholder?: string;
+  hint?: string;
 }
 
-// Always-visible entry row; Enter adds and keeps focus for rapid entry.
+// Always-visible entry row; Enter commits and keeps focus for rapid entry.
 export const QuickAdd = forwardRef<HTMLInputElement, QuickAddProps>(function QuickAdd(
-  { draft, onDraftChange, onSubmit },
+  {
+    draft,
+    onDraftChange,
+    onSubmit,
+    placeholder = 'Add a task…  try "pay rent tomorrow !high"',
+    hint = "↵ to add · stays open",
+  },
   ref,
 ) {
   return (
@@ -21,11 +29,11 @@ export const QuickAdd = forwardRef<HTMLInputElement, QuickAddProps>(function Qui
         onKeyDown={event => {
           if (event.key === "Enter") onSubmit();
         }}
-        placeholder={'Add a task…  try "pay rent tomorrow !high"'}
+        placeholder={placeholder}
         className="flex-1 border-none bg-transparent text-[13px] text-[var(--f-text)] outline-none"
       />
-      <span className="hidden font-['Geist_Mono',ui-monospace,monospace] text-[10px] text-[var(--f-text3)] sm:inline">
-        ↵ to add · stays open
+      <span className="hidden whitespace-nowrap font-['Geist_Mono',ui-monospace,monospace] text-[10px] text-[var(--f-text3)] sm:inline">
+        {hint}
       </span>
     </div>
   );

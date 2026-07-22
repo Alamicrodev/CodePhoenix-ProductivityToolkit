@@ -11,6 +11,8 @@ export async function registerFreshUser(page: Page, name = "E2E Tester") {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  // The redesigned dashboard has no hero heading — assert on the shell instead.
+  await page.waitForURL(url => url.pathname === "/");
+  await expect(page.getByRole("link", { name: /Dashboard/ })).toBeVisible();
   return { email, password, name };
 }

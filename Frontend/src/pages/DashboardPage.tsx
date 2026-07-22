@@ -1,223 +1,222 @@
 import { useMemo } from "react";
-import { useData } from "../context/DataContext";
-import DashboardLayout from "../components/DashboardLayout";
-import { CheckSquare, Target, Timer, TrendingUp, Calendar } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Link, useNavigate } from "react-router";
+import { useData, Habit, Task } from "../context/DataContext";
+import { FlowShell } from "../components/flow/FlowShell";
+import {
+  FlowCheckRow,
+  FlowPanel,
+  FlowPrimaryButton,
+  FlowSectionHeader,
+  FlowStatCard,
+} from "../components/flow/FlowPrimitives";
+import { KbdChip } from "../components/flow/KbdChip";
+import { formatHeaderDate, formatMinutesShort } from "../lib/flowFormat";
+import {
+  buildDayAgenda,
+  endOfDay,
+  habitsForToday,
+  isHabitCheckedToday,
+  startOfDay,
+  upNextItem,
+} from "../lib/flowSchedule";
+import { findCompletionMarkerForDay } from "../lib/habitStats";
+import { formatDueLabel } from "../lib/flowTasks";
 
-export default function DashboardPage() {
-  const { tasks, habits, focusSessions } = useData();
-
-  const completedTasks = tasks.filter(t => t.completed).length;
-  const totalTasks = tasks.length;
-  const activeHabits = habits.length;
-  const todaysSessions = focusSessions.filter(s => {
-    const today = new Date().toISOString().split("T")[0];
-    return s.startedAt.split("T")[0] === today;
-  }).length;
-
-  const chartData = useMemo(() => {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    const dayOffset = (today.getDay() + 6) % 7;
-    startOfWeek.setDate(today.getDate() - dayOffset);
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + index);
-
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
-
-      const taskCount = tasks.filter(task => {
-        if (!task.completedAt) {
-          return false;
-        }
-
-        const completedAt = new Date(task.completedAt);
-        return completedAt >= dayStart && completedAt <= dayEnd;
-      }).length;
-
-      const habitCount = habits.reduce((count, habit) => {
-        const completedForDay = habit.completedDates.filter(entry => {
-          const completedAt = new Date(entry);
-          return completedAt >= dayStart && completedAt <= dayEnd;
-        }).length;
-
-        return count + completedForDay;
-      }, 0);
-
-      const focusCount = focusSessions.filter(session => {
-        if (session.status !== "completed" || !session.endedAt) {
-          return false;
-        }
-
-        const endedAt = new Date(session.endedAt);
-        return endedAt >= dayStart && endedAt <= dayEnd;
-      }).length;
-
-      return {
-        day: date.toLocaleDateString("en-US", { weekday: "short" }),
-        tasks: taskCount,
-        habits: habitCount,
-        focus: focusCount,
-      };
-    });
-  }, [focusSessions, habits, tasks]);
-
-  const upcomingTasks = tasks
-    .filter(t => !t.completed && t.dueDate)
-    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-    .slice(0, 5);
-
-  return (
-    <DashboardLayout>
-      <div className="p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's your productivity overview.</p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
-                <CheckSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <span className="text-sm text-muted-foreground">Tasks</span>
-            </div>
-            <div className="space-y-1">
-              <p className="text-3xl font-semibold">{completedTasks}/{totalTasks}</p>
-              <p className="text-sm text-muted-foreground">Completed today</p>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-950 flex items-center justify-center">
-                <Target className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <span className="text-sm text-muted-foreground">Habits</span>
-            </div>
-            <div className="space-y-1">
-              <p className="text-3xl font-semibold">{activeHabits}</p>
-              <p className="text-sm text-muted-foreground">Active habits</p>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-950 flex items-center justify-center">
-                <Timer className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <span className="text-sm text-muted-foreground">Focus</span>
-            </div>
-            <div className="space-y-1">
-              <p className="text-3xl font-semibold">{todaysSessions}</p>
-              <p className="text-sm text-muted-foreground">Sessions today</p>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-950 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-              </div>
-              <span className="text-sm text-muted-foreground">Streak</span>
-            </div>
-            <div className="space-y-1">
-              <p className="text-3xl font-semibold">{Math.max(...habits.map(h => h.streak), 0)}</p>
-              <p className="text-sm text-muted-foreground">Day streak</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Progress Chart */}
-          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
-            <h3 className="font-semibold mb-6">Weekly Progress</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="day" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="tasks"
-                  stackId="1"
-                  stroke="#3b82f6"
-                  fill="#3b82f6"
-                  fillOpacity={0.6}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="habits"
-                  stackId="1"
-                  stroke="#10b981"
-                  fill="#10b981"
-                  fillOpacity={0.6}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="focus"
-                  stackId="1"
-                  stroke="#8b5cf6"
-                  fill="#8b5cf6"
-                  fillOpacity={0.55}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Upcoming Tasks */}
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-semibold">Upcoming Tasks</h3>
-            </div>
-            <div className="space-y-3">
-              {upcomingTasks.length > 0 ? (
-                upcomingTasks.map(task => (
-                  <div key={task.id} className="p-3 rounded-lg bg-accent border border-border">
-                    <p className="font-medium text-sm mb-1">{task.title}</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        task.priority === "high"
-                          ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400"
-                          : task.priority === "medium"
-                          ? "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
-                      }`}>
-                        {task.priority}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(task.dueDate!).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No upcoming tasks
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
+function completedOnDay(task: Task, dayStart: Date, dayEnd: Date): boolean {
+  if (!task.completedAt) return false;
+  const completedAt = new Date(task.completedAt);
+  return completedAt >= dayStart && completedAt <= dayEnd;
 }
 
+export default function DashboardPage() {
+  const { tasks, habits, focusSessions, updateTask, completeHabit, undoCompleteHabit } = useData();
+  const navigate = useNavigate();
+  const now = new Date();
+  const dayStart = startOfDay(now);
+  const dayEnd = endOfDay(now);
 
+  const tasksDoneToday = useMemo(
+    () => tasks.filter(task => completedOnDay(task, dayStart, dayEnd)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks],
+  );
+  const tasksDoneYesterday = useMemo(() => {
+    const yesterdayStart = new Date(dayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(dayStart.getTime() - 1);
+    return tasks.filter(task => completedOnDay(task, yesterdayStart, yesterdayEnd)).length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
+  const doneDelta = tasksDoneToday - tasksDoneYesterday;
+
+  const focusMinutesToday = useMemo(() => {
+    const seconds = focusSessions
+      .filter(session => new Date(session.startedAt) >= dayStart)
+      .reduce((sum, session) => sum + session.elapsedSeconds, 0);
+    return Math.round(seconds / 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSessions]);
+
+  const todaysHabits = useMemo(() => habitsForToday(habits, now), [habits, now]);
+  const habitsChecked = useMemo(
+    () => todaysHabits.filter(habit => isHabitCheckedToday(habit, now)).length,
+    [todaysHabits, now],
+  );
+  const bestStreak = Math.max(...habits.map(habit => habit.streak), 0);
+
+  // TODAY: today's due tasks + tasks completed today + today's habit check-ins,
+  // one dense mixed list — undone first, completed struck at the bottom.
+  const todayItems = useMemo(() => {
+    type Item = {
+      key: string;
+      kind: "task" | "habit";
+      done: boolean;
+      title: string;
+      right: string;
+      urgent: boolean;
+      task?: Task;
+      habit?: Habit;
+    };
+    const items: Item[] = [];
+
+    tasks.forEach(task => {
+      const dueToday = !task.completed && task.dueDate && formatDueLabel(task.dueDate, now)?.label === "Today";
+      const doneToday = completedOnDay(task, dayStart, dayEnd);
+      if (dueToday || doneToday) {
+        items.push({
+          key: `task-${task.id}`,
+          kind: "task",
+          done: task.completed,
+          title: task.title,
+          right: task.completed ? "" : "Today",
+          urgent: !task.completed,
+          task,
+        });
+      }
+    });
+
+    todaysHabits.forEach(habit => {
+      items.push({
+        key: `habit-${habit.id}`,
+        kind: "habit",
+        done: isHabitCheckedToday(habit, now),
+        title: habit.title,
+        right: "",
+        urgent: false,
+        habit,
+      });
+    });
+
+    return items.sort((a, b) => Number(a.done) - Number(b.done));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, todaysHabits]);
+
+  const agenda = useMemo(() => buildDayAgenda(tasks, habits, now), [tasks, habits, now]);
+  const upNext = useMemo(() => upNextItem(agenda, now), [agenda, now]);
+
+  const toggleTask = (task: Task) => {
+    void updateTask(task.id, {
+      completed: !task.completed,
+      completedAt: task.completed ? null : new Date().toISOString(),
+    });
+  };
+
+  const toggleHabit = (habit: Habit) => {
+    if (isHabitCheckedToday(habit, now)) {
+      const marker = findCompletionMarkerForDay(habit, now);
+      if (marker) void undoCompleteHabit(habit.id, marker);
+    } else {
+      void completeHabit(habit.id);
+    }
+  };
+
+  return (
+    <FlowShell
+      title="Dashboard"
+      meta={formatHeaderDate(now)}
+      actions={
+        <FlowPrimaryButton onClick={() => navigate("/tasks", { state: { quickAdd: true } })}>
+          <span>New task</span>
+          <KbdChip onAccent>C</KbdChip>
+        </FlowPrimaryButton>
+      }
+    >
+      <div className="mx-auto w-full max-w-[840px] px-4 pb-10 pt-[14px]">
+        {/* Stat strip */}
+        <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <FlowStatCard label="Tasks done today">
+            {tasksDoneToday}{" "}
+            {doneDelta !== 0 && (
+              <span className="text-[11px] font-medium text-[var(--f-done)]">
+                {doneDelta > 0 ? `+${doneDelta}` : doneDelta}
+              </span>
+            )}
+          </FlowStatCard>
+          <FlowStatCard label="Focus time">{formatMinutesShort(focusMinutesToday)}</FlowStatCard>
+          <FlowStatCard label="Habits checked">
+            {habitsChecked}
+            <span className="text-[12px] font-normal text-[var(--f-text3)]">/{todaysHabits.length}</span>
+          </FlowStatCard>
+          <FlowStatCard label="Best streak">
+            {bestStreak} <span className="text-[11px] font-medium text-[var(--f-text3)]">days</span>
+          </FlowStatCard>
+        </div>
+
+        {/* Today */}
+        <FlowSectionHeader>Today · {todayItems.length}</FlowSectionHeader>
+        <div className="mb-4 flex flex-col">
+          {todayItems.map(item => (
+            <FlowCheckRow
+              key={item.key}
+              done={item.done}
+              title={item.title}
+              tag={
+                item.kind === "task"
+                  ? { label: "Task", colorVar: "--f-accent" }
+                  : { label: "Habit", colorVar: "--f-done" }
+              }
+              right={
+                <span
+                  className="w-[70px] whitespace-nowrap text-right text-[12px]"
+                  style={{ color: item.urgent ? "var(--f-hi)" : "var(--f-text3)" }}
+                >
+                  {item.right}
+                </span>
+              }
+              onToggle={() => (item.task ? toggleTask(item.task) : item.habit && toggleHabit(item.habit))}
+              onClick={
+                item.kind === "habit" && item.habit
+                  ? () => navigate(`/habits/${item.habit!.id}`)
+                  : undefined
+              }
+            />
+          ))}
+          {todayItems.length === 0 && (
+            <div className="px-2 py-3 text-[12px] text-[var(--f-text3)]">
+              Nothing scheduled for today — press C to add a task.
+            </div>
+          )}
+        </div>
+
+        {/* Up next */}
+        {upNext && (
+          <FlowPanel dotColor="var(--f-accent)" title="Up next" meta="from your schedule">
+            <div className="flex items-center gap-[10px] px-3 py-2">
+              <span className="font-['Geist_Mono',ui-monospace,monospace] text-[11px] text-[var(--f-text3)]">
+                {upNext.time}
+              </span>
+              <span
+                className="h-4 w-[3px] shrink-0 rounded-[2px]"
+                style={{ background: `var(${upNext.colorVar})` }}
+              />
+              <span className="min-w-0 flex-1 truncate font-medium">{upNext.title}</span>
+              <Link to="/schedule" className="whitespace-nowrap text-[12px] text-[var(--f-accent)]">
+                Open schedule →
+              </Link>
+            </div>
+          </FlowPanel>
+        )}
+      </div>
+    </FlowShell>
+  );
+}

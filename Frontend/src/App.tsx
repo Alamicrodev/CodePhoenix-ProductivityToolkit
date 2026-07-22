@@ -14,8 +14,7 @@ export default function App() {
     // Themeprovider is simply a nextJS module that adds a class .dark/.light to the <html> element.
     // in css classes (.dark/.forest etc), we define custom theme variables that are used throughout our css.  
     // 
-    // Default light per the FlowManager redesign handoff; the user's saved choice wins.
-    <ThemeProvider attribute="class" defaultTheme="light">
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       {/* Auth provider will provide auth data all over the app */}
       <AuthProvider>
         <DataProvider>

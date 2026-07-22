@@ -2,23 +2,42 @@ import { expect, test } from "@playwright/test";
 
 import { registerFreshUser } from "./helpers";
 
-test("create a habit and mark it complete", async ({ page }) => {
+test("quick-add a habit and check it in", async ({ page }) => {
   await registerFreshUser(page);
 
   await page.getByRole("link", { name: "Habits" }).click();
-  await expect(page.getByText("No habits yet")).toBeVisible();
+  await expect(page.getByText(/No habits yet/)).toBeVisible();
 
-  await page.getByRole("button", { name: "New Habit" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Habit Name").fill("Evening walk");
-  await dialog.getByRole("button", { name: "Create Habit" }).click();
+  // Quick-add parses the duration and frequency tokens
+  const quickAdd = page.getByPlaceholder(/Add a habit/);
+  await quickAdd.fill("evening walk 10m every weekday");
+  await quickAdd.press("Enter");
 
-  await expect(page.getByRole("heading", { name: "Evening walk" })).toBeVisible();
+  await expect(page.getByText("Evening walk")).toBeVisible();
+  await expect(page.getByText("Weekdays · 10m")).toBeVisible();
 
-  await page.getByRole("button", { name: "Mark Complete" }).click();
-  await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+  const checkin = page.getByRole("checkbox", { name: 'Check in "Evening walk"' });
+  await checkin.click();
+  await expect(checkin).toHaveAttribute("aria-checked", "true");
 
   // completion persists across a reload
   await page.reload();
-  await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: 'Check in "Evening walk"' })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+});
+
+test("habit detail shows the calendar and stats", async ({ page }) => {
+  await registerFreshUser(page);
+  await page.goto("/habits");
+
+  const quickAdd = page.getByPlaceholder(/Add a habit/);
+  await quickAdd.fill("morning meditation");
+  await quickAdd.press("Enter");
+
+  await page.getByText("Morning meditation").click();
+  await expect(page.getByText("Habit strength")).toBeVisible();
+  await expect(page.getByText("Current streak")).toBeVisible();
+  await expect(page.getByText(/of \d+ days logged/)).toBeVisible();
 });

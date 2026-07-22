@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Grid2X2, List, Sparkles, SunMoon, CheckSquare } from "lucide-react";
+import { CheckSquare, LucideIcon } from "lucide-react";
 import { Task } from "../../context/DataContext";
 import { KbdChip } from "./KbdChip";
 
@@ -7,17 +7,9 @@ export interface PaletteCommand {
   id: string;
   label: string;
   kbd?: string;
-  icon: "new" | "matrix" | "list" | "auto" | "theme";
+  icon: LucideIcon;
   run: () => void;
 }
-
-const COMMAND_ICONS = {
-  new: Plus,
-  matrix: Grid2X2,
-  list: List,
-  auto: Sparkles,
-  theme: SunMoon,
-} as const;
 
 interface CommandPaletteProps {
   commands: PaletteCommand[];
@@ -97,14 +89,14 @@ export function CommandPalette({ commands, tasks, onSelectTask, onClose }: Comma
           />
           <KbdChip>esc</KbdChip>
         </div>
-        <div className="flex flex-col p-[6px]">
+        <div className="flex max-h-[50vh] flex-col overflow-y-auto p-[6px]">
           {filteredCommands.length > 0 && (
             <div className="px-2 pb-1 pt-[6px] text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[var(--f-text3)]">
               Commands
             </div>
           )}
           {filteredCommands.map((command, index) => {
-            const Icon = COMMAND_ICONS[command.icon];
+            const Icon = command.icon;
             return (
               <button
                 key={command.id}

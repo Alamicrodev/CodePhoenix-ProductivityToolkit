@@ -2,25 +2,28 @@ import { expect, test } from "@playwright/test";
 
 import { registerFreshUser } from "./helpers";
 
-test("focus session lifecycle: start, pause, resume, quit", async ({ page }) => {
+test("focus session lifecycle: plan, pause, resume, end", async ({ page }) => {
   await registerFreshUser(page);
 
   await page.getByRole("link", { name: "Focus" }).click();
-  await page.getByRole("button", { name: "Start New Focus Session" }).click();
-  await expect(page.getByRole("heading", { name: "Create Focus Session" })).toBeVisible();
-  await page.getByRole("button", { name: "Start Session" }).click();
+  await expect(page.getByText(/No sessions yet/)).toBeVisible();
 
-  // active: timer panel is up, and a second session cannot be started
-  await expect(page.getByRole("heading", { name: "Focus period in progress" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start New Focus Session" })).toBeDisabled();
+  // Quick-add plans and starts the session (30m total, 25/5 split)
+  const quickAdd = page.getByPlaceholder(/Plan a session/);
+  await quickAdd.fill("30m deep work, 25/5");
+  await quickAdd.press("Enter");
 
-  await page.getByRole("button", { name: "Pause Session" }).click();
-  // paused: resume appears in the panel (and in the history card — scope to first)
-  await page.getByRole("button", { name: "Resume Session" }).first().click();
-  await expect(page.getByRole("button", { name: "Pause Session" })).toBeVisible();
+  // active: countdown panel with Pause; the planner quick-add is gone
+  await expect(page.getByRole("button", { name: /Pause/ })).toBeVisible();
+  await expect(page.getByPlaceholder(/Plan a session/)).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Quit Session" }).click();
-  // quit: back to the empty state and a new session may start
-  await expect(page.getByRole("button", { name: "Create A Focus Session" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start New Focus Session" })).toBeEnabled();
+  await page.getByRole("button", { name: /Pause/ }).click();
+  await expect(page.getByRole("button", { name: /Resume/ })).toBeVisible();
+  await page.getByRole("button", { name: /Resume/ }).click();
+  await expect(page.getByRole("button", { name: /Pause/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "End", exact: true }).click();
+  // ended: planner returns and the session lands in history
+  await expect(page.getByPlaceholder(/Plan a session/)).toBeVisible();
+  await expect(page.getByText("ended early")).toBeVisible();
 });

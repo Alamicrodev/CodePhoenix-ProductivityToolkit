@@ -1,351 +1,228 @@
-import { useData } from "../context/DataContext";
-import DashboardLayout from "../components/DashboardLayout";
-import { Calendar, Clock, Sparkles, TrendingUp } from "lucide-react";
-import { formatClockTime12, formatRelativeDueLabel, parseDateOnlyLocal } from "../lib/timeFormat";
-import { formatHabitNextOccurrence } from "../lib/habitSchedule";
+import { useCallback, useMemo, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { useData, Task } from "../context/DataContext";
+import { FlowShell } from "../components/flow/FlowShell";
+import { FlowButton, FlowPanel, FlowSectionHeader } from "../components/flow/FlowPrimitives";
+import { KbdChip } from "../components/flow/KbdChip";
+import { buildDayAgenda } from "../lib/flowSchedule";
+import { autoCategorizeQuadrant, formatDueLabel } from "../lib/flowTasks";
+import { formatHeaderDate, formatMinutesShort } from "../lib/flowFormat";
 
 export default function SchedulePage() {
-  const { tasks, habits, focusSessions } = useData();
+  const { tasks, habits, focusSessions, updateTask } = useData();
+  const [dayOffset, setDayOffset] = useState(0);
 
-  // Get today's date
-  const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
-  const nextWeek = new Date(today);
-  nextWeek.setDate(today.getDate() + 7);
+  const now = new Date();
+  const viewDate = useMemo(() => {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+    if (dayOffset === 0) return now;
+    return date;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayOffset]);
 
-  // Get tasks due exactly today (not completed, not in active focus sessions, not expired)
-  const tasksInFocus = new Set(
-    focusSessions
-      .filter(session => session.status === "active")
-      .flatMap(session =>
-        session.items
-          .filter(item => item.sourceType === "task")
-          .map(item => item.sourceId)
-      )
+  const agenda = useMemo(() => {
+    const items = buildDayAgenda(tasks, habits, viewDate);
+    if (dayOffset < 0) return items.map(item => ({ ...item, done: true }));
+    if (dayOffset > 0) return items.map(item => ({ ...item, done: false }));
+    return items;
+  }, [dayOffset, habits, tasks, viewDate]);
+
+  const dueThisWeek = useMemo(() => {
+    const weekAhead = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+    return tasks
+      .filter(task => !task.completed && task.dueDate && new Date(task.dueDate) <= weekAhead)
+      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
+
+  const insights = useMemo(() => {
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    const tasksDoneThisWeek = tasks.filter(
+      task => task.completedAt && new Date(task.completedAt) >= weekStart,
+    ).length;
+    const sessionsThisWeek = focusSessions.filter(
+      session => new Date(session.startedAt) >= weekStart,
+    );
+    const focusMinutes = Math.round(
+      sessionsThisWeek.reduce((sum, session) => sum + session.elapsedSeconds, 0) / 60,
+    );
+    return { tasksDoneThisWeek, sessionCount: sessionsThisWeek.length, focusMinutes };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, focusSessions]);
+
+  const completeTask = useCallback(
+    (task: Task) => {
+      void updateTask(task.id, { completed: true, completedAt: new Date().toISOString() });
+    },
+    [updateTask],
   );
 
-  const dueSoonTasks = tasks.filter(task => {
-    if (!task.dueDate || task.completed || tasksInFocus.has(task.id)) return false;
-    return parseDateOnlyLocal(task.dueDate) <= nextWeek;
-  }).sort((a, b) => {
-    const dateA = a.dueDate ? parseDateOnlyLocal(a.dueDate).getTime() : Infinity;
-    const dateB = b.dueDate ? parseDateOnlyLocal(b.dueDate).getTime() : Infinity;
-    return dateA - dateB;
-  });
-
-  const todayTasks = dueSoonTasks.filter(task => task.dueDate === todayStr);
-  const upcomingTasks = dueSoonTasks.filter(task => task.dueDate !== todayStr);
-
-  // Get habits that need to be completed today
-  const habitsInFocus = new Set(
-    focusSessions
-      .filter(session => session.status === "active")
-      .flatMap(session =>
-        session.items
-          .filter(item => item.sourceType === "habit")
-          .map(item => item.sourceId)
-      )
-  );
-
-  const todayHabits = habits.filter(habit => {
-    if (habitsInFocus.has(habit.id)) return false;
-    
-    // Check if habit is already completed for today
-    if (habit.frequency === "hourly") {
-      const currentHour = new Date().toISOString().slice(0, 13);
-      return !habit.completedDates.some(date => date.startsWith(currentHour));
-    } else if (habit.frequency === "daily") {
-      return !habit.completedDates.includes(todayStr);
-    }
-    
-    return true; // Include weekly/monthly habits
-  });
-
-  // Generate dynamic schedule from actual tasks and habits
-  const generateSchedule = () => {
-    const schedule: Array<{
-      time: string;
-      type: string;
-      title: string;
-      priority: string;
-      duration: string;
-      id: string;
-      detail?: string;
-    }> = [];
-
-    // Add morning planning
-    schedule.push({
-      time: "9:00 AM",
-      type: "planning",
-      title: "Morning planning session",
-      priority: "medium",
-      duration: "30 min",
-      id: "planning-morning",
+  const optimizeDay = useCallback(() => {
+    const uncategorized = tasks.filter(task => !task.completed && !task.quadrant);
+    uncategorized.forEach(task => {
+      void updateTask(task.id, { quadrant: autoCategorizeQuadrant(task) });
     });
+    toast.success("Day optimized — schedule rebuilt from your current tasks and habits.");
+  }, [tasks, updateTask]);
 
-    // Add high priority tasks first
-    const highPriorityTasks = dueSoonTasks
-      .filter(t => t.priority === "high")
-      .slice(0, 2);
-    
-    highPriorityTasks.forEach((task, index) => {
-      schedule.push({
-        time: task.dueTime ? formatClockTime12(task.dueTime) : `${10 + index * 2}:00 AM`,
-        type: "task",
-        title: task.title,
-        priority: task.priority,
-        duration: "60 min",
-        id: task.id,
-        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
-      });
+  const formatWeekDue = (task: Task) => {
+    const label = formatDueLabel(task.dueDate, now);
+    if (!label) return "";
+    if (label.label === "Today" || label.label === "Tomorrow") return label.label;
+    return new Date(task.dueDate!).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
     });
-
-    // Add daily habits
-    const dailyHabits = todayHabits.filter(h => h.frequency === "daily").slice(0, 2);
-    dailyHabits.forEach((habit, index) => {
-      schedule.push({
-        time: `${12 + index}:00 PM`,
-        type: "habit",
-        title: habit.title,
-        priority: "medium",
-        duration: "30 min",
-        id: habit.id,
-        detail: formatHabitNextOccurrence(habit, today),
-      });
-    });
-
-    // Add medium priority tasks
-    const mediumPriorityTasks = dueSoonTasks
-      .filter(t => t.priority === "medium")
-      .slice(0, 2);
-    
-    mediumPriorityTasks.forEach((task, index) => {
-      schedule.push({
-        time: task.dueTime ? formatClockTime12(task.dueTime) : `${2 + index}:00 PM`,
-        type: "task",
-        title: task.title,
-        priority: task.priority,
-        duration: "45 min",
-        id: task.id,
-        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
-      });
-    });
-
-    // Add low priority tasks
-    const lowPriorityTasks = dueSoonTasks
-      .filter(t => t.priority === "low")
-      .slice(0, 1);
-    
-    lowPriorityTasks.forEach((task) => {
-      schedule.push({
-        time: task.dueTime ? formatClockTime12(task.dueTime) : "4:00 PM",
-        type: "task",
-        title: task.title,
-        priority: task.priority,
-        duration: "30 min",
-        id: task.id,
-        detail: formatRelativeDueLabel(task.dueDate, task.dueTime, today),
-      });
-    });
-
-    // Add review session at end of day if we have tasks
-    if (dueSoonTasks.length > 0) {
-      schedule.push({
-        time: "5:00 PM",
-        type: "review",
-        title: "Review and planning",
-        priority: "low",
-        duration: "30 min",
-        id: "review-evening",
-      });
-    }
-
-    return schedule;
-  };
-
-  const aiSuggestions = generateSchedule();
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "task":
-        return "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900";
-      case "habit":
-        return "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900";
-      case "focus":
-        return "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-900";
-      default:
-        return "";
-    }
   };
 
   return (
-    <DashboardLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-semibold mb-2">AI Smart Schedule</h1>
-            <p className="text-muted-foreground">Your personalized daily plan optimized for productivity</p>
+    <FlowShell
+      title="Schedule"
+      meta={formatHeaderDate(viewDate)}
+      actions={
+        <>
+          <div className="flex items-center gap-[2px] text-[var(--f-text3)]">
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={() => setDayOffset(offset => offset - 1)}
+              className="cursor-pointer rounded-[5px] px-2 py-[2px] hover:bg-[var(--f-hover)] hover:text-[var(--f-text)]"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setDayOffset(0)}
+              className={`cursor-pointer rounded-[5px] px-2 py-[2px] text-[12px] hover:bg-[var(--f-hover)] hover:text-[var(--f-text)] ${
+                dayOffset === 0 ? "text-[var(--f-text)]" : ""
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={() => setDayOffset(offset => offset + 1)}
+              className="cursor-pointer rounded-[5px] px-2 py-[2px] hover:bg-[var(--f-hover)] hover:text-[var(--f-text)]"
+            >
+              ›
+            </button>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-900">
-            <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-medium">AI Optimized</span>
-          </div>
+          <FlowButton onClick={optimizeDay}>
+            <Sparkles className="h-3 w-3" />
+            Optimize day
+          </FlowButton>
+        </>
+      }
+    >
+      <div className="mx-auto w-full max-w-[840px] px-4 pb-10 pt-[14px]">
+        {/* Agenda */}
+        <FlowSectionHeader>{dayOffset === 0 ? "Today" : formatHeaderDate(viewDate)}</FlowSectionHeader>
+        <div className="mb-4 flex flex-col">
+          {agenda.map(item => (
+            <div
+              key={`${item.id}-${item.startMinutes}`}
+              className={`flex items-center gap-[10px] rounded-md px-2 py-[5px] hover:bg-[var(--f-hover)] ${
+                item.done ? "opacity-[0.62]" : ""
+              }`}
+            >
+              <span className="w-[80px] shrink-0 font-['Geist_Mono',ui-monospace,monospace] text-[11px] text-[var(--f-text3)]">
+                {item.time}
+              </span>
+              <span
+                className="h-4 w-[3px] shrink-0 rounded-[2px]"
+                style={{ background: `var(${item.colorVar})` }}
+              />
+              <span className={`min-w-0 flex-1 truncate font-medium ${item.done ? "line-through" : ""}`}>
+                {item.title}
+              </span>
+              {item.meta && (
+                <span className="whitespace-nowrap text-[12px] text-[var(--f-text3)]">{item.meta}</span>
+              )}
+              <span
+                className="whitespace-nowrap rounded border border-[var(--f-border)] px-[6px] py-[1px] text-[11px]"
+                style={{ color: `var(${item.colorVar})` }}
+              >
+                {item.tag}
+              </span>
+            </div>
+          ))}
+          {agenda.length === 0 && (
+            <div className="px-2 py-3 text-[12px] text-[var(--f-text3)]">
+              Nothing scheduled — press C to add a task and it will be slotted in.
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* AI Schedule */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="font-semibold">Today's Schedule</h2>
-                <span className="text-sm text-muted-foreground">
-                  {today.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {aiSuggestions.map((item, index) => (
+        {/* Due this week */}
+        {dueThisWeek.length > 0 && (
+          <>
+            <FlowSectionHeader>Due this week</FlowSectionHeader>
+            <div className="mb-4 flex flex-col">
+              {dueThisWeek.map(task => {
+                const due = formatDueLabel(task.dueDate, now);
+                return (
                   <div
-                    key={index}
-                    className="flex items-start gap-4 p-4 rounded-lg bg-accent hover:bg-accent/80 transition-colors border border-border"
+                    key={task.id}
+                    className="flex items-center gap-[10px] rounded-md px-2 py-[6px] hover:bg-[var(--f-hover)]"
                   >
-                    <div className="flex items-center justify-center w-20 h-20 rounded-lg bg-background border border-border">
-                      <div className="text-center">
-                        <div className="text-sm font-semibold">
-                          {item.time.split(" ")[0]}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.time.split(" ")[1]}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <h4 className="font-medium">{item.title}</h4>
-                          {item.detail && (
-                            <p className="text-xs text-muted-foreground mt-1">{item.detail}</p>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {item.duration}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border capitalize ${getTypeColor(
-                            item.type
-                          )}`}
-                        >
-                          {item.type}
-                        </span>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            item.priority === "high"
-                              ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400"
-                              : item.priority === "medium"
-                              ? "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
-                          }`}
-                        >
-                          {item.priority}
-                        </span>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked="false"
+                      aria-label={`Mark done "${task.title}"`}
+                      onClick={() => completeTask(task)}
+                      className="h-[15px] w-[15px] shrink-0 cursor-pointer rounded-full border-[1.5px] border-[var(--f-text3)] hover:border-[var(--f-done)]"
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium">{task.title}</span>
+                    <span
+                      className="whitespace-nowrap text-[12px]"
+                      style={{ color: due?.urgent ? "var(--f-hi)" : "var(--f-text3)" }}
+                    >
+                      {formatWeekDue(task)}
+                    </span>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
+          </>
+        )}
 
-            {/* Productivity Insights */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100">AI Insights</h3>
-              </div>
-              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-                <li>• Your peak productivity hours are 10 AM - 12 PM</li>
-                <li>• Consider scheduling deep work during morning hours</li>
-                <li>• You've completed {focusSessions.length} focus sessions this week</li>
-                <li>• Average task completion time: 45 minutes</li>
-              </ul>
-            </div>
+        {/* Insights */}
+        <FlowPanel dotColor="var(--f-accent)" title="Insights" meta="from your last 4 weeks">
+          <div className="flex flex-col gap-[6px] px-3 py-2 text-[12px] leading-normal text-[var(--f-text2)]">
+            <span>
+              Peak productivity window:{" "}
+              <span className="font-medium text-[var(--f-text)]">10 AM – 12 PM</span> — deep work is
+              scheduled there.
+            </span>
+            {insights.tasksDoneThisWeek > 0 && (
+              <span>
+                <span className="font-medium text-[var(--f-text)]">{insights.tasksDoneThisWeek}</span>{" "}
+                task{insights.tasksDoneThisWeek === 1 ? "" : "s"} completed this week.
+              </span>
+            )}
+            {insights.sessionCount === 0 ? (
+              <span>
+                0 focus sessions this week — press <KbdChip>F</KbdChip> to start one on your next
+                block.
+              </span>
+            ) : (
+              <span>
+                <span className="font-medium text-[var(--f-text)]">{insights.sessionCount}</span>{" "}
+                focus session{insights.sessionCount === 1 ? "" : "s"} this week totalling{" "}
+                <span className="font-medium text-[var(--f-text)]">
+                  {formatMinutesShort(insights.focusMinutes)}
+                </span>
+                .
+              </span>
+            )}
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Due Today */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4">Due Today</h3>
-              <div className="space-y-3">
-                {todayTasks.length > 0 ? (
-                  todayTasks.slice(0, 5).map(task => (
-                    <div
-                      key={task.id}
-                      className="p-3 rounded-lg bg-accent border border-border"
-                    >
-                      <p className="font-medium text-sm mb-1">{task.title}</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {formatRelativeDueLabel(task.dueDate, task.dueTime, today)}
-                      </p>
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          task.priority === "high"
-                            ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400"
-                            : task.priority === "medium"
-                            ? "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
-                        }`}
-                      >
-                        {task.priority}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No tasks due today
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Upcoming */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4">Upcoming This Week</h3>
-              <div className="space-y-3">
-                {upcomingTasks.length > 0 ? (
-                  upcomingTasks.slice(0, 5).map(task => (
-                    <div
-                      key={task.id}
-                      className="p-3 rounded-lg bg-accent border border-border"
-                    >
-                      <p className="font-medium text-sm mb-1">{task.title}</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {formatRelativeDueLabel(task.dueDate, task.dueTime, today)}
-                      </p>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(task.dueDate!).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No upcoming tasks
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        </FlowPanel>
       </div>
-    </DashboardLayout>
+    </FlowShell>
   );
 }
-
-

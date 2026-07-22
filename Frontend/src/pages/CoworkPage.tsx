@@ -1,37 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Loader2, Plus, Users, Video, XCircle } from "lucide-react";
-
-import DashboardLayout from "../components/DashboardLayout";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../lib/api";
-import { ApiCoworkSession, buildShareLink, coworkApi } from "../lib/coworkApi";
+import { ApiCoworkSession, coworkApi } from "../lib/coworkApi";
+import { FlowShell } from "../components/flow/FlowShell";
+import { FlowButton, FlowPrimaryButton, FlowSectionHeader } from "../components/flow/FlowPrimitives";
+import { QuickAdd } from "../components/flow/QuickAdd";
+import { KbdChip } from "../components/flow/KbdChip";
+import { userInitials } from "../lib/flowTasks";
+import { formatClock12 } from "../lib/flowFormat";
 
-function formatExpiry(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function liveDuration(createdAt: string, now = new Date()): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(createdAt).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
 export default function CoworkPage() {
   const { accessToken } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<ApiCoworkSession[]>([]);
-  const [title, setTitle] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [focusedSlug, setFocusedSlug] = useState<string | null>(null);
+  const quickAddRef = useRef<HTMLInputElement>(null);
 
   const loadSessions = useCallback(async () => {
-    if (!accessToken) {
-      return;
-    }
+    if (!accessToken) return;
     try {
       setSessions(await coworkApi.list(accessToken));
     } catch (error) {
@@ -45,158 +43,139 @@ export default function CoworkPage() {
     void loadSessions();
   }, [loadSessions]);
 
-  const handleCreate = async () => {
-    if (!accessToken) {
-      return;
-    }
-    setIsCreating(true);
+  const liveRooms = useMemo(() => sessions.filter(session => session.status === "open"), [sessions]);
+  const peopleFocusing = useMemo(
+    () => liveRooms.reduce((sum, room) => sum + room.participant_count, 0),
+    [liveRooms],
+  );
+
+  const focusQuickAdd = useCallback(() => {
+    window.setTimeout(() => quickAddRef.current?.focus(), 30);
+  }, []);
+
+  const handleQuickAdd = useCallback(async () => {
+    if (!accessToken) return;
+    // Room names are free text — "until 5pm" style suffixes are part of the name.
+    const title = draft.trim();
+    if (!title) return;
+    setDraft("");
     try {
-      const created = await coworkApi.create(accessToken, title.trim() || undefined);
-      setSessions(current => [created, ...current]);
-      setTitle("");
-      toast.success("Room created. Share the link to invite people.");
+      const created = await coworkApi.create(accessToken, title);
+      navigate(`/cowork/${created.slug}`);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Could not create the room."));
-    } finally {
-      setIsCreating(false);
     }
-  };
+  }, [accessToken, draft, navigate]);
 
-  const handleCopy = async (slug: string) => {
-    try {
-      await navigator.clipboard.writeText(buildShareLink(slug));
-      setCopiedSlug(slug);
-      window.setTimeout(() => setCopiedSlug(current => (current === slug ? null : current)), 2000);
-    } catch {
-      // Clipboard access needs a secure context; the link is on screen either way.
-      toast.error("Could not copy automatically — select the link and copy it.");
-    }
-  };
+  const handleEnd = useCallback(
+    async (slug: string) => {
+      if (!accessToken) return;
+      try {
+        await coworkApi.end(accessToken, slug);
+        setSessions(current => current.filter(session => session.slug !== slug));
+        toast.success("Room ended.");
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Could not end the room."));
+      }
+    },
+    [accessToken],
+  );
 
-  const handleEnd = async (slug: string) => {
-    if (!accessToken) {
-      return;
-    }
-    try {
-      await coworkApi.end(accessToken, slug);
-      setSessions(current => current.filter(session => session.slug !== slug));
-      toast.success("Room ended.");
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Could not end the room."));
-    }
-  };
+  const joinFocusedRoom = useCallback(() => {
+    const room = liveRooms.find(entry => entry.slug === focusedSlug) ?? liveRooms[0];
+    if (room) navigate(`/cowork/${room.slug}`);
+  }, [focusedSlug, liveRooms, navigate]);
+
+  const shortcuts = useMemo(
+    () => ({ c: focusQuickAdd, j: joinFocusedRoom }),
+    [focusQuickAdd, joinFocusedRoom],
+  );
 
   return (
-    <DashboardLayout>
-      <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold mb-2">Cowork</h1>
-          <p className="text-muted-foreground">
-            Create a room, share the link, and work alongside other people — you'll see each other's
-            cameras and what everyone is working on.
-          </p>
-        </div>
+    <FlowShell
+      title="Cowork"
+      meta={`${liveRooms.length} room${liveRooms.length === 1 ? "" : "s"} live · ${peopleFocusing} ${peopleFocusing === 1 ? "person" : "people"} focusing`}
+      shortcuts={shortcuts}
+      footerHints={[
+        { keys: "C", label: "new room" },
+        { keys: "J", label: "join focused room" },
+        { keys: "⌘K", label: "commands" },
+        { keys: "G", label: "then D/H/F/C/S/P go to module" },
+        { keys: "T", label: "theme" },
+      ]}
+      actions={
+        <FlowPrimaryButton onClick={focusQuickAdd}>
+          <span>New room</span>
+          <KbdChip onAccent>C</KbdChip>
+        </FlowPrimaryButton>
+      }
+    >
+      <div className="mx-auto w-full max-w-[840px] px-4 pb-10 pt-[14px]">
+        <QuickAdd
+          ref={quickAddRef}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSubmit={() => void handleQuickAdd()}
+          placeholder={'Start a room…  try "deep work until 5pm"'}
+          hint="↵ to start · J joins focused room"
+        />
 
-        <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Video className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="font-semibold">Start a room</h2>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="room-title">Room name</Label>
-              <Input
-                id="room-title"
-                placeholder="Morning sprint"
-                value={title}
-                onChange={event => setTitle(event.target.value)}
-                className="h-11"
-              />
-            </div>
-            <Button onClick={handleCreate} disabled={isCreating} className="h-11 gap-2">
-              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Create room
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Links expire after 24 hours. Anyone with a FlowManager account and the link can join.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="font-semibold">Your rooms</h2>
-
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading rooms...
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="bg-card border border-border rounded-2xl p-8 text-center">
-              <Users className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="font-medium mb-1">No rooms yet</p>
-              <p className="text-sm text-muted-foreground">
-                Create one above and send the link to whoever you want to cowork with.
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {sessions.map(session => (
-                <li key={session.id} className="bg-card border border-border rounded-2xl p-5 space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{session.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {session.participant_count > 0
-                          ? `${session.participant_count} inside now`
-                          : "Nobody inside yet"}
-                        {" · "}
-                        Expires {formatExpiry(session.expires_at)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link to={`/cowork/${session.slug}`}>
-                          <ExternalLink className="w-4 h-4" />
-                          Open
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-2 text-red-600 hover:text-red-700 dark:text-red-400"
-                        onClick={() => handleEnd(session.slug)}
-                      >
-                        <XCircle className="w-4 h-4" />
-                        End
-                      </Button>
-                    </div>
+        <FlowSectionHeader>Live · {liveRooms.length}</FlowSectionHeader>
+        <div className="flex flex-col">
+          {liveRooms.map(room => (
+            <div
+              key={room.id}
+              onMouseEnter={() => setFocusedSlug(room.slug)}
+              className={`flex items-center gap-[10px] rounded-md px-2 py-[6px] hover:bg-[var(--f-hover)] ${
+                focusedSlug === room.slug ? "bg-[var(--f-hover)]" : ""
+              }`}
+            >
+              {/* Overlapping avatars: host + participant overflow */}
+              <div className="flex shrink-0">
+                <div
+                  className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-[var(--f-panel)] text-[10px] font-semibold ${
+                    room.is_host
+                      ? "bg-[var(--f-accent-soft)] text-[var(--f-accent)]"
+                      : "bg-[var(--f-panel2)] text-[var(--f-text2)]"
+                  }`}
+                >
+                  {userInitials(room.host_name)}
+                </div>
+                {room.participant_count > 1 && (
+                  <div className="-ml-[7px] flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-[var(--f-panel)] bg-[var(--f-panel2)] text-[10px] font-semibold text-[var(--f-text2)]">
+                    +{room.participant_count - 1}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 truncate rounded-lg bg-accent px-3 py-2 text-xs">
-                      {buildShareLink(session.slug)}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 shrink-0"
-                      onClick={() => handleCopy(session.slug)}
-                    >
-                      {copiedSlug === session.slug ? (
-                        <Check className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                      {copiedSlug === session.slug ? "Copied" : "Copy link"}
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{room.title}</div>
+                <div className="text-[11.5px] text-[var(--f-text3)]">
+                  {room.is_host ? "Hosted by you" : `Hosted by ${room.host_name}`} · expires{" "}
+                  {formatClock12(new Date(room.expires_at))}
+                </div>
+              </div>
+              <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--f-done)]" />
+              <span className="whitespace-nowrap text-[12px] text-[var(--f-text3)]">
+                Live · {liveDuration(room.created_at)}
+              </span>
+              <FlowButton onClick={() => navigate(`/cowork/${room.slug}`)}>Join</FlowButton>
+              {room.is_host && (
+                <FlowButton onClick={() => void handleEnd(room.slug)} className="text-[var(--f-hi)] hover:text-[var(--f-hi)]">
+                  End
+                </FlowButton>
+              )}
+            </div>
+          ))}
+          {!isLoading && liveRooms.length === 0 && (
+            <div className="px-2 py-3 text-[12px] text-[var(--f-text3)]">
+              No rooms live — press C to start one.
+            </div>
+          )}
+          {isLoading && (
+            <div className="px-2 py-3 text-[12px] text-[var(--f-text3)]">Loading rooms…</div>
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </FlowShell>
   );
 }
