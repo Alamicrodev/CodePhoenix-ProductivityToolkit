@@ -38,6 +38,12 @@ interface MeshOptions {
 // Per-pair negotiation state for the "perfect negotiation" pattern.
 interface PeerState {
   pc: RTCPeerConnection;
+  /**
+   * The self peer id this connection was built as. A reconnect issues a fresh
+   * id and negotiation roles derive from the id pair, so a connection whose
+   * selfId is stale must be torn down and re-dialed.
+   */
+  selfId: string;
   /** The polite side yields on glare: it drops its own offer and answers. */
   polite: boolean;
   makingOffer: boolean;
@@ -80,10 +86,6 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
   const localStreamRef = useRef<MediaStream | null>(null);
   // Sentinel so the first run never counts as a stream change.
   const streamIdRef = useRef<string | null | undefined>(undefined);
-  // The peer id this mesh was built as. A reconnect issues a fresh id, everyone
-  // else saw the old id leave, and negotiation roles derive from the id — so a
-  // change invalidates every existing connection.
-  const meshSelfIdRef = useRef<string | null>(null);
   const sendSignalRef = useRef(sendSignal);
   const iceServersRef = useRef(iceServers);
 
@@ -204,6 +206,7 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
       const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
       const state: PeerState = {
         pc,
+        selfId,
         // Roles must come out opposite at the two ends, and both ends compute
         // them from the same pair of ids.
         polite: selfId > peerId,
@@ -328,12 +331,18 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
     }
 
     // Reconnected under a fresh peer id: everyone else saw our old id leave and
-    // a "new" peer arrive, so their end of each old connection is going away.
-    // Start the mesh over; the roster below re-dials with the new roles.
-    if (meshSelfIdRef.current !== selfPeerId) {
-      meshSelfIdRef.current = selfPeerId;
-      connectionsRef.current.forEach((_state, peerId) => closeConnection(peerId));
-    }
+    // a "new" peer arrive, so their end of each old-mesh connection is going
+    // away and the roles it was built with are stale. The check is per
+    // connection, NOT "did selfPeerId change since last run": a connection
+    // built on demand for the CURRENT id — by an offer that arrived while
+    // getUserMedia was still pending — is already live on the remote side, and
+    // closing it here would strand that peer on a dead pair it never learns
+    // about.
+    connectionsRef.current.forEach((state, peerId) => {
+      if (state.selfId !== selfPeerId) {
+        closeConnection(peerId);
+      }
+    });
 
     // The local stream changed (first acquisition, or a retry after a denial):
     // swap the tracks into every live connection. The pairs renegotiate in
@@ -385,13 +394,12 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
           // created this connection, so build it on demand.
           state = createConnection(peerId, selfPeerId);
         }
-        const { pc } = state;
 
         // Glare check: an offer landing while our own offer is in flight. The
         // impolite side ignores it (its own offer will win); the polite side
         // lets setRemoteDescription implicitly roll its half-made offer back.
         const readyForOffer =
-          !state.makingOffer && (pc.signalingState === "stable" || state.settingRemoteAnswer);
+          !state.makingOffer && (state.pc.signalingState === "stable" || state.settingRemoteAnswer);
         const offerCollision = description.type === "offer" && !readyForOffer;
         state.ignoreOffer = !state.polite && offerCollision;
         if (state.ignoreOffer) {
@@ -400,15 +408,27 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
 
         state.settingRemoteAnswer = description.type === "answer";
         try {
-          await pc.setRemoteDescription(description);
+          await state.pc.setRemoteDescription(description);
+        } catch (error) {
+          if (description.type !== "offer") {
+            throw error;
+          }
+          // An offer that cannot apply to this session means the remote end
+          // rebuilt its connection from scratch (their half of this pair is
+          // already gone, so no rollback can reconcile the two). Rebuild ours
+          // to match and answer on the fresh pair — dropping the offer would
+          // strand both sides on a handshake that can never complete.
+          closeConnection(peerId);
+          state = createConnection(peerId, selfPeerId);
+          await state.pc.setRemoteDescription(description);
         } finally {
           state.settingRemoteAnswer = false;
         }
-        await drainCandidates(pc, pendingCandidatesRef.current, peerId);
+        await drainCandidates(state.pc, pendingCandidatesRef.current, peerId);
 
         if (description.type === "offer") {
-          await pc.setLocalDescription();
-          const answer = pc.localDescription;
+          await state.pc.setLocalDescription();
+          const answer = state.pc.localDescription;
           if (answer) {
             sendSignalRef.current("answer", peerId, { sdp: answer.sdp, type: answer.type });
           }
@@ -433,7 +453,11 @@ export function useWebRTCMesh({ connection, iceServers, enabled }: MeshOptions):
     };
 
     return subscribe(message => {
-      handle(message).catch(() => undefined);
+      // Never let one bad signal kill the subscription, but log it: a silently
+      // dropped offer or answer looks exactly like "webcam never connects".
+      handle(message).catch(error => {
+        console.error(`Cowork signaling: failed to handle '${message.type}'`, error);
+      });
     });
   }, [createConnection, selfPeerId, subscribe]);
 

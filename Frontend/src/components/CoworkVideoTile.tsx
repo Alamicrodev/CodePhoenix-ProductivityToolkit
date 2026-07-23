@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { MicOff, VideoOff } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MicOff, Volume2, VideoOff } from "lucide-react";
 
 import { SharedTask } from "../lib/coworkProtocol";
 
@@ -49,14 +49,49 @@ export function CoworkVideoTile({
   sharedTasks = [],
 }: CoworkVideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Autoplay with sound is blocked until the user has interacted with the site
+  // — true for every guest landing straight on a share link. When that happens
+  // the fallback is muted playback (always allowed) plus a tap-to-unmute chip;
+  // without it the tile stays black even though media is flowing.
+  const [needsUnmute, setNeedsUnmute] = useState(false);
 
   // srcObject is not an attribute, so it has to be assigned imperatively.
   useEffect(() => {
     const element = videoRef.current;
-    if (element && element.srcObject !== stream) {
-      element.srcObject = stream;
+    if (!element) {
+      return;
     }
+    if (element.srcObject !== stream) {
+      element.srcObject = stream;
+      setNeedsUnmute(false);
+    }
+    if (!stream) {
+      return;
+    }
+    element.play().catch((error: DOMException) => {
+      if (error.name === "NotAllowedError") {
+        setNeedsUnmute(true);
+      }
+    });
   }, [stream]);
+
+  // The muted prop only lands on the render after needsUnmute flips, so the
+  // (now allowed) play() retry has to wait for it here.
+  useEffect(() => {
+    if (needsUnmute) {
+      videoRef.current?.play().catch(() => undefined);
+    }
+  }, [needsUnmute]);
+
+  const unmute = useCallback(() => {
+    // Runs inside a click, which is the user gesture autoplay was waiting for.
+    setNeedsUnmute(false);
+    const element = videoRef.current;
+    if (element) {
+      element.muted = false;
+      element.play().catch(() => undefined);
+    }
+  }, []);
 
   const status = isLocal ? null : connectionLabel(connectionState);
 
@@ -67,7 +102,7 @@ export function CoworkVideoTile({
         autoPlay
         playsInline
         // Never play our own audio back — it would echo.
-        muted={isLocal}
+        muted={isLocal || needsUnmute}
         // Mirroring makes a local preview feel like a mirror rather than a stranger.
         className={`h-full w-full object-cover ${isLocal ? "-scale-x-100" : ""} ${
           isCameraOff || !stream ? "invisible" : ""
@@ -100,6 +135,17 @@ export function CoworkVideoTile({
         <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
           {status}
         </div>
+      )}
+
+      {needsUnmute && !isLocal && (
+        <button
+          type="button"
+          onClick={unmute}
+          className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80"
+        >
+          <Volume2 className="h-3.5 w-3.5" />
+          Tap for sound
+        </button>
       )}
     </div>
   );
