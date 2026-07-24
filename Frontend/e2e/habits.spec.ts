@@ -2,6 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import { registerFreshUser } from "./helpers";
 
+// Matrix day-cells label themselves "<local date key> - <status>" (HabitDayCell).
+function todayKey() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 test("create a habit and mark it complete", async ({ page }) => {
   await registerFreshUser(page);
 
@@ -13,12 +20,14 @@ test("create a habit and mark it complete", async ({ page }) => {
   await dialog.getByLabel("Habit Name").fill("Evening walk");
   await dialog.getByRole("button", { name: "Create Habit" }).click();
 
-  await expect(page.getByRole("heading", { name: "Evening walk" })).toBeVisible();
+  // The default matrix view lists the habit as a link to its detail page.
+  await expect(page.getByRole("link", { name: "Evening walk" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Mark Complete" }).click();
-  await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+  // Completing today means toggling today's cell in the matrix.
+  await page.locator(`button[title="${todayKey()} - pending"]`).click();
+  await expect(page.locator(`button[title="${todayKey()} - completed"]`)).toBeVisible();
 
   // completion persists across a reload
   await page.reload();
-  await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+  await expect(page.locator(`button[title="${todayKey()} - completed"]`)).toBeVisible();
 });
