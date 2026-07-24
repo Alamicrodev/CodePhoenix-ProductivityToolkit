@@ -26,8 +26,12 @@ services:
       SECRET_KEY: change-me-in-production
       ACCESS_TOKEN_EXPIRE_MINUTES: "60"
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+    # Optional: backend/.env is gitignored, so it exists locally (Gemini key,
+    # Supabase override) but not in CI or a fresh clone — compose must not
+    # require it. Values in `environment:` above still win over the file.
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     command: >
       sh -c "alembic upgrade head &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
