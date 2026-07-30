@@ -4,6 +4,8 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Calendar, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
+import { daysUntilDue, formatDueDate, isOverdue } from "../lib/taskDates";
+import { formatClockTime12 } from "../lib/timeFormat";
 
 interface DraggableTaskCardProps {
   task: Task;
@@ -32,20 +34,6 @@ const DraggableTaskCard = ({ task, onEdit }: DraggableTaskCardProps) => {
     }
   };
 
-  const formatTime = (time: string | null) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
-  };
-
-  const isOverdue = (dueDate: string | null) => {
-    if (!dueDate) return false;
-    return new Date(dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
-  };
-
   return (
     <div
       // react-dnd connectors aren't typed as React refs; wrap in a callback ref
@@ -69,11 +57,8 @@ const DraggableTaskCard = ({ task, onEdit }: DraggableTaskCardProps) => {
         {task.dueDate && (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="w-3 h-3" />
-            {new Date(task.dueDate).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-            {task.dueTime && <span>· {formatTime(task.dueTime)}</span>}
+            {formatDueDate(task.dueDate, { month: "short", day: "numeric" })}
+            {task.dueTime && <span>· {formatClockTime12(task.dueTime)}</span>}
             {isOverdue(task.dueDate) && <AlertCircle className="w-3 h-3 text-red-500" />}
           </span>
         )}
@@ -151,9 +136,6 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
 
   // Auto-categorize tasks based on due date and priority
   const autoCategorizeTasks = async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     await Promise.all(activeTasks.map(async (task) => {
       // Skip if task already has a quadrant assigned
       if (task.quadrant) return;
@@ -161,13 +143,7 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
       let quadrant: Task["quadrant"];
 
       // Determine urgency based on due date
-      const isUrgent = (() => {
-        if (!task.dueDate) return false;
-        const dueDate = new Date(task.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays <= 2; // Urgent if due within 2 days
-      })();
+      const isUrgent = task.dueDate !== null && daysUntilDue(task.dueDate) <= 2;
 
       // Determine importance based on priority
       const isImportant = task.priority === "high" || task.priority === "medium";

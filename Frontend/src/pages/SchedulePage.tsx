@@ -11,6 +11,7 @@ import {
   parseDateOnlyLocal,
 } from "../lib/timeFormat";
 import { formatHabitNextOccurrence } from "../lib/habitSchedule";
+import { formatDueDate } from "../lib/taskDates";
 
 interface AiScheduleItem {
   time: string;
@@ -458,7 +459,7 @@ export default function SchedulePage() {
                         {formatRelativeDueLabel(task.dueDate, task.dueTime, today)}
                       </p>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(task.dueDate!).toLocaleDateString()}
+                        {formatDueDate(task.dueDate!)}
                       </span>
                     </div>
                   ))

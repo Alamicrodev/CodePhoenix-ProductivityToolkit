@@ -22,6 +22,16 @@ import {
 import { Sparkles, Plus, X, AlertCircle, Loader2 } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import { DateInput } from "./ui/date-input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -51,6 +61,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
   const [subtaskDueDate, setSubtaskDueDate] = useState("");
   const [subtaskDueTime, setSubtaskDueTime] = useState("");
   const [dueDateError, setDueDateError] = useState<string>("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -112,26 +123,26 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
       priority,
       dueDate: dueDate || null,
       dueTime: dueTime || null,
-      tags: [],
+      tags: task?.tags ?? [],
       subtasks,
       completed: task?.completed || false,
       completedAt: task?.completedAt || null,
     };
 
-    if (task) {
-      await updateTask(task.id, taskData);
-    } else {
-      await addTask(taskData);
-    }
+    const ok = task ? await updateTask(task.id, taskData) : await addTask(taskData);
 
-    onClose();
+    if (ok) {
+      onClose();
+    }
   };
 
   const handleDelete = async () => {
-    if (task && confirm("Are you sure you want to delete this task?")) {
-      await deleteTask(task.id);
-      onClose();
+    if (!task) {
+      return;
     }
+    setShowDeleteConfirm(false);
+    await deleteTask(task.id);
+    onClose();
   };
 
   const addSubtask = () => {
@@ -400,7 +411,12 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
 
           <DialogFooter className="gap-2">
             {task && (
-            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isSyncing}>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isSyncing}
+              >
                 Delete
               </Button>
             )}
@@ -413,6 +429,26 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
             </Button>
           </DialogFooter>
         </form>
+
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+              <AlertDialogDescription>
+                "{task?.title}" and its subtasks will be permanently deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

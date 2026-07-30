@@ -3,6 +3,7 @@ import { useData } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { CheckSquare, Target, Timer, TrendingUp, Calendar } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { formatDueDate } from "../lib/taskDates";
 
 export default function DashboardPage() {
   const { tasks, habits, focusSessions } = useData();
@@ -202,7 +203,7 @@ export default function DashboardPage() {
                         {task.priority}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(task.dueDate!).toLocaleDateString()}
+                        {formatDueDate(task.dueDate!)}
                       </span>
                     </div>
                   </div>

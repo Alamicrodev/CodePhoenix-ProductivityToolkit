@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { PomodoroTimer } from "../components/PomodoroTimer";
 import { useData, FocusSession, Habit } from "../context/DataContext";
+import { formatDueDate } from "../lib/taskDates";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -555,7 +556,7 @@ export default function FocusPage() {
                               <p className="font-medium">{task.title}</p>
                               <p className="text-xs text-muted-foreground">
                                 {task.priority} priority
-                                {task.dueDate ? ` • due ${new Date(task.dueDate).toLocaleDateString()}` : ""}
+                                {task.dueDate ? ` • due ${formatDueDate(task.dueDate)}` : ""}
                               </p>
                             </div>
                           </div>

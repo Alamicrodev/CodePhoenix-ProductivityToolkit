@@ -93,9 +93,9 @@ interface DataContextType {
   isWorkspaceLoading: boolean;
   isSyncing: boolean;
   syncStatus: string | null;
-  addTask: (task: Omit<Task, "id">) => Promise<void>;
-  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
-  deleteTask: (id: string) => Promise<void>;
+  addTask: (task: Omit<Task, "id">) => Promise<boolean>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<boolean>;
+  deleteTask: (id: string) => Promise<boolean>;
   addHabit: (habit: Omit<Habit, "id">) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
@@ -465,6 +465,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     focusSessionsRef.current = focusSessions;
   }, [focusSessions]);
 
+  // Mirror of tasks so optimistic mutations can snapshot pre-change state
+  // for rollback without depending on `tasks` in their useCallback closures.
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  // Monotonic per-task counter so that when several updates to the same task
+  // are in flight, only the latest response (or rollback) touches state.
+  const taskUpdateSeqRef = useRef(new Map<string, number>());
+
   useEffect(() => {
     const interval = window.setInterval(() => {
       setCurrentTime(Date.now());
@@ -566,10 +577,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addTask = useCallback(
     async (task: Omit<Task, "id">) => {
       if (!accessToken) {
-        return;
+        return false;
       }
 
-      await runWithSync("Creating task...", async () => {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setTasks(currentTasks => [{ ...task, id: tempId }, ...currentTasks]);
+
+      return runWithSync("Creating task...", async () => {
         try {
           const createdTask = await apiRequest<ApiTask>("/tasks", {
             method: "POST",
@@ -577,9 +591,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify(buildTaskCreatePayload(task)),
           });
 
-          setTasks(currentTasks => [mapTaskFromApi(createdTask), ...currentTasks]);
+          setTasks(currentTasks =>
+            currentTasks.map(current => (current.id === tempId ? mapTaskFromApi(createdTask) : current)),
+          );
+          return true;
         } catch (error) {
+          setTasks(currentTasks => currentTasks.filter(current => current.id !== tempId));
           handleApiError(error, "Failed to create task.");
+          return false;
         }
       });
     },
@@ -589,10 +608,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateTask = useCallback(
     async (id: string, updates: Partial<Task>) => {
       if (!accessToken) {
-        return;
+        return false;
       }
 
-      await runWithSync("Saving task...", async () => {
+      const previousTask = tasksRef.current.find(task => task.id === id);
+      if (!previousTask) {
+        return false;
+      }
+
+      const seq = (taskUpdateSeqRef.current.get(id) ?? 0) + 1;
+      taskUpdateSeqRef.current.set(id, seq);
+
+      setTasks(currentTasks =>
+        currentTasks.map(task => (task.id === id ? { ...task, ...updates } : task)),
+      );
+
+      return runWithSync("Saving task...", async () => {
         try {
           const updatedTask = await apiRequest<ApiTask>(`/tasks/${id}`, {
             method: "PATCH",
@@ -600,11 +631,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify(buildTaskUpdatePayload(updates)),
           });
 
-          setTasks(currentTasks =>
-            currentTasks.map(task => (task.id === id ? mapTaskFromApi(updatedTask) : task)),
-          );
+          // Adopt the server copy (it owns subtask ids), unless a newer
+          // update to this task is already in flight.
+          if (taskUpdateSeqRef.current.get(id) === seq) {
+            setTasks(currentTasks =>
+              currentTasks.map(task => (task.id === id ? mapTaskFromApi(updatedTask) : task)),
+            );
+          }
+          return true;
         } catch (error) {
+          if (taskUpdateSeqRef.current.get(id) === seq) {
+            setTasks(currentTasks =>
+              currentTasks.map(task => (task.id === id ? previousTask : task)),
+            );
+          }
           handleApiError(error, "Failed to update task.");
+          return false;
         }
       });
     },
@@ -614,19 +656,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback(
     async (id: string) => {
       if (!accessToken) {
-        return;
+        return false;
       }
 
-      await runWithSync("Deleting task...", async () => {
+      const removedIndex = tasksRef.current.findIndex(task => task.id === id);
+      const removedTask = tasksRef.current[removedIndex];
+      if (!removedTask) {
+        return false;
+      }
+
+      setTasks(currentTasks => currentTasks.filter(task => task.id !== id));
+
+      return runWithSync("Deleting task...", async () => {
         try {
           await apiRequest(`/tasks/${id}`, {
             method: "DELETE",
             token: accessToken,
           });
-
-          setTasks(currentTasks => currentTasks.filter(task => task.id !== id));
+          return true;
         } catch (error) {
+          setTasks(currentTasks => {
+            const restored = [...currentTasks];
+            restored.splice(Math.min(removedIndex, restored.length), 0, removedTask);
+            return restored;
+          });
           handleApiError(error, "Failed to delete task.");
+          return false;
         }
       });
     },
