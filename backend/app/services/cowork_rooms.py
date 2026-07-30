@@ -16,9 +16,9 @@ from typing import Any
 
 from fastapi import WebSocket
 
-# A full mesh means every participant uploads their camera to every other one, so
-# the ceiling here is the participants' upload bandwidth, not the server's.
-MAX_ROOM_PARTICIPANTS = 5
+# With the SFU each participant uploads exactly one stream regardless of room
+# size, so the cap is about download bandwidth and UI density, not upload.
+MAX_ROOM_PARTICIPANTS = 12
 
 
 class RoomFullError(Exception):
@@ -34,6 +34,11 @@ class Peer:
     # The tasks this person has chosen to show the room. Free-form dicts shaped
     # by the frontend (id/title/completed) — the server only relays them.
     shared_tasks: list[dict[str, Any]] = field(default_factory=list)
+    # The Cloudflare SFU session this peer publishes through, and its track
+    # names. Roster state like shared_tasks: late joiners need it (via welcome)
+    # to know what to subscribe to.
+    sfu_session_id: str | None = None
+    published_tracks: list[str] = field(default_factory=list)
 
     def public_state(self) -> dict[str, Any]:
         return {
@@ -41,6 +46,8 @@ class Peer:
             "user_id": self.user_id,
             "display_name": self.display_name,
             "shared_tasks": self.shared_tasks,
+            "sfu_session_id": self.sfu_session_id,
+            "published_tracks": self.published_tracks,
         }
 
 
@@ -95,6 +102,14 @@ class RoomRegistry:
                 peer.shared_tasks = shared_tasks
             return peer
 
+    async def set_media(self, slug: str, peer_id: str, sfu_session_id: str, published_tracks: list[str]) -> Peer | None:
+        async with self._lock:
+            peer = self._rooms.get(slug, {}).get(peer_id)
+            if peer:
+                peer.sfu_session_id = sfu_session_id
+                peer.published_tracks = published_tracks
+            return peer
+
     async def peers(self, slug: str) -> list[Peer]:
         async with self._lock:
             return list(self._rooms.get(slug, {}).values())
@@ -102,6 +117,11 @@ class RoomRegistry:
     #cheap synchronous read for the REST layer ("2 people inside")
     def participant_count(self, slug: str) -> int:
         return len(self._rooms.get(slug, {}))
+
+    #cheap synchronous read for the REST layer: is this user connected right now?
+    #gates the SFU proxy so only people actually in a room can pump media through it
+    def has_user(self, slug: str, user_id: str) -> bool:
+        return any(peer.user_id == user_id for peer in self._rooms.get(slug, {}).values())
 
     #evict everyone and drop the room — used when a room ends or expires under them
     async def close_room(self, slug: str, code: int, reason: str) -> int:

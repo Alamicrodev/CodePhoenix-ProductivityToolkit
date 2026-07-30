@@ -40,3 +40,10 @@ services:
         sync: false
       - key: TURN_KEY_API_TOKEN
         sync: false
+      # Cloudflare Realtime SFU app (separate from the TURN key). Video routes
+      # through Cloudflare's edge; without these the rooms still run in
+      # presence-and-tasks-only mode and say so in the UI.
+      - key: SFU_APP_ID
+        sync: false
+      - key: SFU_APP_SECRET
+        sync: false

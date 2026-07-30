@@ -15,7 +15,6 @@ import {
   reconnectDelayMs,
 } from "../lib/coworkProtocol";
 
-type SignalType = "offer" | "answer" | "ice-candidate";
 type MessageHandler = (message: IncomingMessage) => void;
 
 export interface CoworkRoomConnection {
@@ -27,8 +26,9 @@ export interface CoworkRoomConnection {
   peers: CoworkPeer[];
   maxParticipants: number;
   shareTasks: (tasks: SharedTask[]) => void;
-  sendSignal: (type: SignalType, to: string, payload: Record<string, unknown>) => void;
-  /** Lets the WebRTC layer observe raw messages without a second socket. */
+  /** Tell the room which SFU session/tracks we publish (roster state). */
+  announceMedia: (sessionId: string, trackNames: string[]) => void;
+  /** Lets the media layer observe raw messages without a second socket. */
   subscribe: (handler: MessageHandler) => () => void;
 }
 
@@ -78,9 +78,9 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
     [send],
   );
 
-  const sendSignal = useCallback(
-    (type: SignalType, to: string, payload: Record<string, unknown>) => {
-      send({ type, to, payload });
+  const announceMedia = useCallback(
+    (sessionId: string, trackNames: string[]) => {
+      send({ type: "media-published", payload: { session_id: sessionId, track_names: trackNames } });
     },
     [send],
   );
@@ -181,6 +181,19 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
               ),
             );
             break;
+          case "media-published":
+            setPeers(current =>
+              current.map(peer =>
+                peer.peer_id === message.from
+                  ? {
+                      ...peer,
+                      sfu_session_id: message.payload.session_id,
+                      published_tracks: message.payload.track_names,
+                    }
+                  : peer,
+              ),
+            );
+            break;
           default:
             break;
         }
@@ -234,7 +247,7 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
     peers,
     maxParticipants,
     shareTasks,
-    sendSignal,
+    announceMedia,
     subscribe,
   };
 }

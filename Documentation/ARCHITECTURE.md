@@ -195,17 +195,19 @@ Only the room is persisted. Two things deliberately are not:
   only create ghosts. The free plan runs a single instance with one worker, so
   no second process needs to see this state — that module is the one place that
   would grow a Redis backing if the app ever scaled horizontally.
-- **Audio and video** never reach the backend. Participants connect peer-to-peer
-  over WebRTC in a full mesh; the server only relays the handshake. This is what
-  makes the feature viable on a free instance, and it is why rooms are capped at
-  five people (each participant uploads one copy of their camera per other
-  participant).
+- **Audio and video** never reach the backend. Each participant holds one
+  WebRTC PeerConnection to Cloudflare's Realtime SFU (anycast edge), which
+  routes tracks between them. The backend proxies Cloudflare's Sessions/Tracks
+  HTTPS API (`app/api/routes/cowork_sfu.py`, gated on live room membership) so
+  the App Secret stays server-side. Rooms are capped at twelve — with an SFU
+  the constraint is download bandwidth and UI density, not upload.
 
 ## Realtime Layer
 
 `WS /api/v1/ws/cowork/{slug}` carries three things: presence, shared task lists,
-and WebRTC signaling (`offer` / `answer` / `ice-candidate`, relayed to a single
-target peer with a server-stamped sender so peers cannot impersonate each other).
+and `media-published` announcements (which Cloudflare SFU session/tracks each
+peer publishes, server-stamped so peers cannot impersonate each other). The SDP
+handshake itself goes over the REST proxy, not the socket.
 
 Operational notes:
 

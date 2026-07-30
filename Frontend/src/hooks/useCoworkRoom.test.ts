@@ -58,6 +58,8 @@ const peer = (overrides: Partial<CoworkPeer> = {}): CoworkPeer => ({
   user_id: "u2",
   display_name: "Other User",
   shared_tasks: [],
+  sfu_session_id: null,
+  published_tracks: [],
   ...overrides,
 });
 
@@ -295,19 +297,33 @@ describe("useCoworkRoom", () => {
     expect(latestSocket().sentMessages).toContainEqual({ type: "ping" });
   });
 
-  it("stamps outgoing signals with the target peer", async () => {
+  it("announces published media to the room", async () => {
     const view = await connectedRoom();
 
-    await act(async () => view.result.current.sendSignal("offer", "peer-2", { sdp: "v=0" }));
+    await act(async () => view.result.current.announceMedia("sess-cf-1", ["peer-1-video", "peer-1-audio"]));
 
     expect(latestSocket().sentMessages).toContainEqual({
-      type: "offer",
-      to: "peer-2",
-      payload: { sdp: "v=0" },
+      type: "media-published",
+      payload: { session_id: "sess-cf-1", track_names: ["peer-1-video", "peer-1-audio"] },
     });
   });
 
-  it("hands raw messages to subscribers so the WebRTC layer can share the socket", async () => {
+  it("applies media announcements to the announcing peer's roster entry", async () => {
+    const view = await connectedRoom();
+    await act(async () => {
+      latestSocket().serverSend({ type: "peer-joined", payload: peer() });
+      latestSocket().serverSend({
+        type: "media-published",
+        from: "peer-2",
+        payload: { session_id: "sess-cf-2", track_names: ["peer-2-video"] },
+      });
+    });
+
+    expect(view.result.current.peers[0].sfu_session_id).toBe("sess-cf-2");
+    expect(view.result.current.peers[0].published_tracks).toEqual(["peer-2-video"]);
+  });
+
+  it("hands raw messages to subscribers so the media layer can share the socket", async () => {
     const view = await connectedRoom();
     const seen: unknown[] = [];
     act(() => {
@@ -315,10 +331,10 @@ describe("useCoworkRoom", () => {
     });
 
     await act(async () =>
-      latestSocket().serverSend({ type: "offer", from: "peer-2", payload: { sdp: "v=0" } }),
+      latestSocket().serverSend({ type: "pong" }),
     );
 
-    expect(seen).toContainEqual({ type: "offer", from: "peer-2", payload: { sdp: "v=0" } });
+    expect(seen).toContainEqual({ type: "pong" });
   });
 
   it("closes cleanly on unmount without scheduling a reconnect", async () => {

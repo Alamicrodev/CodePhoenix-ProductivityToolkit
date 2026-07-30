@@ -20,7 +20,7 @@ import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
 import { useCoworkRoom } from "../hooks/useCoworkRoom";
-import { useWebRTCMesh } from "../hooks/useWebRTCMesh";
+import { useSfuRoom } from "../hooks/useSfuRoom";
 import { getApiErrorMessage } from "../lib/api";
 import { ApiCoworkSession, coworkApi } from "../lib/coworkApi";
 import { SharedTask } from "../lib/coworkProtocol";
@@ -40,11 +40,12 @@ export default function CoworkRoomPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showColdStartHint, setShowColdStartHint] = useState(false);
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
-  const [hasTurn, setHasTurn] = useState(true);
   const [sharedTaskIds, setSharedTaskIds] = useState<string[]>([]);
 
   const connection = useCoworkRoom(loadError ? undefined : slug, accessToken);
-  const mesh = useWebRTCMesh({
+  const mesh = useSfuRoom({
+    slug: loadError ? undefined : slug,
+    token: accessToken,
     connection,
     iceServers,
     enabled: Boolean(room) && !loadError,
@@ -73,7 +74,6 @@ export default function CoworkRoomPage() {
             ...(server.credential ? { credential: server.credential } : {}),
           })),
         );
-        setHasTurn(ice.has_turn);
       })
       .catch(error => {
         if (!cancelled) {
@@ -250,17 +250,14 @@ export default function CoworkRoomPage() {
           </div>
         )}
 
-        {!hasTurn && (
+        {mesh.videoError && (
           <div className="flex items-start gap-3 rounded-xl border border-border bg-accent px-4 py-3 text-sm text-muted-foreground">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>
-              No TURN relay is configured, so video may not connect between some networks (office
-              or campus Wi-Fi especially).
-            </span>
+            <span>{mesh.videoError}</span>
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <CoworkVideoTile
             displayName={user?.name ?? "You"}
             stream={mesh.localStream}
@@ -275,6 +272,10 @@ export default function CoworkRoomPage() {
               displayName={peer.display_name}
               stream={mesh.remoteMedia[peer.peer_id]?.stream ?? null}
               connectionState={mesh.remoteMedia[peer.peer_id]?.connectionState}
+              // No published tracks = no camera on their side: show initials and
+              // a camera-off marker, not an eternal "Connecting...".
+              isPublishing={peer.published_tracks.length > 0}
+              isCameraOff={peer.published_tracks.length === 0}
               sharedTasks={peer.shared_tasks}
             />
           ))}

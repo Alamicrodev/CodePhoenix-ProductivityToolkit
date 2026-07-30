@@ -104,8 +104,22 @@ STUN-only and reports `has_turn: false`; the room still works and the UI warns
 that video may not connect on restrictive networks. Set the TTL longer than the
 longest session you expect — a credential expiring mid-call drops the relay.
 
+Cowork video routes through the Cloudflare Realtime **SFU** (each participant
+holds one PeerConnection to Cloudflare's edge; the backend proxies the
+Sessions/Tracks API so the App Secret never reaches a browser). Create an SFU
+app under **Realtime → SFU** — it is separate from the TURN key:
+
+```env
+SFU_APP_ID=<app id>
+SFU_APP_SECRET=<app secret>
+```
+
+Without these (or when Cloudflare is unreachable) rooms degrade to
+presence-and-tasks-only and the UI says video is unavailable.
+
 Billing note: 1,000 GB of egress is included (shared across TURN and SFU), then
-$0.05/GB. Only peer pairs that cannot connect directly consume relay bandwidth.
+$0.05/GB. SFU egress ≈ (participants − 1) × bitrate × participants — the client
+caps video at 300 kbps to keep this bounded.
 
 ## Local Run
 

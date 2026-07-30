@@ -7,6 +7,12 @@ interface CoworkVideoTileProps {
   displayName: string;
   stream: MediaStream | null;
   isLocal?: boolean;
+  /**
+   * Whether this peer publishes any media at all. A peer with no camera has no
+   * connection to wait for — showing "Connecting..." for them would read as a
+   * permanently stuck room, when the honest state is "nothing to show".
+   */
+  isPublishing?: boolean;
   isCameraOff?: boolean;
   isMuted?: boolean;
   connectionState?: RTCPeerConnectionState;
@@ -43,6 +49,7 @@ export function CoworkVideoTile({
   displayName,
   stream,
   isLocal = false,
+  isPublishing = true,
   isCameraOff = false,
   isMuted = false,
   connectionState,
@@ -93,7 +100,7 @@ export function CoworkVideoTile({
     }
   }, []);
 
-  const status = isLocal ? null : connectionLabel(connectionState);
+  const status = isLocal || !isPublishing ? null : connectionLabel(connectionState);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video">

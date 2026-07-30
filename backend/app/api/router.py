@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import ai_scheduler, auth, cowork, cowork_ws, focus_sessions, habits, health, tasks
+from app.api.routes import ai_scheduler, auth, cowork, cowork_sfu, cowork_ws, focus_sessions, habits, health, tasks
 
 
 api_router = APIRouter()
@@ -11,4 +11,5 @@ api_router.include_router(habits.router)
 api_router.include_router(focus_sessions.router)
 api_router.include_router(ai_scheduler.router)
 api_router.include_router(cowork.router)
+api_router.include_router(cowork_sfu.router)
 api_router.include_router(cowork_ws.router)

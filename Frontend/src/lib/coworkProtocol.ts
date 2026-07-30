@@ -12,6 +12,10 @@ export interface CoworkPeer {
   user_id: string;
   display_name: string;
   shared_tasks: SharedTask[];
+  // The Cloudflare SFU session this peer publishes through and its track names.
+  // Null/empty until they announce media (or if they joined receive-only).
+  sfu_session_id: string | null;
+  published_tracks: string[];
 }
 
 export interface CoworkRoomInfo {
@@ -20,11 +24,12 @@ export interface CoworkRoomInfo {
   host_user_id: string;
 }
 
-// Messages the browser sends up.
+// Messages the browser sends up. The SDP handshake goes over the REST proxy —
+// the socket only announces that tracks exist.
 export type OutgoingMessage =
   | { type: "ping" }
   | { type: "task-list"; payload: { tasks: SharedTask[] } }
-  | { type: "offer" | "answer" | "ice-candidate"; to: string; payload: Record<string, unknown> };
+  | { type: "media-published"; payload: { session_id: string; track_names: string[] } };
 
 // Messages the server sends down.
 export type IncomingMessage =
@@ -41,7 +46,7 @@ export type IncomingMessage =
   | { type: "peer-left"; payload: { peer_id: string } }
   | { type: "room-ended"; payload: { reason: "host-ended" | "expired" } }
   | { type: "task-list"; from: string; payload: { tasks: SharedTask[] } }
-  | { type: "offer" | "answer" | "ice-candidate"; from: string; payload: Record<string, unknown> }
+  | { type: "media-published"; from: string; payload: { session_id: string; track_names: string[] } }
   | { type: "pong" }
   | { type: "error"; payload: { message: string } };
 

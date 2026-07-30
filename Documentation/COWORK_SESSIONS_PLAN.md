@@ -10,8 +10,13 @@
 > is the remaining risk. Cloudflare Realtime TURN is wired and confirmed minting
 > live credentials. Ending or expiring a room now evicts everyone still inside,
 > and participants without a camera join receive-only instead of seeing an empty
-> room. Remaining: the NAT matrix, WS ticket auth, rate-limiting room creation,
-> guest access, Phase 5.
+> room. Remaining: WS ticket auth, rate-limiting room creation, guest access,
+> Phase 5.
+>
+> **Update 2026-07-30:** the P2P mesh proved unreliable in practice, triggering
+> the managed-video checkpoint below. The media plane is being replaced by
+> Cloudflare's SFU — see `COWORK_SFU_MIGRATION_PLAN.md`. Phases 1–2 of this
+> plan (rooms, socket, presence, task sync) carry over unchanged, as designed.
 
 Shareable coworking rooms: a user creates a room, shares a link, and up to ~5 people
 see each other's webcams and each other's "working on" task lists in real time.

@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # than the longest plausible cowork session. Cloudflare's ceiling is 48h.
     turn_credential_ttl_seconds: int = Field(21600, alias="TURN_CREDENTIAL_TTL_SECONDS")
 
+    # Cloudflare Realtime SFU app (separate from the TURN key — created under
+    # Realtime -> SFU in the dashboard). The secret authorizes the Sessions/
+    # Tracks API, so it stays server-side; the frontend talks to our proxy
+    # routes and only media flows browser <-> Cloudflare.
+    sfu_app_id: str | None = Field(default=None, alias="SFU_APP_ID")
+    sfu_app_secret: str | None = Field(default=None, alias="SFU_APP_SECRET")
+
     model_config = SettingsConfigDict(    
         env_file=".env",                    #look for this file for env vars
         env_file_encoding="utf-8",        

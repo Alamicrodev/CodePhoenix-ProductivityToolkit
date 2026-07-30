@@ -1,9 +1,10 @@
 """WebSocket endpoint backing a cowork room.
 
 Carries three things: presence (who is here), the task lists people choose to
-share, and the WebRTC handshake messages peers use to find each other. The
-webcam audio/video itself never passes through here — once signaling succeeds
-the browsers talk directly, which is the only reason this fits on a free plan.
+share, and announcements of which Cloudflare SFU tracks each peer publishes.
+The webcam audio/video itself never passes through here — media flows between
+each browser and Cloudflare's edge, and the SDP handshake goes over the REST
+proxy in cowork_sfu.py. This socket is roster truth, nothing more.
 """
 
 import asyncio
@@ -41,9 +42,9 @@ WS_ROOM_ENDED = 4404
 # half-open zombie (common when a laptop sleeps or a phone changes network).
 IDLE_TIMEOUT_SECONDS = 95
 MAX_SHARED_TASKS = 50
-
-# Messages a peer may ask us to relay verbatim to one other peer.
-SIGNAL_TYPES = {"offer", "answer", "ice-candidate"}
+# One video + one audio is the entire product today; a small ceiling keeps a
+# buggy client from spamming the roster with track names.
+MAX_PUBLISHED_TRACKS = 8
 
 
 class SharedTask(BaseModel):
@@ -54,7 +55,6 @@ class SharedTask(BaseModel):
 
 class IncomingMessage(BaseModel):
     type: str
-    to: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -198,8 +198,8 @@ async def _handle_message(slug: str, peer: Peer, raw: Any) -> None:
         await _handle_task_list(slug, peer, message)
         return
 
-    if message.type in SIGNAL_TYPES:
-        await _relay_signal(slug, peer, message)
+    if message.type == "media-published":
+        await _handle_media_published(slug, peer, message)
         return
 
 
@@ -219,20 +219,31 @@ async def _handle_task_list(slug: str, peer: Peer, message: IncomingMessage) -> 
     )
 
 
-#pass an SDP offer/answer or ICE candidate to exactly one other peer in the room
-async def _relay_signal(slug: str, peer: Peer, message: IncomingMessage) -> None:
-    if not message.to:
-        await _send_error(peer, "Signal messages require a target peer")
+#record which SFU session/tracks this peer publishes and tell the room. The SDP
+#handshake itself happens over the REST proxy — the socket only carries the
+#roster fact "these tracks exist", exactly like task lists.
+async def _handle_media_published(slug: str, peer: Peer, message: IncomingMessage) -> None:
+    session_id = message.payload.get("session_id")
+    track_names = message.payload.get("track_names")
+    if (
+        not isinstance(session_id, str)
+        or not session_id
+        or not isinstance(track_names, list)
+        or not all(isinstance(name, str) and name for name in track_names)
+        or len(track_names) > MAX_PUBLISHED_TRACKS
+    ):
+        await _send_error(peer, "Malformed media announcement")
         return
 
-    # `from` is stamped server-side: a peer must not be able to impersonate another.
-    delivered = await room_registry.send_to(
+    await room_registry.set_media(slug, peer.peer_id, session_id, track_names)
+    await room_registry.broadcast(
         slug,
-        message.to,
-        {"type": message.type, "from": peer.peer_id, "payload": message.payload},
+        {
+            "type": "media-published",
+            "from": peer.peer_id,
+            "payload": {"session_id": session_id, "track_names": track_names},
+        },
     )
-    if not delivered:
-        await _send_error(peer, "Peer is no longer in this room")
 
 
 async def _send_error(peer: Peer, detail: str) -> None:

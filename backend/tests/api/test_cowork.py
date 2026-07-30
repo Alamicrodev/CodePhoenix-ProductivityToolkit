@@ -230,7 +230,7 @@ class TestCoworkSocket:
             {"id": "t1", "title": "Earlier", "completed": False}
         ]
 
-    def test_signals_reach_only_the_targeted_peer_and_carry_a_trusted_sender(
+    def test_media_announcement_is_broadcast_with_a_trusted_sender(
         self, client, auth_headers, other_auth_headers
     ):
         room = create_room(client, auth_headers)
@@ -238,33 +238,52 @@ class TestCoworkSocket:
         with client.websocket_connect(socket_url(room["slug"], auth_headers)) as host_socket:
             host_welcome = host_socket.receive_json()
             with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as guest_socket:
-                guest_welcome = guest_socket.receive_json()
+                guest_socket.receive_json()
                 host_socket.receive_json()  # peer-joined
 
                 host_socket.send_json(
                     {
-                        "type": "offer",
-                        "to": guest_welcome["payload"]["peer_id"],
+                        "type": "media-published",
                         # A spoofed `from` must be ignored — the server stamps its own.
                         "from": "somebody-else",
-                        "payload": {"sdp": "v=0", "type": "offer"},
+                        "payload": {"session_id": "sess-cf-1", "track_names": ["p1-video", "p1-audio"]},
                     }
                 )
-                relayed = guest_socket.receive_json()
+                announced = guest_socket.receive_json()
 
-        assert relayed["type"] == "offer"
-        assert relayed["from"] == host_welcome["payload"]["peer_id"]
-        assert relayed["payload"] == {"sdp": "v=0", "type": "offer"}
+        assert announced["type"] == "media-published"
+        assert announced["from"] == host_welcome["payload"]["peer_id"]
+        assert announced["payload"] == {"session_id": "sess-cf-1", "track_names": ["p1-video", "p1-audio"]}
 
-    def test_signal_to_an_unknown_peer_reports_an_error(self, client, auth_headers):
+    def test_late_joiner_learns_published_media_from_the_welcome_roster(
+        self, client, auth_headers, other_auth_headers
+    ):
+        room = create_room(client, auth_headers)
+
+        with client.websocket_connect(socket_url(room["slug"], auth_headers)) as host_socket:
+            host_socket.receive_json()
+            host_socket.send_json(
+                {"type": "media-published", "payload": {"session_id": "sess-cf-1", "track_names": ["p1-video"]}}
+            )
+            host_socket.receive_json()  # own broadcast echo
+
+            with client.websocket_connect(socket_url(room["slug"], other_auth_headers)) as guest_socket:
+                guest_welcome = guest_socket.receive_json()
+
+        roster_entry = guest_welcome["payload"]["peers"][0]
+        assert roster_entry["sfu_session_id"] == "sess-cf-1"
+        assert roster_entry["published_tracks"] == ["p1-video"]
+
+    def test_malformed_media_announcement_errors_without_dropping_the_socket(self, client, auth_headers):
         room = create_room(client, auth_headers)
 
         with client.websocket_connect(socket_url(room["slug"], auth_headers)) as socket:
             socket.receive_json()
-            socket.send_json({"type": "offer", "to": "ghost", "payload": {}})
-            error = socket.receive_json()
+            socket.send_json({"type": "media-published", "payload": {"session_id": "", "track_names": "nope"}})
+            assert socket.receive_json()["type"] == "error"
 
-        assert error["type"] == "error"
+            socket.send_json({"type": "ping"})
+            assert socket.receive_json()["type"] == "pong"
 
     def test_ping_is_answered_with_pong(self, client, auth_headers):
         room = create_room(client, auth_headers)
