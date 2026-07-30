@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Button } from "../components/ui/button";
-import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2, Search } from "lucide-react";
 import { TaskModal } from "../components/TaskModal";
 import { TaskRow } from "../components/tasks/TaskRow";
-import { QuickAdd } from "../components/tasks/QuickAdd";
+import { QuickAdd, QuickAddHandle } from "../components/tasks/QuickAdd";
+import { TaskCommandPalette } from "../components/tasks/TaskCommandPalette";
+import { Kbd } from "../components/tasks/Kbd";
 import { EisenhowerMatrix } from "../components/EisenhowerMatrix";
+import { autoCategorizeTasks } from "../lib/autoCategorize";
 import {
   Select,
   SelectContent,
@@ -41,8 +45,12 @@ const PRIORITY_CHIPS: Array<{ value: FilterPriority; label: string }> = [
   { value: "low", label: "Low" },
 ];
 
+const IS_MAC =
+  typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
+const CMD_LABEL = IS_MAC ? "⌘" : "Ctrl";
+
 export default function TasksPage() {
-  const { tasks } = useData();
+  const { tasks, updateTask } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [sortBy, setSortBy] = useState<SortBy>("dueDate");
@@ -50,6 +58,8 @@ export default function TasksPage() {
   const [filterDueDate, setFilterDueDate] = useState<FilterDueDate>("all");
   const [showCompleted, setShowCompleted] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const quickAddRef = useRef<QuickAddHandle>(null);
 
   // Separate active and completed tasks; completed sorted newest-first
   const activeTasks = tasks.filter(t => !t.completed);
@@ -144,6 +154,55 @@ export default function TasksPage() {
     setEditingTask(undefined);
   };
 
+  const focusQuickAdd = () => {
+    setViewMode("list");
+    // Wait a tick in case the list view (and quick-add) has to mount first.
+    window.setTimeout(() => quickAddRef.current?.focus(), 0);
+  };
+
+  const handleAutoCategorize = async () => {
+    const count = await autoCategorizeTasks(tasks, updateTask);
+    toast.success(
+      count > 0 ? `Categorized ${count} task${count === 1 ? "" : "s"}` : "All tasks already categorized",
+    );
+  };
+
+  // Global shortcuts: ⌘K palette (works while typing), C quick-add, V view toggle.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsPaletteOpen(open => !open);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target?.isContentEditable ?? false);
+      if (isTyping || isModalOpen || isPaletteOpen) {
+        return;
+      }
+      switch (event.key.toLowerCase()) {
+        case "c":
+          event.preventDefault();
+          focusQuickAdd();
+          break;
+        case "v":
+          event.preventDefault();
+          setViewMode(mode => (mode === "list" ? "matrix" : "list"));
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen, isPaletteOpen]);
+
   return (
     <DashboardLayout>
       <div className="flex min-h-full flex-col">
@@ -154,6 +213,15 @@ export default function TasksPage() {
             {activeTasks.length} active · {completedTasks.length} done
           </span>
           <span className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setIsPaletteOpen(true)}
+            className="hidden items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:flex"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search or command
+            <Kbd>{CMD_LABEL} K</Kbd>
+          </button>
           <div className="flex items-center rounded-lg border border-border bg-muted p-0.5">
             <button
               type="button"
@@ -242,7 +310,7 @@ export default function TasksPage() {
         {/* Content */}
         {viewMode === "list" ? (
           <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-6">
-            <QuickAdd />
+            <QuickAdd ref={quickAddRef} />
 
             <h2 className="mb-1 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
               Active · {sortedTasks.length}
@@ -320,6 +388,35 @@ export default function TasksPage() {
             <EisenhowerMatrix activeTasks={activeTasks} onTaskEdit={handleEdit} />
           </div>
         )}
+
+        {/* Shortcut footer */}
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:px-6">
+          <span className="flex items-center gap-1.5">
+            <Kbd>C</Kbd> new task
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>{CMD_LABEL} K</Kbd> commands
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>V</Kbd> switch view
+          </span>
+          <span className="hidden items-center gap-1.5 md:flex">
+            <Kbd>!high · !med · !low</Kbd> priority while typing
+          </span>
+        </div>
+
+        {/* Command palette */}
+        <TaskCommandPalette
+          open={isPaletteOpen}
+          onOpenChange={setIsPaletteOpen}
+          tasks={tasks}
+          viewMode={viewMode}
+          onQuickAdd={focusQuickAdd}
+          onNewDetailedTask={() => setIsModalOpen(true)}
+          onSwitchView={setViewMode}
+          onAutoCategorize={() => void handleAutoCategorize()}
+          onEditTask={handleEdit}
+        />
 
         {/* Task Modal */}
         <TaskModal

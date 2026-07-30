@@ -1,16 +1,24 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useData } from "../../context/DataContext";
 import { parseQuickAdd } from "../../lib/quickAdd";
+
+export interface QuickAddHandle {
+  focus: () => void;
+}
 
 /**
  * Always-visible one-line task capture. Enter creates the task optimistically,
  * clears the field, and keeps focus for rapid consecutive entry.
  */
-export function QuickAdd() {
+export const QuickAdd = forwardRef<QuickAddHandle>(function QuickAdd(_props, ref) {
   const { addTask } = useData();
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -44,6 +52,11 @@ export function QuickAdd() {
           ref={inputRef}
           value={draft}
           onChange={event => setDraft(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === "Escape") {
+              inputRef.current?.blur();
+            }
+          }}
           placeholder='Add a task…  try "pay rent tomorrow !high"'
           aria-label="Quick add task"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-tertiary"
@@ -54,4 +67,4 @@ export function QuickAdd() {
       </div>
     </form>
   );
-}
+});

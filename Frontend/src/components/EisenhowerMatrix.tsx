@@ -4,7 +4,8 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Calendar, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
-import { daysUntilDue, formatDueDate, isOverdue } from "../lib/taskDates";
+import { formatDueDate, isOverdue } from "../lib/taskDates";
+import { autoCategorizeTasks } from "../lib/autoCategorize";
 import { formatClockTime12 } from "../lib/timeFormat";
 
 interface DraggableTaskCardProps {
@@ -135,33 +136,8 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
   const [autoCategorizeTrigger, setAutoCategorizeTrigger] = useState(0);
 
   // Auto-categorize tasks based on due date and priority
-  const autoCategorizeTasks = async () => {
-    await Promise.all(activeTasks.map(async (task) => {
-      // Skip if task already has a quadrant assigned
-      if (task.quadrant) return;
-
-      let quadrant: Task["quadrant"];
-
-      // Determine urgency based on due date
-      const isUrgent = task.dueDate !== null && daysUntilDue(task.dueDate) <= 2;
-
-      // Determine importance based on priority
-      const isImportant = task.priority === "high" || task.priority === "medium";
-
-      // Assign quadrant
-      if (isUrgent && isImportant) {
-        quadrant = "urgent-important";
-      } else if (!isUrgent && isImportant) {
-        quadrant = "not-urgent-important";
-      } else if (isUrgent && !isImportant) {
-        quadrant = "urgent-not-important";
-      } else {
-        quadrant = "not-urgent-not-important";
-      }
-
-      await updateTask(task.id, { quadrant });
-    }));
-
+  const handleAutoCategorize = async () => {
+    await autoCategorizeTasks(activeTasks, updateTask);
     setAutoCategorizeTrigger((prev) => prev + 1);
   };
 
@@ -193,7 +169,7 @@ export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixPr
               Organize tasks by urgency and importance
             </p>
           </div>
-          <Button onClick={autoCategorizeTasks} variant="outline" className="gap-2">
+          <Button onClick={handleAutoCategorize} variant="outline" className="gap-2">
             <Sparkles className="w-4 h-4" />
             Auto-Categorize
           </Button>

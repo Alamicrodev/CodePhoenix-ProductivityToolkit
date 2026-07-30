@@ -56,6 +56,8 @@ function renderTasksPage() {
 }
 
 beforeEach(() => {
+  // cmdk scrolls the selected item into view; jsdom has no implementation
+  Element.prototype.scrollIntoView = vi.fn();
   mockUseAuth.mockReturnValue({
     user: { id: "u1", email: "user@example.com", name: "Test User" },
     accessToken: "tok-1",
@@ -140,6 +142,52 @@ describe("TasksPage", () => {
     await user.click(screen.getByRole("button", { name: "Toggle subtasks for Write report" }));
     expect(screen.getByText("Draft outline")).toBeInTheDocument();
     expect(screen.getByText("Polish intro")).toBeInTheDocument();
+  });
+
+  it("focuses quick-add on C and toggles the view on V", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    renderTasksPage();
+
+    await user.keyboard("c");
+    await vi.waitFor(() => {
+      expect(screen.getByLabelText("Quick add task")).toHaveFocus();
+    });
+
+    // typing in the input must not trigger shortcuts
+    await user.keyboard("v");
+    expect(screen.getByLabelText("Quick add task")).toHaveValue("v");
+
+    await user.keyboard("{Escape}");
+    await user.keyboard("v");
+    expect(screen.getByText("Eisenhower Matrix")).toBeInTheDocument();
+
+    await user.keyboard("v");
+    expect(screen.getByLabelText("Quick add task")).toBeInTheDocument();
+  });
+
+  it("opens the command palette with Ctrl+K and switches views from it", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    renderTasksPage();
+
+    await user.keyboard("{Control>}k{/Control}");
+    expect(screen.getByPlaceholderText("Type a command or search tasks…")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Switch to matrix view"));
+    expect(screen.getByText("Eisenhower Matrix")).toBeInTheDocument();
+  });
+
+  it("jumps to a task from the palette search", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    renderTasksPage();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(screen.getByPlaceholderText("Type a command or search tasks…"), "Write rep");
+    await user.click(screen.getByText("Write report", { selector: "[cmdk-item] span" }));
+
+    expect(screen.getByText("Edit Task")).toBeInTheDocument();
   });
 
   it("filters by priority chips and offers Clear Filters in the empty state", async () => {
