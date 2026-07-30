@@ -56,6 +56,8 @@ function renderTasksPage() {
 }
 
 beforeEach(() => {
+  // view/filter state persists to localStorage; isolate tests from each other
+  window.localStorage.clear();
   // cmdk scrolls the selected item into view; jsdom has no implementation
   Element.prototype.scrollIntoView = vi.fn();
   mockUseAuth.mockReturnValue({
@@ -213,6 +215,20 @@ describe("TasksPage", () => {
     await user.click(screen.getByText("Write report", { selector: "[cmdk-item] span" }));
 
     expect(screen.getByText("Edit Task")).toBeInTheDocument();
+  });
+
+  it("persists the selected view across remounts", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    const { unmount } = renderTasksPage();
+
+    await user.keyboard("v");
+    expect(screen.getByText("Do first")).toBeInTheDocument();
+    unmount();
+
+    renderTasksPage();
+    expect(screen.getByText("Do first")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Quick add task")).not.toBeInTheDocument();
   });
 
   it("filters by priority chips and offers Clear Filters in the empty state", async () => {

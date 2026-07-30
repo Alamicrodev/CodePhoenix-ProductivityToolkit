@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Sparkles, Plus, X, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, X, AlertCircle, Loader2 } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import { DateInput } from "./ui/date-input";
 import {
@@ -217,46 +217,44 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{task ? "Edit Task" : "Create New Task"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base">{task ? "Edit Task" : "Create New Task"}</DialogTitle>
+          <DialogDescription className="text-xs">
             {task ? "Edit the details of your task." : "Create a new task."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* AI Input Field */}
-          <div className="space-y-2">
-            <Label>Task Title</Label>
-            <div className="relative">
-              <Sparkles className="absolute left-3 top-3.5 w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <Input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="e.g., Complete project proposal, Review design mockups..."
-                className="pl-11 h-12"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="title" className="text-xs">Title</Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g., Complete project proposal, Review design mockups..."
+              className="h-9 text-sm"
+              required
+            />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="description" className="text-xs">Description (Optional)</Label>
             <Textarea
               id="description"
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Add more details..."
-              rows={3}
+              rows={2}
+              className="text-sm"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="priority" className="text-xs">Priority</Label>
               <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                <SelectTrigger id="priority">
+                <SelectTrigger id="priority" className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,23 +265,24 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dueDate">Due Date (Optional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="dueDate" className="text-xs">Due Date (Optional)</Label>
               <DateInput
                 id="dueDate"
                 value={dueDate}
                 onChange={e => handleParentDueDateChange(e.target.value)}
+                className="h-9 text-sm"
               />
             </div>
 
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="dueTime">Due Time (Optional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="dueTime" className="text-xs">Due Time (Optional)</Label>
               <Input
                 id="dueTime"
                 type="time"
                 value={dueTime}
                 onChange={e => setDueTime(e.target.value)}
-                className="w-full"
+                className="h-9 w-full text-sm"
               />
             </div>
           </div>
@@ -297,22 +296,23 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
           )}
 
           {/* Subtasks */}
-          <div className="space-y-3">
-            <Label>Subtasks</Label>
-            
+          <div className="space-y-2">
+            <Label className="text-xs">Subtasks</Label>
+
             {/* Add Subtask Form */}
-            <div className="space-y-3 p-4 bg-accent/50 rounded-lg border border-border">
+            <div className="space-y-2 rounded-lg border border-border bg-accent/50 p-3">
               <Input
                 value={subtaskInput}
                 onChange={e => setSubtaskInput(e.target.value)}
                 placeholder="Add a subtask..."
+                className="h-9 text-sm"
                 onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addSubtask())}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Subtask Priority</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Priority</Label>
                   <Select value={subtaskPriority} onValueChange={(v: any) => setSubtaskPriority(v)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm" aria-label="Subtask priority">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -322,25 +322,29 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Subtask Due Date</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Due Date</Label>
                   <DateInput
                     value={subtaskDueDate}
                     onChange={e => setSubtaskDueDate(e.target.value)}
                     max={dueDate || undefined}
+                    className="h-9 text-sm"
+                    aria-label="Subtask due date"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Subtask Due Time</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Due Time</Label>
                   <Input
                     type="time"
                     value={subtaskDueTime}
                     onChange={e => setSubtaskDueTime(e.target.value)}
+                    className="h-9 text-sm"
+                    aria-label="Subtask due time"
                   />
                 </div>
               </div>
-              <Button type="button" onClick={addSubtask} className="w-full gap-2">
-                <Plus className="w-4 h-4" />
+              <Button type="button" variant="secondary" size="sm" onClick={addSubtask} className="w-full gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
                 Add Subtask
               </Button>
             </div>
@@ -351,13 +355,14 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                 {subtasks.map(subtask => (
                   <div
                     key={subtask.id}
-                    className="p-3 rounded-lg bg-card border border-border space-y-2"
+                    className="space-y-1.5 rounded-lg border border-border bg-card p-2.5"
                   >
                     <div className="flex items-start gap-2">
                       <Checkbox
                         checked={subtask.completed}
                         onCheckedChange={() => toggleSubtask(subtask.id)}
-                        className="mt-1"
+                        className="mt-0.5"
+                        aria-label={`Complete subtask: ${subtask.title}`}
                       />
                       <span
                         className={`flex-1 text-sm ${
@@ -372,16 +377,17 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                         size="icon"
                         className="h-6 w-6"
                         onClick={() => removeSubtask(subtask.id)}
+                        aria-label={`Remove subtask: ${subtask.title}`}
                       >
                         <X className="w-3 h-3" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pl-7">
+                    <div className="grid grid-cols-1 gap-2 pl-7 sm:grid-cols-3">
                       <Select
                         value={subtask.priority}
                         onValueChange={v => updateSubtaskField(subtask.id, "priority", v)}
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs" aria-label={`Priority for ${subtask.title}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -395,12 +401,14 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                         onChange={e => updateSubtaskField(subtask.id, "dueDate", e.target.value || null)}
                         className="h-8 text-xs"
                         max={dueDate || undefined}
+                        aria-label={`Due date for ${subtask.title}`}
                       />
                       <Input
                         type="time"
                         value={subtask.dueTime || ""}
                         onChange={e => updateSubtaskField(subtask.id, "dueTime", e.target.value || null)}
                         className="h-8 text-xs"
+                        aria-label={`Due time for ${subtask.title}`}
                       />
                     </div>
                   </div>
@@ -414,16 +422,17 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
               <Button
                 type="button"
                 variant="destructive"
+                size="sm"
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isSyncing}
               >
                 Delete
               </Button>
             )}
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSyncing}>
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSyncing}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!!dueDateError || isSyncing} className="gap-2">
+            <Button type="submit" size="sm" disabled={!!dueDateError || isSyncing} className="gap-2">
               {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {task ? (isSyncing ? "Saving..." : "Update Task") : (isSyncing ? "Creating..." : "Create Task")}
             </Button>

@@ -11,6 +11,7 @@ import { TaskCommandPalette } from "../components/tasks/TaskCommandPalette";
 import { Kbd } from "../components/tasks/Kbd";
 import { EisenhowerMatrix } from "../components/EisenhowerMatrix";
 import { autoCategorizeTasks } from "../lib/autoCategorize";
+import { usePersistentState } from "../hooks/usePersistentState";
 import {
   Select,
   SelectContent,
@@ -49,15 +50,35 @@ const IS_MAC =
   typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
 const CMD_LABEL = IS_MAC ? "⌘" : "Ctrl";
 
+const isSortBy = (v: unknown): v is SortBy => v === "dueDate" || v === "priority";
+const isViewMode = (v: unknown): v is ViewMode => v === "list" || v === "matrix";
+const isFilterPriority = (v: unknown): v is FilterPriority =>
+  v === "all" || v === "low" || v === "medium" || v === "high";
+const isFilterDueDate = (v: unknown): v is FilterDueDate =>
+  ["all", "overdue", "today", "tomorrow", "thisWeek", "later", "noDate"].includes(v as string);
+const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
+
 export default function TasksPage() {
   const { tasks, updateTask } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
-  const [sortBy, setSortBy] = useState<SortBy>("dueDate");
-  const [filterPriority, setFilterPriority] = useState<FilterPriority>("all");
-  const [filterDueDate, setFilterDueDate] = useState<FilterDueDate>("all");
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [sortBy, setSortBy] = usePersistentState<SortBy>("tasks.sortBy", "dueDate", isSortBy);
+  const [filterPriority, setFilterPriority] = usePersistentState<FilterPriority>(
+    "tasks.filterPriority",
+    "all",
+    isFilterPriority,
+  );
+  const [filterDueDate, setFilterDueDate] = usePersistentState<FilterDueDate>(
+    "tasks.filterDueDate",
+    "all",
+    isFilterDueDate,
+  );
+  const [showCompleted, setShowCompleted] = usePersistentState(
+    "tasks.showCompleted",
+    false,
+    isBoolean,
+  );
+  const [viewMode, setViewMode] = usePersistentState<ViewMode>("tasks.viewMode", "list", isViewMode);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const quickAddRef = useRef<QuickAddHandle>(null);
 
@@ -225,6 +246,7 @@ export default function TasksPage() {
           <div className="flex items-center rounded-lg border border-border bg-muted p-0.5">
             <button
               type="button"
+              aria-pressed={viewMode === "list"}
               onClick={() => setViewMode("list")}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
                 viewMode === "list"
@@ -237,6 +259,7 @@ export default function TasksPage() {
             </button>
             <button
               type="button"
+              aria-pressed={viewMode === "matrix"}
               onClick={() => setViewMode("matrix")}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
                 viewMode === "matrix"
@@ -261,6 +284,7 @@ export default function TasksPage() {
                 <button
                   key={chip.value}
                   type="button"
+                  aria-pressed={filterPriority === chip.value}
                   onClick={() => setFilterPriority(chip.value)}
                   className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
                     filterPriority === chip.value
