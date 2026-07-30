@@ -78,6 +78,20 @@ export function formatDueDate(dueDate: string, options?: Intl.DateTimeFormatOpti
   return options ? date.toLocaleDateString("en-US", options) : date.toLocaleDateString();
 }
 
+/** Compact due label for dense rows: "Today", "Tomorrow", "Jul 25", "Jan 3, 2027". */
+export function formatDueLabel(dueDate: string, now = new Date()): string {
+  const diff = daysUntilDue(dueDate, now);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  const sameYear = parseDateOnlyLocal(dueDate).getFullYear() === now.getFullYear();
+  return formatDueDate(
+    dueDate,
+    sameYear
+      ? { month: "short", day: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" },
+  );
+}
+
 function dueTimeMinutes(time: string | null): number {
   if (!time) {
     return Number.POSITIVE_INFINITY;

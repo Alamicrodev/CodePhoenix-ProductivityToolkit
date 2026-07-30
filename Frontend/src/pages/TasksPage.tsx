@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Button } from "../components/ui/button";
-import { Plus, ChevronDown, ChevronUp, Calendar, List, Grid2X2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2 } from "lucide-react";
 import { TaskModal } from "../components/TaskModal";
-import { TaskCard } from "../components/TaskCard";
+import { TaskRow } from "../components/tasks/TaskRow";
+import { QuickAdd } from "../components/tasks/QuickAdd";
 import { EisenhowerMatrix } from "../components/EisenhowerMatrix";
 import {
   Select,
@@ -33,6 +34,13 @@ const DUE_DATE_FILTER_LABELS: Record<Exclude<FilterDueDate, "all">, string> = {
   noDate: "without a due date",
 };
 
+const PRIORITY_CHIPS: Array<{ value: FilterPriority; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+];
+
 export default function TasksPage() {
   const { tasks } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,6 +56,16 @@ export default function TasksPage() {
   const completedTasks = tasks
     .filter(t => t.completed)
     .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+
+  const priorityCounts = useMemo(
+    () => ({
+      all: activeTasks.length,
+      high: activeTasks.filter(t => t.priority === "high").length,
+      medium: activeTasks.filter(t => t.priority === "medium").length,
+      low: activeTasks.filter(t => t.priority === "low").length,
+    }),
+    [activeTasks],
+  );
 
   // Helper to check if task/subtask matches priority filter
   const matchesPriorityFilter = (item: Task | Task["subtasks"][0], priority: FilterPriority) => {
@@ -70,8 +88,8 @@ export default function TasksPage() {
 
       // Check which subtasks match BOTH priority AND due date filters
       const matchedSubtasks = task.subtasks
-        .filter(subtask => 
-          matchesPriorityFilter(subtask, filterPriority) && 
+        .filter(subtask =>
+          matchesPriorityFilter(subtask, filterPriority) &&
           matchesDueDateFilter(subtask.dueDate, filterDueDate)
         )
         .map(st => st.id);
@@ -128,61 +146,71 @@ export default function TasksPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-semibold mb-2">Tasks</h1>
-            <p className="text-muted-foreground">
-              {activeTasks.length} active task{activeTasks.length !== 1 ? "s" : ""}
-              {completedTasks.length > 0 && ` · ${completedTasks.length} completed`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              size="sm"
+      <div className="flex min-h-full flex-col">
+        {/* Header */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-12 sm:px-6 sm:py-0">
+          <h1 className="text-sm font-semibold">Tasks</h1>
+          <span className="text-xs text-tertiary">
+            {activeTasks.length} active · {completedTasks.length} done
+          </span>
+          <span className="flex-1" />
+          <div className="flex items-center rounded-lg border border-border bg-muted p-0.5">
+            <button
+              type="button"
               onClick={() => setViewMode("list")}
-              className="gap-2"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
+                viewMode === "list"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-tertiary hover:text-foreground"
+              }`}
             >
-              <List className="w-4 h-4" />
-              List View
-            </Button>
-            <Button
-              variant={viewMode === "matrix" ? "default" : "outline"}
-              size="sm"
+              <List className="h-3.5 w-3.5" />
+              List
+            </button>
+            <button
+              type="button"
               onClick={() => setViewMode("matrix")}
-              className="gap-2"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
+                viewMode === "matrix"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-tertiary hover:text-foreground"
+              }`}
             >
-              <Grid2X2 className="w-4 h-4" />
-              Matrix View
-            </Button>
-            <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              New Task
-            </Button>
+              <Grid2X2 className="h-3.5 w-3.5" />
+              Matrix
+            </button>
           </div>
+          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setIsModalOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            New task
+          </Button>
         </div>
 
-        {/* Filters and Sorting - Only show in list view */}
+        {/* Filter bar - list view only */}
         {viewMode === "list" && (
-          <div className="flex items-center gap-4 mb-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
-              <Select value={sortBy} onValueChange={(v: SortBy) => setSortBy(v)}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dueDate">Due Date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 sm:px-6">
+            <div className="flex items-center gap-1">
+              {PRIORITY_CHIPS.map(chip => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setFilterPriority(chip.value)}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                    filterPriority === chip.value
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-card text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {chip.label}
+                  <span className="ml-1 opacity-60">{priorityCounts[chip.value]}</span>
+                </button>
+              ))}
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Due Date:</span>
+            <span className="flex-1" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-tertiary">Due:</span>
               <Select value={filterDueDate} onValueChange={(v: FilterDueDate) => setFilterDueDate(v)}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="h-8 w-[130px] text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,95 +224,100 @@ export default function TasksPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Priority:</span>
-              <div className="flex gap-1">
-                {(["all", "high", "medium", "low"] as FilterPriority[]).map(priority => (
-                  <Button
-                    key={priority}
-                    variant={filterPriority === priority ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilterPriority(priority)}
-                    className="capitalize"
-                  >
-                    {priority}
-                  </Button>
-                ))}
-              </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-tertiary">Sort:</span>
+              <Select value={sortBy} onValueChange={(v: SortBy) => setSortBy(v)}>
+                <SelectTrigger className="h-8 w-[110px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dueDate">Due date</SelectItem>
+                  <SelectItem value="priority">Priority</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
 
-        {/* Active Tasks */}
-        <div className="space-y-3 mb-8">
-          {viewMode === "list" ? (
-            sortedTasks.length > 0 ? (
-              sortedTasks.map(({ task, matchedSubtasks, parentMatches }) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onEdit={() => handleEdit(task)}
-                  isMuted={!parentMatches && matchedSubtasks.length > 0}
-                  matchedSubtasks={matchedSubtasks}
-                  sortBy={sortBy}
-                />
-              ))
+        {/* Content */}
+        {viewMode === "list" ? (
+          <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-6">
+            <QuickAdd />
+
+            <h2 className="mb-1 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
+              Active · {sortedTasks.length}
+            </h2>
+
+            {sortedTasks.length > 0 ? (
+              <div>
+                {sortedTasks.map(({ task, matchedSubtasks, parentMatches }) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onEdit={() => handleEdit(task)}
+                    isMuted={!parentMatches && matchedSubtasks.length > 0}
+                    matchedSubtasks={parentMatches ? [] : matchedSubtasks}
+                    sortBy={sortBy}
+                  />
+                ))}
+              </div>
             ) : (
-              <div className="text-center py-16 bg-card border border-border rounded-xl">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                  <Calendar className="w-8 h-8 text-muted-foreground" />
+              <div className="rounded-xl border border-border bg-card py-12 text-center">
+                <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Calendar className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <h3 className="font-semibold mb-2">No active tasks found</h3>
-                <p className="text-muted-foreground mb-6">{emptyStateMessage}</p>
+                <h3 className="mb-1 text-sm font-semibold">No active tasks found</h3>
+                <p className="mb-4 text-xs text-muted-foreground">{emptyStateMessage}</p>
                 <div className="flex items-center justify-center gap-2">
                   {hasActiveFilters && (
-                    <Button variant="outline" onClick={clearFilters}>
+                    <Button variant="outline" size="sm" onClick={clearFilters}>
                       Clear Filters
                     </Button>
                   )}
-                  <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-                    <Plus className="w-4 h-4" />
+                  <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-1.5">
+                    <Plus className="h-3.5 w-3.5" />
                     Create Task
                   </Button>
                 </div>
               </div>
-            )
-          ) : (
-            <EisenhowerMatrix activeTasks={activeTasks} onTaskEdit={handleEdit} />
-          )}
-        </div>
+            )}
 
-        {/* Completed Tasks Section */}
-        {completedTasks.length > 0 && (
-          <div className="border-t border-border pt-6">
-            <button
-              onClick={() => setShowCompleted(!showCompleted)}
-              className="flex items-center gap-2 w-full text-left mb-4 hover:opacity-70 transition-opacity"
-            >
-              {showCompleted ? (
-                <ChevronUp className="w-5 h-5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-muted-foreground" />
-              )}
-              <h2 className="text-lg font-semibold text-muted-foreground">
-                Completed Tasks ({completedTasks.length})
-              </h2>
-            </button>
+            {/* Completed section */}
+            {completedTasks.length > 0 && (
+              <div className="mt-6 border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleted(!showCompleted)}
+                  aria-expanded={showCompleted}
+                  className="mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary transition-colors hover:text-foreground"
+                >
+                  {showCompleted ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                  Completed · {completedTasks.length}
+                </button>
 
-            {showCompleted && (
-              <div className="space-y-3">
-                {completedTasks.map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onEdit={() => handleEdit(task)}
-                    isMuted={false}
-                    matchedSubtasks={[]}
-                  />
-                ))}
+                {showCompleted && (
+                  <div>
+                    {completedTasks.map(task => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onEdit={() => handleEdit(task)}
+                        isMuted={false}
+                        matchedSubtasks={[]}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        ) : (
+          <div className="flex-1 px-4 pb-10 pt-4 sm:px-6">
+            <EisenhowerMatrix activeTasks={activeTasks} onTaskEdit={handleEdit} />
           </div>
         )}
 
@@ -298,4 +331,3 @@ export default function TasksPage() {
     </DashboardLayout>
   );
 }
-

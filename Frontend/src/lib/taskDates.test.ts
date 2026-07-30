@@ -5,6 +5,7 @@ import {
   compareByPriority,
   daysUntilDue,
   DueSortable,
+  formatDueLabel,
   isOverdue,
   matchesDueDateFilter,
 } from "./taskDates";
@@ -74,6 +75,18 @@ describe("matchesDueDateFilter", () => {
   it("'noDate' matches only tasks without a due date", () => {
     expect(matchesDueDateFilter(null, "noDate", NOW)).toBe(true);
     expect(matchesDueDateFilter("2026-08-03", "noDate", NOW)).toBe(false);
+  });
+});
+
+describe("formatDueLabel", () => {
+  it("labels today, tomorrow, and same-year dates compactly", () => {
+    expect(formatDueLabel("2026-07-29", NOW)).toBe("Today");
+    expect(formatDueLabel("2026-07-30", NOW)).toBe("Tomorrow");
+    expect(formatDueLabel("2026-08-15", NOW)).toBe("Aug 15");
+  });
+
+  it("includes the year for other years", () => {
+    expect(formatDueLabel("2027-01-03", NOW)).toBe("Jan 3, 2027");
   });
 });
 

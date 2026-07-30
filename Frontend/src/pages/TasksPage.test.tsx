@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,9 +31,9 @@ function dataValue(tasks: unknown[]) {
     tasks,
     habits: [],
     focusSessions: [],
-    addTask: vi.fn(),
-    updateTask: vi.fn(),
-    deleteTask: vi.fn(),
+    addTask: vi.fn().mockResolvedValue(true),
+    updateTask: vi.fn().mockResolvedValue(true),
+    deleteTask: vi.fn().mockResolvedValue(true),
     addHabit: vi.fn(),
     updateHabit: vi.fn(),
     deleteHabit: vi.fn(),
@@ -69,14 +70,15 @@ describe("TasksPage", () => {
   it("shows the empty state when there are no tasks", () => {
     mockUseData.mockReturnValue(dataValue([]));
     renderTasksPage();
-    expect(screen.getByText("0 active tasks")).toBeInTheDocument();
+    expect(screen.getByText("0 active · 0 done")).toBeInTheDocument();
     expect(screen.getByText("No active tasks found")).toBeInTheDocument();
   });
 
   it("lists active tasks with their count", () => {
     mockUseData.mockReturnValue(dataValue([BASE_TASK]));
     renderTasksPage();
-    expect(screen.getByText("1 active task")).toBeInTheDocument();
+    expect(screen.getByText("1 active · 0 done")).toBeInTheDocument();
+    expect(screen.getByText("Active · 1")).toBeInTheDocument();
     expect(screen.getByText("Write report")).toBeInTheDocument();
   });
 
@@ -85,9 +87,70 @@ describe("TasksPage", () => {
       dataValue([{ ...BASE_TASK, id: "t2", completed: true, title: "Done task" }]),
     );
     renderTasksPage();
-    expect(screen.getByText(/0 active tasks/)).toBeInTheDocument();
-    expect(screen.getByText("Completed Tasks (1)")).toBeInTheDocument();
+    expect(screen.getByText("0 active · 1 done")).toBeInTheDocument();
+    expect(screen.getByText("Completed · 1")).toBeInTheDocument();
     // collapsed by default: the task itself is not visible
     expect(screen.queryByText("Done task")).not.toBeInTheDocument();
+  });
+
+  it("expands the completed section on click", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(
+      dataValue([{ ...BASE_TASK, id: "t2", completed: true, title: "Done task" }]),
+    );
+    renderTasksPage();
+    await user.click(screen.getByText("Completed · 1"));
+    expect(screen.getByText("Done task")).toBeInTheDocument();
+  });
+
+  it("creates a task from the quick-add row with parsed tokens", async () => {
+    const user = userEvent.setup();
+    const data = dataValue([]);
+    mockUseData.mockReturnValue(data);
+    renderTasksPage();
+
+    const input = screen.getByLabelText("Quick add task");
+    await user.type(input, "pay rent tomorrow !high{Enter}");
+
+    expect(data.addTask).toHaveBeenCalledTimes(1);
+    const created = data.addTask.mock.calls[0][0];
+    expect(created.title).toBe("Pay rent");
+    expect(created.priority).toBe("high");
+    expect(created.quadrant).toBe("urgent-important");
+    expect(created.dueDate).not.toBeNull();
+    // field cleared for the next entry
+    expect(input).toHaveValue("");
+  });
+
+  it("shows subtask progress and expands subtasks on toggle", async () => {
+    const user = userEvent.setup();
+    const withSubtasks = {
+      ...BASE_TASK,
+      subtasks: [
+        { id: "s1", title: "Draft outline", completed: true, priority: "medium" as const, dueDate: null, dueTime: null },
+        { id: "s2", title: "Polish intro", completed: false, priority: "low" as const, dueDate: null, dueTime: null },
+      ],
+    };
+    mockUseData.mockReturnValue(dataValue([withSubtasks]));
+    renderTasksPage();
+
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    expect(screen.queryByText("Draft outline")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Toggle subtasks for Write report" }));
+    expect(screen.getByText("Draft outline")).toBeInTheDocument();
+    expect(screen.getByText("Polish intro")).toBeInTheDocument();
+  });
+
+  it("filters by priority chips and offers Clear Filters in the empty state", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([{ ...BASE_TASK, priority: "medium" as const }]));
+    renderTasksPage();
+
+    await user.click(screen.getByRole("button", { name: /High/ }));
+    expect(screen.getByText("No tasks match the high priority filter")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear Filters" }));
+    expect(screen.getByText("Write report")).toBeInTheDocument();
   });
 });
