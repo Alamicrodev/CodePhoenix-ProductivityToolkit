@@ -36,3 +36,39 @@ test("quick-add and modal create tasks, completion persists across a reload", as
   await page.getByText("Completed · 1").click();
   await expect(page.getByText("Pay rent")).toBeVisible();
 });
+
+test("keyboard shortcuts and command palette drive the page", async ({ page }) => {
+  await registerFreshUser(page);
+  await page.getByRole("link", { name: "Tasks" }).click();
+  await expect(page.getByText("0 active · 0 done")).toBeVisible();
+
+  // C focuses quick-add
+  await page.keyboard.press("c");
+  await expect(page.getByPlaceholder(/Add a task/)).toBeFocused();
+
+  // Esc blurs; V switches to matrix and back
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("v");
+  await expect(page.getByText("Do first", { exact: true })).toBeVisible();
+  await page.keyboard.press("v");
+  await expect(page.getByPlaceholder(/Add a task/)).toBeVisible();
+
+  // ⌘K/Ctrl+K opens the palette; a command switches views
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByPlaceholder("Type a command or search tasks…");
+  await expect(palette).toBeVisible();
+  await page.getByText("Switch to matrix view").click();
+  await expect(page.getByText("Do first", { exact: true })).toBeVisible();
+
+  // per-quadrant inline add creates a pre-filed task
+  await page.getByRole("button", { name: /Add to Delegate/ }).click();
+  await page.getByLabel("Add task to Delegate").fill("triage support inbox");
+  await page.getByLabel("Add task to Delegate").press("Enter");
+  await expect(page.getByText("Triage support inbox")).toBeVisible();
+
+  // palette task search jumps to the edit modal
+  await page.keyboard.press("ControlOrMeta+k");
+  await palette.fill("triage");
+  await page.getByRole("option", { name: /Triage support inbox/ }).click();
+  await expect(page.getByRole("heading", { name: "Edit Task" })).toBeVisible();
+});
