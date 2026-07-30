@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Button } from "../components/ui/button";
-import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2, Search } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2, Search, Sparkles } from "lucide-react";
 import { TaskModal } from "../components/TaskModal";
 import { TaskRow } from "../components/tasks/TaskRow";
 import { QuickAdd, QuickAddHandle } from "../components/tasks/QuickAdd";
@@ -254,9 +254,8 @@ export default function TasksPage() {
           </Button>
         </div>
 
-        {/* Filter bar - list view only */}
-        {viewMode === "list" && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 sm:px-6">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 sm:px-6">
             <div className="flex items-center gap-1">
               {PRIORITY_CHIPS.map(chip => (
                 <button
@@ -292,20 +291,31 @@ export default function TasksPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-tertiary">Sort:</span>
-              <Select value={sortBy} onValueChange={(v: SortBy) => setSortBy(v)}>
-                <SelectTrigger className="h-8 w-[110px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dueDate">Due date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {viewMode === "list" ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-tertiary">Sort:</span>
+                <Select value={sortBy} onValueChange={(v: SortBy) => setSortBy(v)}>
+                  <SelectTrigger className="h-8 w-[110px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dueDate">Due date</SelectItem>
+                    <SelectItem value="priority">Priority</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => void handleAutoCategorize()}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Auto-categorize
+              </Button>
+            )}
           </div>
-        )}
 
         {/* Content */}
         {viewMode === "list" ? (
@@ -385,7 +395,14 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="flex-1 px-4 pb-10 pt-4 sm:px-6">
-            <EisenhowerMatrix activeTasks={activeTasks} onTaskEdit={handleEdit} />
+            <EisenhowerMatrix
+              activeTasks={activeTasks.filter(
+                task =>
+                  matchesPriorityFilter(task, filterPriority) &&
+                  matchesDueDateFilter(task.dueDate, filterDueDate),
+              )}
+              onTaskEdit={handleEdit}
+            />
           </div>
         )}
 

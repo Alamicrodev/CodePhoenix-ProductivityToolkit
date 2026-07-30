@@ -1,130 +1,177 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useData, Task } from "../context/DataContext";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { Calendar, AlertCircle, Sparkles } from "lucide-react";
-import { Button } from "./ui/button";
-import { formatDueDate, isOverdue } from "../lib/taskDates";
-import { autoCategorizeTasks } from "../lib/autoCategorize";
-import { formatClockTime12 } from "../lib/timeFormat";
+import { Plus } from "lucide-react";
+import { compareByDueDate } from "../lib/taskDates";
+import { parseQuickAdd } from "../lib/quickAdd";
+import { CircleCheckbox } from "./tasks/CircleCheckbox";
+import { DueLabel } from "./tasks/DueLabel";
+import { PriorityBars } from "./tasks/PriorityBars";
+import { useCompleteTask } from "./tasks/useCompleteTask";
 
-interface DraggableTaskCardProps {
-  task: Task;
-  onEdit: () => void;
-}
+type Quadrant = NonNullable<Task["quadrant"]>;
 
-const DraggableTaskCard = ({ task, onEdit }: DraggableTaskCardProps) => {
+const QUADRANTS: Array<{
+  key: Quadrant;
+  name: string;
+  hint: string;
+  dotClass: string;
+}> = [
+  { key: "urgent-important", name: "Do first", hint: "Urgent & important", dotClass: "bg-priority-high" },
+  { key: "not-urgent-important", name: "Schedule", hint: "Not urgent & important", dotClass: "bg-primary" },
+  { key: "urgent-not-important", name: "Delegate", hint: "Urgent & not important", dotClass: "bg-priority-medium" },
+  { key: "not-urgent-not-important", name: "Eliminate", hint: "Not urgent & not important", dotClass: "bg-tertiary" },
+];
+
+function MatrixRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
+  const toggleComplete = useCompleteTask();
   const [{ isDragging }, drag] = useDrag({
     type: "TASK",
     item: { id: task.id },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
+    collect: monitor => ({ isDragging: monitor.isDragging() }),
   });
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900";
-      case "medium":
-        return "bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900";
-      case "low":
-        return "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700";
-      default:
-        return "";
-    }
-  };
 
   return (
     <div
       // react-dnd connectors aren't typed as React refs; wrap in a callback ref
-      ref={(node) => {
+      ref={node => {
         drag(node);
       }}
-      className={`bg-card border border-border rounded-lg p-3 hover:shadow-md transition-all cursor-move ${
-        isDragging ? "opacity-50" : ""
-      }`}
       onClick={onEdit}
+      className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-accent/50 ${
+        isDragging ? "opacity-40" : ""
+      }`}
     >
-      <h4 className="font-medium text-sm mb-2 line-clamp-2">{task.title}</h4>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium border ${getPriorityColor(
-            task.priority
-          )}`}
-        >
-          {task.priority}
-        </span>
-        {task.dueDate && (
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Calendar className="w-3 h-3" />
-            {formatDueDate(task.dueDate, { month: "short", day: "numeric" })}
-            {task.dueTime && <span>· {formatClockTime12(task.dueTime)}</span>}
-            {isOverdue(task.dueDate) && <AlertCircle className="w-3 h-3 text-red-500" />}
-          </span>
-        )}
-      </div>
+      <CircleCheckbox
+        checked={task.completed}
+        onToggle={() => void toggleComplete(task)}
+        label={`Complete task: ${task.title}`}
+        size="sm"
+      />
+      <PriorityBars priority={task.priority} />
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{task.title}</span>
+      <DueLabel dueDate={task.dueDate} dueTime={task.dueTime} size="sm" />
     </div>
   );
-};
-
-interface QuadrantProps {
-  title: string;
-  subtitle: string;
-  tasks: Task[];
-  quadrantType: Task["quadrant"];
-  onDrop: (taskId: string, quadrant: Task["quadrant"]) => void;
-  onTaskEdit: (task: Task) => void;
-  bgColor: string;
 }
 
-const Quadrant = ({
-  title,
-  subtitle,
-  tasks,
-  quadrantType,
-  onDrop,
-  onTaskEdit,
-  bgColor,
-}: QuadrantProps) => {
+function InlineQuadrantAdd({ quadrant, name }: { quadrant: Quadrant; name: string }) {
+  const { addTask } = useData();
+  const [isAdding, setIsAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const submit = () => {
+    const parsed = parseQuickAdd(draft);
+    if (!parsed.title) {
+      return;
+    }
+    void addTask({
+      title: parsed.title,
+      description: "",
+      completed: false,
+      completedAt: null,
+      priority: parsed.priority,
+      dueDate: parsed.dueDate,
+      dueTime: null,
+      tags: [],
+      subtasks: [],
+      quadrant,
+    });
+    setDraft("");
+    inputRef.current?.focus();
+  };
+
+  if (!isAdding) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsAdding(true)}
+        className="flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-[11.5px] text-tertiary transition-colors hover:bg-accent/50 hover:text-foreground"
+      >
+        <Plus className="h-3 w-3" />
+        Add to {name}
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={event => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        ref={inputRef}
+        autoFocus
+        value={draft}
+        onChange={event => setDraft(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === "Escape") {
+            setDraft("");
+            setIsAdding(false);
+          }
+        }}
+        onBlur={() => {
+          if (!draft.trim()) {
+            setIsAdding(false);
+          }
+        }}
+        placeholder={`Add to ${name}…`}
+        aria-label={`Add task to ${name}`}
+        className="w-full rounded-md border border-border bg-background px-2 py-1 text-[12.5px] outline-none placeholder:text-tertiary focus:border-ring/60"
+      />
+    </form>
+  );
+}
+
+interface QuadrantPanelProps {
+  quadrant: (typeof QUADRANTS)[number];
+  tasks: Task[];
+  onDrop: (taskId: string, quadrant: Quadrant) => void;
+  onTaskEdit: (task: Task) => void;
+}
+
+function QuadrantPanel({ quadrant, tasks, onDrop, onTaskEdit }: QuadrantPanelProps) {
   const [{ isOver }, drop] = useDrop({
     accept: "TASK",
     drop: (item: { id: string }) => {
-      onDrop(item.id, quadrantType);
+      onDrop(item.id, quadrant.key);
     },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
+    collect: monitor => ({ isOver: monitor.isOver() }),
   });
+
+  const sortedTasks = [...tasks].sort(compareByDueDate);
 
   return (
     <div
       // react-dnd connectors aren't typed as React refs; wrap in a callback ref
-      ref={(node) => {
+      ref={node => {
         drop(node);
       }}
-      className={`border-2 rounded-xl p-4 min-h-[300px] transition-all ${
-        isOver ? "border-primary bg-accent/30" : "border-border"
-      } ${bgColor}`}
+      className={`flex min-h-[240px] flex-col rounded-xl border bg-card transition-colors ${
+        isOver ? "border-primary/60 bg-accent/30" : "border-border"
+      }`}
     >
-      <div className="mb-4">
-        <h3 className="font-semibold text-lg">{title}</h3>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${quadrant.dotClass}`} />
+        <span className="text-xs font-semibold">{quadrant.name}</span>
+        <span className="min-w-0 truncate text-[11.5px] text-tertiary">{quadrant.hint}</span>
+        <span className="ml-auto rounded-full bg-muted px-1.5 py-px text-[11px] text-muted-foreground">
+          {tasks.length}
+        </span>
       </div>
-      <div className="space-y-2">
-        {tasks.length > 0 ? (
-          tasks.map((task) => (
-            <DraggableTaskCard key={task.id} task={task} onEdit={() => onTaskEdit(task)} />
-          ))
-        ) : (
-          <p className="text-center py-8 text-muted-foreground text-sm">
-            Drag tasks here or they will be auto-categorized
-          </p>
-        )}
+      <div className="flex-1 p-1.5">
+        {sortedTasks.map(task => (
+          <MatrixRow key={task.id} task={task} onEdit={() => onTaskEdit(task)} />
+        ))}
+        <InlineQuadrantAdd quadrant={quadrant.key} name={quadrant.name} />
       </div>
     </div>
   );
-};
+}
 
 interface EisenhowerMatrixProps {
   onTaskEdit: (task: Task) => void;
@@ -133,107 +180,50 @@ interface EisenhowerMatrixProps {
 
 export function EisenhowerMatrix({ onTaskEdit, activeTasks }: EisenhowerMatrixProps) {
   const { updateTask } = useData();
-  const [autoCategorizeTrigger, setAutoCategorizeTrigger] = useState(0);
 
-  // Auto-categorize tasks based on due date and priority
-  const handleAutoCategorize = async () => {
-    await autoCategorizeTasks(activeTasks, updateTask);
-    setAutoCategorizeTrigger((prev) => prev + 1);
-  };
-
-  // Group tasks by quadrant
   const tasksByQuadrant = useMemo(() => {
-    return {
-      "urgent-important": activeTasks.filter((t) => t.quadrant === "urgent-important"),
-      "not-urgent-important": activeTasks.filter((t) => t.quadrant === "not-urgent-important"),
-      "urgent-not-important": activeTasks.filter((t) => t.quadrant === "urgent-not-important"),
-      "not-urgent-not-important": activeTasks.filter(
-        (t) => t.quadrant === "not-urgent-not-important"
-      ),
-      uncategorized: activeTasks.filter((t) => !t.quadrant),
-    };
-  }, [activeTasks, autoCategorizeTrigger]);
+    const groups = new Map<Quadrant, Task[]>(QUADRANTS.map(q => [q.key, []]));
+    const uncategorized: Task[] = [];
+    activeTasks.forEach(task => {
+      if (task.quadrant) {
+        groups.get(task.quadrant)?.push(task);
+      } else {
+        uncategorized.push(task);
+      }
+    });
+    return { groups, uncategorized };
+  }, [activeTasks]);
 
-  const handleDrop = async (taskId: string, quadrant: Task["quadrant"]) => {
-    await updateTask(taskId, { quadrant });
+  const handleDrop = (taskId: string, quadrant: Quadrant) => {
+    void updateTask(taskId, { quadrant });
   };
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="space-y-4">
-        {/* Auto-categorize button */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold mb-1">Eisenhower Matrix</h3>
-            <p className="text-sm text-muted-foreground">
-              Organize tasks by urgency and importance
-            </p>
-          </div>
-          <Button onClick={handleAutoCategorize} variant="outline" className="gap-2">
-            <Sparkles className="w-4 h-4" />
-            Auto-Categorize
-          </Button>
-        </div>
-
-        {/* Uncategorized tasks */}
+      <div className="flex h-full flex-col gap-3">
         {tasksByQuadrant.uncategorized.length > 0 && (
-          <div className="bg-muted/30 border border-border rounded-lg p-4">
-            <h4 className="font-medium text-sm mb-3 text-muted-foreground">
-              Uncategorized Tasks ({tasksByQuadrant.uncategorized.length})
+          <div className="rounded-xl border border-border bg-muted/30 p-2">
+            <h4 className="mb-1 px-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
+              Uncategorized · {tasksByQuadrant.uncategorized.length}
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {tasksByQuadrant.uncategorized.map((task) => (
-                <DraggableTaskCard key={task.id} task={task} onEdit={() => onTaskEdit(task)} />
+            <div className="grid grid-cols-1 gap-x-3 md:grid-cols-2 xl:grid-cols-3">
+              {tasksByQuadrant.uncategorized.map(task => (
+                <MatrixRow key={task.id} task={task} onEdit={() => onTaskEdit(task)} />
               ))}
             </div>
           </div>
         )}
 
-        {/* 2x2 Matrix Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Q1: Urgent & Important (DO FIRST) */}
-          <Quadrant
-            title="🔥 Do First"
-            subtitle="Urgent & Important"
-            tasks={tasksByQuadrant["urgent-important"]}
-            quadrantType="urgent-important"
-            onDrop={handleDrop}
-            onTaskEdit={onTaskEdit}
-            bgColor="bg-red-50/50 dark:bg-red-950/10"
-          />
-
-          {/* Q2: Not Urgent & Important (SCHEDULE) */}
-          <Quadrant
-            title="📅 Schedule"
-            subtitle="Not Urgent & Important"
-            tasks={tasksByQuadrant["not-urgent-important"]}
-            quadrantType="not-urgent-important"
-            onDrop={handleDrop}
-            onTaskEdit={onTaskEdit}
-            bgColor="bg-blue-50/50 dark:bg-blue-950/10"
-          />
-
-          {/* Q3: Urgent & Not Important (DELEGATE) */}
-          <Quadrant
-            title="🤝 Delegate"
-            subtitle="Urgent & Not Important"
-            tasks={tasksByQuadrant["urgent-not-important"]}
-            quadrantType="urgent-not-important"
-            onDrop={handleDrop}
-            onTaskEdit={onTaskEdit}
-            bgColor="bg-yellow-50/50 dark:bg-yellow-950/10"
-          />
-
-          {/* Q4: Not Urgent & Not Important (ELIMINATE) */}
-          <Quadrant
-            title="🗑️ Eliminate"
-            subtitle="Not Urgent & Not Important"
-            tasks={tasksByQuadrant["not-urgent-not-important"]}
-            quadrantType="not-urgent-not-important"
-            onDrop={handleDrop}
-            onTaskEdit={onTaskEdit}
-            bgColor="bg-gray-50/50 dark:bg-gray-800/10"
-          />
+        <div className="grid flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+          {QUADRANTS.map(quadrant => (
+            <QuadrantPanel
+              key={quadrant.key}
+              quadrant={quadrant}
+              tasks={tasksByQuadrant.groups.get(quadrant.key) ?? []}
+              onDrop={handleDrop}
+              onTaskEdit={onTaskEdit}
+            />
+          ))}
         </div>
       </div>
     </DndProvider>

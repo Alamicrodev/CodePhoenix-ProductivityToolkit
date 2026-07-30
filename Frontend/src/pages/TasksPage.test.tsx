@@ -160,7 +160,7 @@ describe("TasksPage", () => {
 
     await user.keyboard("{Escape}");
     await user.keyboard("v");
-    expect(screen.getByText("Eisenhower Matrix")).toBeInTheDocument();
+    expect(screen.getByText("Do first")).toBeInTheDocument();
 
     await user.keyboard("v");
     expect(screen.getByLabelText("Quick add task")).toBeInTheDocument();
@@ -175,7 +175,32 @@ describe("TasksPage", () => {
     expect(screen.getByPlaceholderText("Type a command or search tasks…")).toBeInTheDocument();
 
     await user.click(screen.getByText("Switch to matrix view"));
-    expect(screen.getByText("Eisenhower Matrix")).toBeInTheDocument();
+    expect(screen.getByText("Do first")).toBeInTheDocument();
+  });
+
+  it("groups tasks into their matrix quadrants with inline add rows", async () => {
+    const user = userEvent.setup();
+    const data = dataValue([
+      { ...BASE_TASK, id: "q1", title: "Urgent thing", quadrant: "urgent-important" },
+      { ...BASE_TASK, id: "q2", title: "Someday thing", quadrant: "not-urgent-not-important" },
+      { ...BASE_TASK, id: "q3", title: "Unfiled thing", quadrant: null },
+    ]);
+    mockUseData.mockReturnValue(data);
+    renderTasksPage();
+
+    await user.keyboard("v");
+    expect(screen.getByText("Urgent thing")).toBeInTheDocument();
+    expect(screen.getByText("Someday thing")).toBeInTheDocument();
+    expect(screen.getByText("Uncategorized · 1")).toBeInTheDocument();
+
+    // inline add pre-files the task into the quadrant
+    await user.click(screen.getByRole("button", { name: /Add to Schedule/ }));
+    await user.type(screen.getByLabelText("Add task to Schedule"), "book flights !low{Enter}");
+    expect(data.addTask).toHaveBeenCalledTimes(1);
+    const created = data.addTask.mock.calls[0][0];
+    expect(created.title).toBe("Book flights");
+    expect(created.priority).toBe("low");
+    expect(created.quadrant).toBe("not-urgent-important");
   });
 
   it("jumps to a task from the palette search", async () => {

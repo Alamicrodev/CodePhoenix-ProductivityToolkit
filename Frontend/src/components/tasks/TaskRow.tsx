@@ -1,17 +1,12 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, Pencil } from "lucide-react";
-import { toast } from "sonner";
 import { Task, useData } from "../../context/DataContext";
-import {
-  compareByDueDate,
-  compareByPriority,
-  formatDueLabel,
-  isOverdue,
-} from "../../lib/taskDates";
-import { formatClockTime12 } from "../../lib/timeFormat";
+import { compareByDueDate, compareByPriority } from "../../lib/taskDates";
 import { CircleCheckbox } from "./CircleCheckbox";
+import { DueLabel } from "./DueLabel";
 import { PriorityBars } from "./PriorityBars";
 import { QuadrantTag } from "./QuadrantTag";
+import { useCompleteTask } from "./useCompleteTask";
 
 interface TaskRowProps {
   task: Task;
@@ -19,33 +14,6 @@ interface TaskRowProps {
   isMuted: boolean;
   matchedSubtasks: string[];
   sortBy?: "dueDate" | "priority";
-}
-
-function DueLabel({
-  dueDate,
-  dueTime,
-  size = "md",
-}: {
-  dueDate: string | null;
-  dueTime: string | null;
-  size?: "sm" | "md";
-}) {
-  if (!dueDate) {
-    return <span className={`w-[76px] shrink-0 ${size === "md" ? "" : "w-[68px]"}`} />;
-  }
-  const urgent = isOverdue(dueDate) || formatDueLabel(dueDate) === "Today";
-
-  return (
-    <span
-      className={`shrink-0 text-right text-xs whitespace-nowrap ${
-        size === "md" ? "w-[76px]" : "w-[68px]"
-      } ${urgent ? "text-priority-high font-medium" : "text-tertiary"}`}
-      title={dueTime ? `Due ${formatDueLabel(dueDate)} at ${formatClockTime12(dueTime)}` : undefined}
-    >
-      {formatDueLabel(dueDate)}
-      {dueTime ? ` · ${formatClockTime12(dueTime)}` : ""}
-    </span>
-  );
 }
 
 function formatCompletedShort(timestamp: string): string {
@@ -62,6 +30,7 @@ function formatCompletedShort(timestamp: string): string {
 
 export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueDate" }: TaskRowProps) {
   const { updateTask } = useData();
+  const toggleComplete = useCompleteTask();
   const [expanded, setExpanded] = useState(false);
 
   // When only subtasks match the active filters, open the row so the matches show.
@@ -71,23 +40,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
     }
   }, [isMuted, matchedSubtasks.length]);
 
-  const handleToggle = async () => {
-    const newCompleted = !task.completed;
-    const ok = await updateTask(task.id, {
-      completed: newCompleted,
-      completedAt: newCompleted ? new Date().toISOString() : null,
-    });
-    if (ok && newCompleted) {
-      toast.success("Task completed", {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void updateTask(task.id, { completed: false, completedAt: null });
-          },
-        },
-      });
-    }
-  };
+  const handleToggle = () => void toggleComplete(task);
 
   const handleSubtaskToggle = (subtaskId: string) => {
     const updatedSubtasks = task.subtasks.map(st =>
