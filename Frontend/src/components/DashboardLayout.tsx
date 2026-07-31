@@ -36,7 +36,6 @@ const navigation = [
   { name: "Focus", href: "/focus", icon: Timer },
   { name: "Cowork", href: "/cowork", icon: Users },
   { name: "Schedule", href: "/schedule", icon: Calendar },
-  { name: "Profile", href: "/profile", icon: User },
 ];
 
 export default function DashboardLayout({ children }: LayoutProps) {
@@ -50,6 +49,36 @@ export default function DashboardLayout({ children }: LayoutProps) {
     setIsMobileNavOpen(false);
     navigate("/login");
   };
+
+  const isProfileActive = location.pathname === "/profile";
+
+  /** The user widget doubles as the Profile link (replaces the old nav item). */
+  const profileWidget = (
+    <Link
+      to="/profile"
+      aria-label="Open profile"
+      aria-current={isProfileActive ? "page" : undefined}
+      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
+        isProfileActive ? "bg-blue-100 dark:bg-blue-950" : "bg-accent hover:bg-accent/80"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <p
+          className={`text-sm font-medium truncate ${
+            isProfileActive ? "text-blue-600 dark:text-blue-400" : ""
+          }`}
+        >
+          {user?.name}
+        </p>
+        <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+      </div>
+      <User
+        className={`w-4 h-4 shrink-0 ${
+          isProfileActive ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"
+        }`}
+      />
+    </Link>
+  );
 
   const sidebarContent = (isMobile = false) => (
     <div className="flex h-full flex-col">
@@ -100,10 +129,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
           <span className="text-sm text-muted-foreground">Theme</span>
           <ThemeToggle />
         </div>
-        <div className="px-4 py-2 rounded-lg bg-accent">
-          <p className="text-sm font-medium">{user?.name}</p>
-          <p className="text-xs text-muted-foreground">{user?.email}</p>
-        </div>
+        {isMobile ? <SheetClose asChild>{profileWidget}</SheetClose> : profileWidget}
         <Button variant="ghost" className="w-full justify-start gap-3" onClick={handleLogout}>
           <LogOut className="w-5 h-5" />
           <span>Log out</span>
