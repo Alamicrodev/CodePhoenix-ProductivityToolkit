@@ -26,7 +26,6 @@ import {
 } from "../lib/schedulePlan";
 import { compareByDueDate, formatDueLabel } from "../lib/taskDates";
 import { formatClockTime12, formatDateKeyLocal, startOfLocalDay } from "../lib/timeFormat";
-import { useTheme } from "next-themes";
 
 type ScheduleView = "timeline" | "agenda";
 const isScheduleView = (v: unknown): v is ScheduleView => v === "timeline" || v === "agenda";
@@ -42,7 +41,6 @@ function dayShortLabel(dayKey: string) {
 export default function SchedulePage() {
   const { tasks, habits, completeHabit, undoCompleteHabit, updateTask, updateHabit } = useData();
   const completeTask = useCompleteTask();
-  const { resolvedTheme, setTheme } = useTheme();
 
   const [view, setView] = usePersistentState<ScheduleView>(
     "schedule.view",
@@ -210,10 +208,7 @@ export default function SchedulePage() {
           event.preventDefault();
           setView(v => (v === "timeline" ? "agenda" : "timeline"));
           break;
-        case "t":
-          event.preventDefault();
-          setTheme(resolvedTheme === "dark" ? "light" : "dark");
-          break;
+        // T (theme) is handled globally by DashboardLayout.
         case "arrowright":
           event.preventDefault();
           setDayIndex(i => Math.min(6, i + 1));
@@ -226,7 +221,7 @@ export default function SchedulePage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleNewTask, setView, setTheme, resolvedTheme, todayIndex, isModalOpen]);
+  }, [handleNewTask, setView, isModalOpen]);
 
   /* --------------------------------- rail data --------------------------------- */
 

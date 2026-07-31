@@ -1,8 +1,13 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { useTheme } from "next-themes";
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
+import { Kbd } from "./tasks/Kbd";
+import { deriveDayBlocks } from "../lib/schedulePlan";
+import { formatDateKeyLocal } from "../lib/timeFormat";
 import {
   Sheet,
   SheetClose,
@@ -17,30 +22,71 @@ import {
   Target,
   Timer,
   Calendar,
-  User,
   Users,
   LogOut,
   Menu,
-  Sparkles,
+  LucideIcon,
 } from "lucide-react";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
-const navigation = [
-  { name: "Today", href: "/", icon: Calendar },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
+type CountKey = "today" | "tasks";
+
+const navigation: Array<{ name: string; href: string; icon: LucideIcon; count?: CountKey }> = [
+  { name: "Today", href: "/", icon: Calendar, count: "today" },
+  { name: "Tasks", href: "/tasks", icon: CheckSquare, count: "tasks" },
   { name: "Habits", href: "/habits", icon: Target },
   { name: "Focus", href: "/focus", icon: Timer },
   { name: "Cowork", href: "/cowork", icon: Users },
 ];
+
+/** "Sharad Bhamidipati" → "SB"; single names fall back to one letter. */
+function initialsOf(name: string | undefined) {
+  const letters = (name ?? "")
+    .trim()
+    .split(/\s+/)
+    .map(part => part[0])
+    .filter(char => char && /\p{L}/u.test(char));
+  if (letters.length === 0) return "?";
+  return letters.slice(0, 2).join("").toUpperCase();
+}
 
 export default function DashboardLayout({ children }: LayoutProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { tasks, habits } = useData();
+  const { resolvedTheme, setTheme } = useTheme();
+
+  const counts = useMemo(() => {
+    const todayKey = formatDateKeyLocal(new Date());
+    const { timed, untimed } = deriveDayBlocks(tasks, habits, todayKey);
+    return {
+      today: [...timed, ...untimed].filter(block => !block.done).length,
+      tasks: tasks.filter(task => !task.completed).length,
+    };
+  }, [tasks, habits]);
+
+  // T toggles the theme app-wide, matching the chip on the sidebar button.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "t") return;
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target?.isContentEditable ?? false);
+      if (isTyping || document.querySelector('[role="dialog"]')) return;
+      event.preventDefault();
+      setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [resolvedTheme, setTheme]);
 
   const handleLogout = () => {
     logout();
@@ -50,109 +96,132 @@ export default function DashboardLayout({ children }: LayoutProps) {
 
   const isProfileActive = location.pathname === "/profile";
 
-  /** The user widget doubles as the Profile link (replaces the old nav item). */
-  const profileWidget = (
-    <Link
-      to="/profile"
-      aria-label="Open profile"
-      aria-current={isProfileActive ? "page" : undefined}
-      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-        isProfileActive ? "bg-blue-100 dark:bg-blue-950" : "bg-accent hover:bg-accent/80"
-      }`}
-    >
-      <div className="min-w-0 flex-1">
-        <p
-          className={`text-sm font-medium truncate ${
-            isProfileActive ? "text-blue-600 dark:text-blue-400" : ""
-          }`}
-        >
-          {user?.name}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-      </div>
-      <User
-        className={`w-4 h-4 shrink-0 ${
-          isProfileActive ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"
+  const sidebarContent = (isMobile = false) => {
+    /** The user row doubles as the Profile link. */
+    const profileRow = (
+      <Link
+        to="/profile"
+        aria-label="Open profile"
+        aria-current={isProfileActive ? "page" : undefined}
+        className={`flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors ${
+          isProfileActive ? "bg-primary/10" : "hover:bg-accent"
         }`}
-      />
-    </Link>
-  );
+      >
+        <span
+          className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+            isProfileActive ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+          }`}
+          aria-hidden="true"
+        >
+          {initialsOf(user?.name)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span
+            className={`block truncate text-xs font-medium ${
+              isProfileActive ? "text-primary" : ""
+            }`}
+          >
+            {user?.name}
+          </span>
+          <span className="block truncate text-[11px] text-tertiary">{user?.email}</span>
+        </span>
+      </Link>
+    );
 
-  const sidebarContent = (isMobile = false) => (
-    <div className="flex h-full flex-col">
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold">FlowManager</h2>
-            <p className="text-xs text-muted-foreground">AI Productivity</p>
-          </div>
+    return (
+      <div className="flex h-full flex-col px-2 py-2.5">
+        {/* Logo row */}
+        <div className="flex items-center gap-2 px-2 pb-3.5 pt-1.5">
+          <span
+            className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-primary text-[11px] font-semibold text-primary-foreground"
+            aria-hidden="true"
+          >
+            F
+          </span>
+          <span className="text-[13px] font-semibold">FlowManager</span>
         </div>
-      </div>
 
-      <nav className="flex-1 p-4 space-y-1">
-        {navigation.map((item) => {
-          const isActive = location.pathname === item.href;
-          const Icon = item.icon;
-          const linkClasses = `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            isActive
-              ? "bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          }`;
-
-          if (isMobile) {
-            return (
-              <SheetClose asChild key={item.name}>
-                <Link to={item.href} className={linkClasses}>
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
-                </Link>
-              </SheetClose>
+        {/* Nav */}
+        <nav className="flex flex-col gap-px">
+          {navigation.map(item => {
+            const isActive = location.pathname === item.href;
+            const Icon = item.icon;
+            const count = item.count ? counts[item.count] : 0;
+            const row = (
+              <Link
+                key={item.name}
+                to={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] transition-colors ${
+                  isActive
+                    ? "bg-primary/10 font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                <Icon
+                  className={`h-[15px] w-[15px] shrink-0 ${
+                    isActive ? "text-primary" : "opacity-80"
+                  }`}
+                />
+                <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                {item.count && count > 0 && (
+                  <span className="shrink-0 text-[11px] text-tertiary">{count}</span>
+                )}
+              </Link>
             );
-          }
+            return isMobile ? (
+              <SheetClose asChild key={item.name}>
+                {row}
+              </SheetClose>
+            ) : (
+              row
+            );
+          })}
+        </nav>
 
-          return (
-            <Link key={item.name} to={item.href} className={linkClasses}>
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{item.name}</span>
-            </Link>
-          );
-        })}
-      </nav>
+        <div className="flex-1" />
 
-      <div className="p-4 border-t border-border space-y-4">
-        <div className="flex items-center justify-between px-4">
-          <span className="text-sm text-muted-foreground">Theme</span>
-          <ThemeToggle />
+        {/* Footer: theme toggle, user/profile row, sign out */}
+        <div className="flex flex-col gap-1.5 px-0.5">
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="flex items-center justify-between rounded-md border border-border bg-card px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <span>{resolvedTheme === "dark" ? "◐ Dark" : "◑ Light"}</span>
+            <Kbd>T</Kbd>
+          </button>
+          {isMobile ? <SheetClose asChild>{profileRow}</SheetClose> : profileRow}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <LogOut className="h-[15px] w-[15px] shrink-0 opacity-80" />
+            <span>Log out</span>
+          </button>
         </div>
-        {isMobile ? <SheetClose asChild>{profileWidget}</SheetClose> : profileWidget}
-        <Button variant="ghost" className="w-full justify-start gap-3" onClick={handleLogout}>
-          <LogOut className="w-5 h-5" />
-          <span>Log out</span>
-        </Button>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <aside className="hidden w-64 border-r border-border bg-card md:flex md:flex-col">
+    <div className="flex min-h-screen bg-background">
+      <aside className="hidden w-[212px] shrink-0 border-r border-border md:flex md:flex-col">
         {sidebarContent()}
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto">
         <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur md:hidden">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex items-center gap-2.5">
               <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="icon" aria-label="Open navigation menu">
-                    <Menu className="w-5 h-5" />
+                    <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[20rem] p-0">
+                <SheetContent side="left" className="w-[248px] p-0">
                   <SheetHeader className="sr-only">
                     <SheetTitle>Navigation Menu</SheetTitle>
                     <SheetDescription>Browse pages and account actions.</SheetDescription>
@@ -160,15 +229,13 @@ export default function DashboardLayout({ children }: LayoutProps) {
                   {sidebarContent(true)}
                 </SheetContent>
               </Sheet>
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold leading-none">FlowManager</p>
-                  <p className="text-xs text-muted-foreground">AI Productivity</p>
-                </div>
-              </div>
+              <span
+                className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-primary text-[11px] font-semibold text-primary-foreground"
+                aria-hidden="true"
+              >
+                F
+              </span>
+              <span className="text-[13px] font-semibold">FlowManager</span>
             </div>
             <ThemeToggle />
           </div>
@@ -178,4 +245,3 @@ export default function DashboardLayout({ children }: LayoutProps) {
     </div>
   );
 }
-
