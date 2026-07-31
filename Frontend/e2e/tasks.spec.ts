@@ -73,3 +73,23 @@ test("keyboard shortcuts and command palette drive the page", async ({ page }) =
   await page.getByRole("option", { name: /Triage support inbox/ }).click();
   await expect(page.getByRole("heading", { name: "Edit Task" })).toBeVisible();
 });
+
+test("row action opens the focus setup with the task preselected", async ({ page }) => {
+  await registerFreshUser(page);
+  await page.getByRole("link", { name: "Tasks" }).click();
+
+  const quickAdd = page.getByPlaceholder(/Add a task/);
+  await quickAdd.fill("deep work block !high");
+  await quickAdd.press("Enter");
+  await expect(page.getByText("Deep work block")).toBeVisible();
+
+  await page.getByText("Deep work block").hover();
+  await page
+    .getByRole("button", { name: "Start focus session with: Deep work block" })
+    .click();
+
+  // lands on the focus page with the setup form open and the task selected
+  await expect(page.getByRole("heading", { name: "Focus Sessions" })).toBeVisible();
+  await expect(page.getByText("Deep work block")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove" })).toBeVisible();
+});

@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
 import DashboardLayout from "../components/DashboardLayout";
 import { PomodoroTimer } from "../components/PomodoroTimer";
 import { useData, FocusSession, Habit } from "../context/DataContext";
@@ -308,6 +310,33 @@ export default function FocusPage() {
       setSelectedHabitIds(current => current.includes(payload.sourceId) ? current : [...current, payload.sourceId]);
     }
   };
+
+  // Arriving from the tasks page with a task to focus on: preselect it and
+  // open the setup form (unless a session is already running).
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const state = location.state as { preselectedTaskIds?: string[] } | null;
+    const preselected = state?.preselectedTaskIds ?? [];
+    if (preselected.length === 0) {
+      return;
+    }
+
+    if (canStartNewSession) {
+      setSelectedTaskIds(current => [
+        ...current,
+        ...preselected.filter(
+          id => !current.includes(id) && activeTasks.some(task => task.id === id),
+        ),
+      ]);
+      setIsSetupOpen(true);
+    } else {
+      toast.info("A focus session is already active. Finish it before starting a new one.");
+    }
+    // Consume the state so a refresh doesn't re-apply it.
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const handleCreateSession = async () => {
     if (!canStartNewSession || totalDurationMinutes <= 0) return;

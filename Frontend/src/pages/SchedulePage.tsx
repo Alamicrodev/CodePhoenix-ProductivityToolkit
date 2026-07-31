@@ -12,6 +12,7 @@ import {
 } from "../lib/timeFormat";
 import { formatHabitNextOccurrence } from "../lib/habitSchedule";
 import { formatDueDate } from "../lib/taskDates";
+import { getTaskIdsInFocus } from "../lib/focusStatus";
 
 interface AiScheduleItem {
   time: string;
@@ -47,15 +48,7 @@ export default function SchedulePage() {
   nextWeek.setDate(today.getDate() + 7);
 
   // Get tasks due exactly today (not completed, not in active focus sessions, not expired)
-  const tasksInFocus = new Set(
-    focusSessions
-      .filter(session => session.status === "active")
-      .flatMap(session =>
-        session.items
-          .filter(item => item.sourceType === "task")
-          .map(item => item.sourceId)
-      )
-  );
+  const tasksInFocus = getTaskIdsInFocus(focusSessions);
 
   const dueSoonTasks = tasks.filter(task => {
     if (!task.dueDate || task.completed || tasksInFocus.has(task.id)) return false;

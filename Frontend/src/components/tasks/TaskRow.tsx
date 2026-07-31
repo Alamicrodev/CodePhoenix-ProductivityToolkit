@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Pencil } from "lucide-react";
+import { useNavigate } from "react-router";
+import { ChevronRight, Pencil, Timer } from "lucide-react";
 import { Task, useData } from "../../context/DataContext";
 import { compareByDueDate, compareByPriority } from "../../lib/taskDates";
 import { CircleCheckbox } from "./CircleCheckbox";
@@ -8,6 +9,7 @@ import { PriorityBars } from "./PriorityBars";
 import { QuadrantTag } from "./QuadrantTag";
 import { TagChips } from "./TagChips";
 import { useCompleteTask } from "./useCompleteTask";
+import { useTasksInFocus } from "./useTasksInFocus";
 
 interface TaskRowProps {
   task: Task;
@@ -32,7 +34,10 @@ function formatCompletedShort(timestamp: string): string {
 export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueDate" }: TaskRowProps) {
   const { updateTask } = useData();
   const toggleComplete = useCompleteTask();
+  const tasksInFocus = useTasksInFocus();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+  const isInFocus = !task.completed && tasksInFocus.has(task.id);
 
   // When only subtasks match the active filters, open the row so the matches show.
   useEffect(() => {
@@ -83,6 +88,12 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
             </span>
           )}
         </span>
+        {isInFocus && (
+          <span title="In a focus session" className="shrink-0">
+            <Timer className="h-3.5 w-3.5 animate-pulse text-primary" />
+            <span className="sr-only">In a focus session</span>
+          </span>
+        )}
         {task.subtasks.length > 0 && (
           <button
             type="button"
@@ -108,6 +119,20 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
           </span>
         ) : (
           <DueLabel dueDate={task.dueDate} dueTime={task.dueTime} />
+        )}
+        {!task.completed && !isInFocus && (
+          <button
+            type="button"
+            aria-label={`Start focus session with: ${task.title}`}
+            title="Start focus session"
+            onClick={event => {
+              event.stopPropagation();
+              navigate("/focus", { state: { preselectedTaskIds: [task.id] } });
+            }}
+            className="shrink-0 rounded p-1 text-tertiary opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <Timer className="h-3.5 w-3.5" />
+          </button>
         )}
         <button
           type="button"

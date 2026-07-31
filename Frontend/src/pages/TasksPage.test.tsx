@@ -26,11 +26,11 @@ const BASE_TASK = {
   subtasks: [],
 };
 
-function dataValue(tasks: unknown[]) {
+function dataValue(tasks: unknown[], focusSessions: unknown[] = []) {
   return {
     tasks,
     habits: [],
-    focusSessions: [],
+    focusSessions,
     addTask: vi.fn().mockResolvedValue(true),
     updateTask: vi.fn().mockResolvedValue(true),
     deleteTask: vi.fn().mockResolvedValue(true),
@@ -49,9 +49,13 @@ function dataValue(tasks: unknown[]) {
 }
 
 function renderTasksPage() {
-  const router = createMemoryRouter([{ path: "/tasks", element: <TasksPage /> }], {
-    initialEntries: ["/tasks"],
-  });
+  const router = createMemoryRouter(
+    [
+      { path: "/tasks", element: <TasksPage /> },
+      { path: "/focus", element: <div>Focus page stub</div> },
+    ],
+    { initialEntries: ["/tasks"] },
+  );
   return render(<RouterProvider router={router} />);
 }
 
@@ -243,6 +247,53 @@ describe("TasksPage", () => {
     await user.click(screen.getByRole("option", { name: "#bills" }));
     expect(screen.getByText("Pay rent")).toBeInTheDocument();
     expect(screen.queryByText("Walk the dog")).not.toBeInTheDocument();
+  });
+
+  it("navigates to the focus page from the row action", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    renderTasksPage();
+
+    await user.click(
+      screen.getByRole("button", { name: "Start focus session with: Write report" }),
+    );
+    expect(screen.getByText("Focus page stub")).toBeInTheDocument();
+  });
+
+  it("starts a focus session from the palette's pick-a-task page", async () => {
+    const user = userEvent.setup();
+    mockUseData.mockReturnValue(dataValue([BASE_TASK]));
+    renderTasksPage();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByText("Start focus session with…"));
+    await user.click(screen.getByText("Write report", { selector: "[cmdk-item] span" }));
+    expect(screen.getByText("Focus page stub")).toBeInTheDocument();
+  });
+
+  it("marks tasks held by an active focus session", () => {
+    const activeSession = {
+      id: "s1",
+      status: "active",
+      items: [
+        {
+          id: "i1",
+          sourceId: "t1",
+          sourceType: "task",
+          title: "Write report",
+          addedAt: "2026-07-31T10:00:00Z",
+          completedInSessionAt: null,
+        },
+      ],
+    };
+    mockUseData.mockReturnValue(dataValue([BASE_TASK], [activeSession]));
+    renderTasksPage();
+
+    expect(screen.getByText("In a focus session")).toBeInTheDocument();
+    // the row action is hidden for tasks already in focus
+    expect(
+      screen.queryByRole("button", { name: "Start focus session with: Write report" }),
+    ).not.toBeInTheDocument();
   });
 
   it("persists the selected view across remounts", async () => {

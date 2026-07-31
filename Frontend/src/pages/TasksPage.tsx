@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
@@ -60,6 +61,7 @@ const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
 
 export default function TasksPage() {
   const { tasks, updateTask } = useData();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [sortBy, setSortBy] = usePersistentState<SortBy>("tasks.sortBy", "dueDate", isSortBy);
@@ -504,6 +506,9 @@ export default function TasksPage() {
           onAutoCategorize={() => void handleAutoCategorize()}
           onEditTask={handleEdit}
           onFilterTag={setFilterTag}
+          onStartFocus={task =>
+            navigate("/focus", { state: { preselectedTaskIds: [task.id] } })
+          }
         />
 
         {/* Task Modal */}
