@@ -45,7 +45,7 @@ export function AgendaView({
           <div className="flex flex-col">
             {group.rows.map(block => {
               const inProgress = isInProgress(block, nowMin, isToday);
-              const extra = blockExtra(block, todayKey);
+              const extra = blockExtra(block, todayKey, nowMin);
               return (
                 <div
                   key={block.id}

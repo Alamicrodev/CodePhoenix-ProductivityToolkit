@@ -182,13 +182,37 @@ describe("layoutTimedBlocks", () => {
   });
 });
 
+describe("timeline geometry", () => {
+  it("maps minutes to Y piecewise: compressed nights, full-scale core", async () => {
+    const { minutesToY, GRID_PAD, HOUR_PX, NIGHT_HOUR_PX, CORE_START, CORE_END } =
+      await import("./schedulePlan");
+    expect(minutesToY(0)).toBe(GRID_PAD);
+    expect(minutesToY(60) - minutesToY(0)).toBe(NIGHT_HOUR_PX);
+    expect(minutesToY(CORE_START + 60) - minutesToY(CORE_START)).toBe(HOUR_PX);
+    expect(minutesToY(24 * 60) - minutesToY(CORE_END)).toBe(NIGHT_HOUR_PX);
+  });
+
+  it("inverts Y back to minutes across all three segments", async () => {
+    const { minutesToY, yToMinutes } = await import("./schedulePlan");
+    for (const min of [0, 90, 360, 700, 1379, 1381, 1425, 1440]) {
+      expect(yToMinutes(minutesToY(min))).toBeCloseTo(min, 5);
+    }
+  });
+
+  it("sizes the grid for the full 24h day", async () => {
+    const { GRID_HEIGHT, minutesToY, GRID_PAD } = await import("./schedulePlan");
+    expect(minutesToY(24 * 60) + GRID_PAD).toBe(GRID_HEIGHT);
+  });
+});
+
 describe("drag scheduling", () => {
-  it("snaps to the 15m grid and clamps to the visible day", async () => {
+  it("snaps to the 15m grid and clamps inside the day", async () => {
     const { snapToSlot } = await import("./schedulePlan");
     expect(snapToSlot(547)).toBe(540); // 9:07 → 9:00
     expect(snapToSlot(553)).toBe(555); // 9:13 → 9:15
-    expect(snapToSlot(100)).toBe(480); // before 8:00 → 8:00
-    expect(snapToSlot(2000)).toBe(1065); // after 6:00 PM → 5:45 PM
+    expect(snapToSlot(-40)).toBe(0);
+    expect(snapToSlot(100)).toBe(105); // night hours are schedulable now
+    expect(snapToSlot(2000)).toBe(1425); // capped at 11:45 PM
   });
 
   it("snaps resized durations to 15m between 15m and 12h", async () => {
@@ -215,11 +239,6 @@ describe("drag scheduling", () => {
     expect(shiftWindow(undefined, 540)).toEqual({ start: "09:00", end: "09:30" });
   });
 
-  it("maps grid Y offsets to minutes", async () => {
-    const { minutesFromGridY, GRID_PAD, HOUR_PX, DAY_START } = await import("./schedulePlan");
-    expect(minutesFromGridY(GRID_PAD)).toBe(DAY_START);
-    expect(minutesFromGridY(GRID_PAD + HOUR_PX)).toBe(DAY_START + 60);
-  });
 });
 
 describe("derivations", () => {

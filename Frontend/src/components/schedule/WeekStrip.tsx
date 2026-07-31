@@ -29,14 +29,15 @@ export function WeekStrip({ days, activeIndex, onPick }: WeekStripProps) {
             disabled={day.past}
             aria-pressed={active}
             onClick={() => onPick(index)}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] transition-colors ${
+            className={`flex items-baseline gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] transition-colors ${
               active
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border bg-card text-muted-foreground"
             } ${day.past ? "cursor-default opacity-45" : "hover:text-foreground"}`}
           >
-            <span>{day.label}</span>
-            <span className="font-mono text-[10.5px] opacity-65">{day.num}</span>
+            <span className="leading-none">{day.label}</span>
+            {/* Baseline-aligned with the label; mono metrics otherwise sit high. */}
+            <span className="font-mono text-[10.5px] leading-none opacity-65">{day.num}</span>
           </button>
         );
       })}

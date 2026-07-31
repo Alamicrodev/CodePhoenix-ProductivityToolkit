@@ -1,19 +1,18 @@
 import { useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import {
-  DAY_END,
-  DAY_START,
+  CORE_END,
+  CORE_START,
   formatBlockDuration,
   formatMinutes,
   formatTimeRange,
   GRID_HEIGHT,
-  GRID_PAD,
-  HOUR_PX,
   isInProgress,
-  minutesFromGridY,
+  minutesToY,
   ScheduleBlock,
   snapDuration,
   snapToSlot,
+  yToMinutes,
 } from "../../lib/schedulePlan";
 import { CircleCheckbox } from "../tasks/CircleCheckbox";
 import { PriorityBars } from "../tasks/PriorityBars";
@@ -35,11 +34,29 @@ interface TimelineViewProps {
   onResizeTask: (block: ScheduleBlock, minutes: number) => void;
 }
 
-const topFor = (minutes: number) => ((minutes - DAY_START) / 60) * HOUR_PX + GRID_PAD;
+/** Card height between two clock positions on the piecewise scale. */
+const heightFor = (start: number, dur: number) =>
+  Math.max(minutesToY(start + dur) - minutesToY(start) - 5, 14);
 
-const HOURS = Array.from({ length: 11 }, (_, i) => 8 + i);
+const hourLabel = (h: number) => {
+  const hour = h % 24;
+  return hour < 12
+    ? `${hour === 0 ? 12 : hour} AM`
+    : hour === 12
+      ? "12 PM"
+      : `${hour - 12} PM`;
+};
 
-const hourLabel = (h: number) => (h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`);
+/** Full-scale rows every core hour; sparse labels in the compressed night. */
+const HOUR_ROWS: Array<{ min: number; label: string }> = [
+  { min: 0, label: hourLabel(0) },
+  { min: 180, label: hourLabel(3) },
+  ...Array.from({ length: CORE_END / 60 - CORE_START / 60 + 1 }, (_, i) => {
+    const h = CORE_START / 60 + i;
+    return { min: h * 60, label: hourLabel(h) };
+  }),
+  { min: 24 * 60, label: hourLabel(24) },
+];
 
 const dragItemFor = (block: ScheduleBlock): ScheduleDragItem => ({
   kind: block.kind,
@@ -62,11 +79,13 @@ function useDragThenClickGuard() {
 function UntimedRow({
   block,
   todayKey,
+  nowMin,
   onToggle,
   onEditTask,
 }: {
   block: ScheduleBlock;
   todayKey: string;
+  nowMin: number;
   onToggle: (block: ScheduleBlock) => void;
   onEditTask: (block: ScheduleBlock) => void;
 }) {
@@ -77,7 +96,7 @@ function UntimedRow({
     end: guard.markDragEnd,
     collect: monitor => ({ isDragging: monitor.isDragging() }),
   });
-  const extra = blockExtra(block, todayKey);
+  const extra = blockExtra(block, todayKey, nowMin);
 
   return (
     <div
@@ -128,6 +147,7 @@ function TimelineBlock({
   onToggle,
   onEditTask,
   onResize,
+  minutesAtClientY,
 }: {
   block: ScheduleBlock;
   nowMin: number;
@@ -136,6 +156,8 @@ function TimelineBlock({
   onToggle: (block: ScheduleBlock) => void;
   onEditTask: (block: ScheduleBlock) => void;
   onResize: (block: ScheduleBlock, minutes: number) => void;
+  /** Maps a pointer clientY to grid minutes (piecewise-aware). */
+  minutesAtClientY: (clientY: number) => number | null;
 }) {
   const guard = useDragThenClickGuard();
   const [{ isDragging }, drag] = useDrag({
@@ -145,14 +167,14 @@ function TimelineBlock({
     collect: monitor => ({ isDragging: monitor.isDragging() }),
   });
 
-  // Bottom-edge resize: live local preview, committed on pointer-up.
+  // Bottom-edge resize: the edge tracks the cursor; committed on pointer-up.
   const [previewDur, setPreviewDur] = useState<number | null>(null);
-  const resizeState = useRef<{ startY: number; origDur: number } | null>(null);
+  const resizing = useRef(false);
 
   const durFromPointer = (clientY: number) => {
-    const state = resizeState.current;
-    if (!state) return block.dur;
-    return snapDuration(state.origDur + ((clientY - state.startY) / HOUR_PX) * 60);
+    const end = minutesAtClientY(clientY);
+    if (end === null) return previewDur ?? block.dur;
+    return snapDuration(end - block.start);
   };
 
   const onResizeStart = (event: React.PointerEvent) => {
@@ -160,7 +182,7 @@ function TimelineBlock({
     // or text selection while the handle is held.
     event.preventDefault();
     event.stopPropagation();
-    resizeState.current = { startY: event.clientY, origDur: block.dur };
+    resizing.current = true;
     try {
       (event.target as HTMLElement).setPointerCapture(event.pointerId);
     } catch {
@@ -170,24 +192,23 @@ function TimelineBlock({
   };
 
   const onResizeMove = (event: React.PointerEvent) => {
-    if (!resizeState.current) return;
+    if (!resizing.current) return;
     setPreviewDur(durFromPointer(event.clientY));
   };
 
   const onResizeEnd = (event: React.PointerEvent) => {
-    const state = resizeState.current;
-    if (!state) return;
+    if (!resizing.current) return;
     const finalDur = durFromPointer(event.clientY);
-    resizeState.current = null;
+    resizing.current = false;
     setPreviewDur(null);
     guard.markDragEnd();
-    if (finalDur !== state.origDur) onResize(block, finalDur);
+    if (finalDur !== block.dur) onResize(block, finalDur);
   };
 
   const inProgress = isInProgress(block, nowMin, isToday);
   const displayDur = previewDur ?? block.dur;
-  const height = Math.max((displayDur / 60) * HOUR_PX - 5, 14);
-  const extra = blockExtra(block, todayKey);
+  const height = heightFor(block.start, displayDur);
+  const extra = blockExtra(block, todayKey, nowMin);
 
   const surface = inProgress
     ? "border border-primary bg-primary/10"
@@ -208,7 +229,7 @@ function TimelineBlock({
         block.done ? "opacity-55" : ""
       } ${isDragging ? "opacity-30" : ""} ${previewDur !== null ? "border-primary" : ""}`}
       style={{
-        top: topFor(block.start),
+        top: minutesToY(block.start),
         height,
         transition: "top 0.35s ease, opacity 0.3s ease, border-color 0.15s",
       }}
@@ -275,7 +296,7 @@ function TimelineBlock({
   );
 }
 
-/** Hour-grid day view: hour rules, live now-line, draggable blocks at their scheduled times. */
+/** Hour-grid day view: full-scale core hours, compressed night bands, draggable blocks. */
 export function TimelineView({
   timed,
   untimed,
@@ -290,14 +311,19 @@ export function TimelineView({
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [ghost, setGhost] = useState<{ slot: number; dur: number; title: string } | null>(null);
 
+  const minutesAtClientY = (clientY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect ? yToMinutes(clientY - rect.top) : null;
+  };
+
   const slotFromMonitor = (monitor: {
     getSourceClientOffset: () => { y: number } | null;
     getClientOffset: () => { y: number } | null;
   }) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
     const offset = monitor.getSourceClientOffset() ?? monitor.getClientOffset();
-    if (!rect || !offset) return null;
-    return snapToSlot(minutesFromGridY(offset.y - rect.top));
+    if (!offset) return null;
+    const minutes = minutesAtClientY(offset.y);
+    return minutes === null ? null : snapToSlot(minutes);
   };
 
   const [{ isOver }, drop] = useDrop<ScheduleDragItem, void, { isOver: boolean }>({
@@ -318,8 +344,6 @@ export function TimelineView({
     collect: monitor => ({ isOver: monitor.isOver() }),
   });
 
-  const showNowLine = isToday && nowMin >= DAY_START && nowMin <= DAY_END;
-
   return (
     <div className="mx-auto w-full max-w-[880px] px-5 pb-10 pt-4">
       {untimed.length > 0 && (
@@ -333,6 +357,7 @@ export function TimelineView({
                 key={block.id}
                 block={block}
                 todayKey={todayKey}
+                nowMin={nowMin}
                 onToggle={onToggle}
                 onEditTask={onEditTask}
               />
@@ -349,23 +374,33 @@ export function TimelineView({
         className="relative"
         style={{ height: GRID_HEIGHT }}
       >
-        {HOURS.map(hour => (
+        {/* Compressed night bands */}
+        <div
+          className="pointer-events-none absolute inset-x-0 rounded-md bg-muted/40"
+          style={{ top: minutesToY(0), height: minutesToY(CORE_START) - minutesToY(0) }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 rounded-md bg-muted/40"
+          style={{ top: minutesToY(CORE_END), height: minutesToY(24 * 60) - minutesToY(CORE_END) }}
+        />
+
+        {HOUR_ROWS.map(row => (
           <div
-            key={hour}
+            key={row.min}
             className="pointer-events-none absolute inset-x-0 flex items-center gap-2"
-            style={{ top: topFor(hour * 60) }}
+            style={{ top: minutesToY(row.min) }}
           >
             <span className="w-[46px] shrink-0 -translate-y-1/2 text-right font-mono text-[10px] text-tertiary">
-              {hourLabel(hour)}
+              {row.label}
             </span>
             <span className="flex-1 border-t border-border" />
           </div>
         ))}
 
-        {showNowLine && (
+        {isToday && (
           <div
             className="pointer-events-none absolute inset-x-0 z-[3] flex h-0 items-center"
-            style={{ top: topFor(nowMin) }}
+            style={{ top: minutesToY(nowMin) }}
             aria-label="Current time indicator"
           >
             <span className="w-[52px] shrink-0" />
@@ -384,6 +419,7 @@ export function TimelineView({
             onToggle={onToggle}
             onEditTask={onEditTask}
             onResize={onResizeTask}
+            minutesAtClientY={minutesAtClientY}
           />
         ))}
 
@@ -391,8 +427,8 @@ export function TimelineView({
           <div
             className="pointer-events-none absolute left-[70px] right-2 z-[4] flex items-center gap-2 overflow-hidden rounded-lg border border-dashed border-primary bg-primary/10 px-2.5"
             style={{
-              top: topFor(ghost.slot),
-              height: Math.max((ghost.dur / 60) * HOUR_PX - 5, 14),
+              top: minutesToY(ghost.slot),
+              height: heightFor(ghost.slot, ghost.dur),
             }}
           >
             <span className="whitespace-nowrap font-mono text-[10.5px] font-medium text-primary">

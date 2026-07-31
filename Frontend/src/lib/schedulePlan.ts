@@ -4,14 +4,45 @@ import { isActiveDay } from "./habitSchedule";
 import { TaskPriority, compareByPriority } from "./taskDates";
 import { parseClockTime, parseDateOnlyLocal } from "./timeFormat";
 
-/** Visible day range of the timeline: 8:00–18:00, 68px per hour. */
-export const DAY_START = 8 * 60;
-export const DAY_END = 18 * 60;
+/**
+ * Timeline geometry: 6:00–23:00 renders at full scale; the remaining night
+ * hours (midnight–6:00, 23:00–midnight) stay visible but vertically
+ * compressed so nothing scheduled ever falls off the grid.
+ */
+export const CORE_START = 6 * 60;
+export const CORE_END = 23 * 60;
 export const HOUR_PX = 68;
-/** Vertical offset of the 8 AM line inside the grid canvas. */
+export const NIGHT_HOUR_PX = 16;
+/** Vertical offset of the first line inside the grid canvas. */
 export const GRID_PAD = 8;
-/** Total canvas height: 10h × 68px + 16. */
-export const GRID_HEIGHT = ((DAY_END - DAY_START) / 60) * HOUR_PX + 16;
+
+const DAY_MINUTES = 24 * 60;
+const PRE_PX = (CORE_START / 60) * NIGHT_HOUR_PX;
+const CORE_PX = ((CORE_END - CORE_START) / 60) * HOUR_PX;
+const POST_PX = ((DAY_MINUTES - CORE_END) / 60) * NIGHT_HOUR_PX;
+export const GRID_HEIGHT = PRE_PX + CORE_PX + POST_PX + 2 * GRID_PAD;
+
+/** Minutes from midnight → Y offset inside the grid canvas (piecewise scale). */
+export function minutesToY(min: number): number {
+  const m = Math.min(Math.max(min, 0), DAY_MINUTES);
+  let y: number;
+  if (m <= CORE_START) {
+    y = (m / 60) * NIGHT_HOUR_PX;
+  } else if (m <= CORE_END) {
+    y = PRE_PX + ((m - CORE_START) / 60) * HOUR_PX;
+  } else {
+    y = PRE_PX + CORE_PX + ((m - CORE_END) / 60) * NIGHT_HOUR_PX;
+  }
+  return y + GRID_PAD;
+}
+
+/** Y offset inside the grid canvas → minutes from midnight (inverse mapping). */
+export function yToMinutes(y: number): number {
+  const rel = Math.max(y - GRID_PAD, 0);
+  if (rel <= PRE_PX) return (rel / NIGHT_HOUR_PX) * 60;
+  if (rel <= PRE_PX + CORE_PX) return CORE_START + ((rel - PRE_PX) / HOUR_PX) * 60;
+  return Math.min(CORE_END + ((rel - PRE_PX - CORE_PX) / NIGHT_HOUR_PX) * 60, DAY_MINUTES);
+}
 
 /** `start` for blocks whose task/habit has no time of day. */
 export const UNTIMED = -1;
@@ -203,10 +234,10 @@ export function computePlanStats(blocks: ScheduleBlock[]): PlanStats {
 /** Drag-and-drop snap grid on the timeline. */
 export const SLOT_MINUTES = 15;
 
-/** Snaps a raw minute offset to the 15m grid, clamped to the visible day. */
+/** Snaps a raw minute offset to the 15m grid, clamped inside the day. */
 export function snapToSlot(rawMinutes: number): number {
   const snapped = Math.round(rawMinutes / SLOT_MINUTES) * SLOT_MINUTES;
-  return Math.min(Math.max(snapped, DAY_START), DAY_END - SLOT_MINUTES);
+  return Math.min(Math.max(snapped, 0), DAY_MINUTES - SLOT_MINUTES);
 }
 
 /** Snaps a resized duration to the 15m grid, between 15m and 12h. */
@@ -235,11 +266,6 @@ export function shiftWindow(
     ? Math.max(clockToMinutes(window.end) - clockToMinutes(window.start), SLOT_MINUTES)
     : HABIT_DURATION;
   return { start: minutesToClock(newStart), end: minutesToClock(newStart + length) };
-}
-
-/** Converts a Y offset inside the grid canvas (below GRID_PAD) to raw minutes. */
-export function minutesFromGridY(y: number): number {
-  return ((y - GRID_PAD) / HOUR_PX) * 60 + DAY_START;
 }
 
 /** True when the block is running right now (today only, timed, undone). */

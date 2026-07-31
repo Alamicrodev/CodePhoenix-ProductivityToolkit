@@ -86,7 +86,10 @@ export function ScheduleRail({
       </div>
 
       <div className="pt-[18px]">
-        <SectionHeader tone="danger">Overdue · {overdueRows.length}</SectionHeader>
+        {/* Red only when something is actually overdue. */}
+        <SectionHeader tone={overdueRows.length > 0 ? "danger" : "muted"}>
+          Overdue · {overdueRows.length}
+        </SectionHeader>
         {overdueRows.length === 0 && (
           <p className="px-0.5 py-1 text-[11.5px] text-tertiary">Nothing overdue ✓</p>
         )}
