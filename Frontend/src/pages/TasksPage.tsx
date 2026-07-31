@@ -79,8 +79,22 @@ export default function TasksPage() {
     isBoolean,
   );
   const [viewMode, setViewMode] = usePersistentState<ViewMode>("tasks.viewMode", "list", isViewMode);
+  const [filterTag, setFilterTag] = usePersistentState<string>(
+    "tasks.filterTag",
+    "all",
+    (v): v is string => typeof v === "string",
+  );
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const quickAddRef = useRef<QuickAddHandle>(null);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach(task => task.tags.forEach(tag => set.add(tag)));
+    return [...set].sort();
+  }, [tasks]);
+
+  // A persisted tag filter can outlive the last task carrying that tag.
+  const activeFilterTag = filterTag !== "all" && allTags.includes(filterTag) ? filterTag : "all";
 
   // Separate active and completed tasks; completed sorted newest-first
   const activeTasks = tasks.filter(t => !t.completed);
@@ -112,6 +126,11 @@ export default function TasksPage() {
     }> = [];
 
     activeTasks.forEach(task => {
+      // Tags live on the parent only; a tag mismatch excludes the whole task.
+      if (activeFilterTag !== "all" && !task.tags.includes(activeFilterTag)) {
+        return;
+      }
+
       // Check if task matches both priority and due date filters
       const parentMatchesPriority = matchesPriorityFilter(task, filterPriority);
       const parentMatchesDueDate = matchesDueDateFilter(task.dueDate, filterDueDate);
@@ -136,7 +155,7 @@ export default function TasksPage() {
     });
 
     return results;
-  }, [activeTasks, filterPriority, filterDueDate]);
+  }, [activeTasks, filterPriority, filterDueDate, activeFilterTag]);
 
   // Sort the filtered tasks
   const sortedTasks = useMemo(() => {
@@ -144,25 +163,29 @@ export default function TasksPage() {
     return [...getFilteredTasksWithContext].sort((a, b) => compare(a.task, b.task));
   }, [getFilteredTasksWithContext, sortBy]);
 
-  const hasActiveFilters = filterPriority !== "all" || filterDueDate !== "all";
+  const hasActiveFilters =
+    filterPriority !== "all" || filterDueDate !== "all" || activeFilterTag !== "all";
 
   const emptyStateMessage = useMemo(() => {
     if (!hasActiveFilters) {
       return "Create your first task to get started";
     }
-    const dueLabel = filterDueDate !== "all" ? DUE_DATE_FILTER_LABELS[filterDueDate] : "";
-    if (filterPriority !== "all" && filterDueDate !== "all") {
-      return `No ${filterPriority} priority tasks ${dueLabel}`;
-    }
-    if (filterPriority !== "all") {
+    const parts: string[] = [];
+    if (filterPriority !== "all") parts.push(`${filterPriority} priority`);
+    const noun = parts.length > 0 ? `${parts.join(" ")} tasks` : "tasks";
+    const qualifiers: string[] = [];
+    if (activeFilterTag !== "all") qualifiers.push(`tagged #${activeFilterTag}`);
+    if (filterDueDate !== "all") qualifiers.push(DUE_DATE_FILTER_LABELS[filterDueDate]);
+    if (qualifiers.length === 0) {
       return `No tasks match the ${filterPriority} priority filter`;
     }
-    return `No tasks ${dueLabel}`;
-  }, [filterDueDate, filterPriority, hasActiveFilters]);
+    return `No ${noun} ${qualifiers.join(" ")}`;
+  }, [activeFilterTag, filterDueDate, filterPriority, hasActiveFilters]);
 
   const clearFilters = () => {
     setFilterPriority("all");
     setFilterDueDate("all");
+    setFilterTag("all");
   };
 
   const handleEdit = (task: Task) => {
@@ -298,6 +321,24 @@ export default function TasksPage() {
               ))}
             </div>
             <span className="flex-1" />
+            {allTags.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-tertiary">Tag:</span>
+                <Select value={activeFilterTag} onValueChange={setFilterTag}>
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {allTags.map(tag => (
+                      <SelectItem key={tag} value={tag}>
+                        #{tag}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-tertiary">Due:</span>
               <Select value={filterDueDate} onValueChange={(v: FilterDueDate) => setFilterDueDate(v)}>
@@ -423,7 +464,8 @@ export default function TasksPage() {
               activeTasks={activeTasks.filter(
                 task =>
                   matchesPriorityFilter(task, filterPriority) &&
-                  matchesDueDateFilter(task.dueDate, filterDueDate),
+                  matchesDueDateFilter(task.dueDate, filterDueDate) &&
+                  (activeFilterTag === "all" || task.tags.includes(activeFilterTag)),
               )}
               onTaskEdit={handleEdit}
             />
@@ -444,6 +486,9 @@ export default function TasksPage() {
           <span className="hidden items-center gap-1.5 md:flex">
             <Kbd>!high · !med · !low</Kbd> priority while typing
           </span>
+          <span className="hidden items-center gap-1.5 md:flex">
+            <Kbd>#tag</Kbd> label while typing
+          </span>
         </div>
 
         {/* Command palette */}
@@ -452,11 +497,13 @@ export default function TasksPage() {
           onOpenChange={setIsPaletteOpen}
           tasks={tasks}
           viewMode={viewMode}
+          allTags={allTags}
           onQuickAdd={focusQuickAdd}
           onNewDetailedTask={() => setIsModalOpen(true)}
           onSwitchView={setViewMode}
           onAutoCategorize={() => void handleAutoCategorize()}
           onEditTask={handleEdit}
+          onFilterTag={setFilterTag}
         />
 
         {/* Task Modal */}

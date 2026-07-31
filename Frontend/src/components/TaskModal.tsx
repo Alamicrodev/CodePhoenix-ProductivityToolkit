@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { TagInput } from "./tasks/TagInput";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtaskInput, setSubtaskInput] = useState("");
   const [subtaskPriority, setSubtaskPriority] = useState<"low" | "medium" | "high">("medium");
@@ -70,6 +72,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
       setPriority(task.priority);
       setDueDate(task.dueDate || "");
       setDueTime(task.dueTime || "");
+      setTags(task.tags);
       setSubtasks(task.subtasks);
     } else {
       resetForm();
@@ -82,6 +85,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
     setPriority("medium");
     setDueDate("");
     setDueTime("");
+    setTags([]);
     setSubtasks([]);
     setSubtaskInput("");
     setSubtaskPriority("medium");
@@ -123,7 +127,7 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
       priority,
       dueDate: dueDate || null,
       dueTime: dueTime || null,
-      tags: task?.tags ?? [],
+      tags,
       subtasks,
       completed: task?.completed || false,
       completedAt: task?.completedAt || null,
@@ -285,6 +289,11 @@ export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                 className="h-9 w-full text-sm"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tags (Optional)</Label>
+            <TagInput tags={tags} onChange={setTags} />
           </div>
 
           {/* Due Date Error Message */}

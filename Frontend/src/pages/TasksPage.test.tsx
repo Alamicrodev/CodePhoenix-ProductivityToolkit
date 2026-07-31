@@ -60,6 +60,10 @@ beforeEach(() => {
   window.localStorage.clear();
   // cmdk scrolls the selected item into view; jsdom has no implementation
   Element.prototype.scrollIntoView = vi.fn();
+  // Radix Select uses the pointer-capture API, which jsdom lacks
+  Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(false);
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
   mockUseAuth.mockReturnValue({
     user: { id: "u1", email: "user@example.com", name: "Test User" },
     accessToken: "tok-1",
@@ -215,6 +219,30 @@ describe("TasksPage", () => {
     await user.click(screen.getByText("Write report", { selector: "[cmdk-item] span" }));
 
     expect(screen.getByText("Edit Task")).toBeInTheDocument();
+  });
+
+  it("creates tagged tasks from quick-add and filters by tag", async () => {
+    const user = userEvent.setup();
+    const data = dataValue([
+      { ...BASE_TASK, id: "t1", title: "Pay rent", tags: ["bills"] },
+      { ...BASE_TASK, id: "t2", title: "Walk the dog", tags: [] },
+    ]);
+    mockUseData.mockReturnValue(data);
+    renderTasksPage();
+
+    // chips render on the row
+    expect(screen.getByText("#bills")).toBeInTheDocument();
+
+    // quick-add parses the tag token
+    await user.type(screen.getByLabelText("Quick add task"), "file taxes #bills{Enter}");
+    expect(data.addTask.mock.calls[0][0].tags).toEqual(["bills"]);
+
+    // tag select filters the list
+    const tagTrigger = screen.getAllByRole("combobox")[0];
+    await user.click(tagTrigger);
+    await user.click(screen.getByRole("option", { name: "#bills" }));
+    expect(screen.getByText("Pay rent")).toBeInTheDocument();
+    expect(screen.queryByText("Walk the dog")).not.toBeInTheDocument();
   });
 
   it("persists the selected view across remounts", async () => {

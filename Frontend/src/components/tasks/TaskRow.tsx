@@ -6,6 +6,7 @@ import { CircleCheckbox } from "./CircleCheckbox";
 import { DueLabel } from "./DueLabel";
 import { PriorityBars } from "./PriorityBars";
 import { QuadrantTag } from "./QuadrantTag";
+import { TagChips } from "./TagChips";
 import { useCompleteTask } from "./useCompleteTask";
 
 interface TaskRowProps {
@@ -100,6 +101,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
           </button>
         )}
         <QuadrantTag quadrant={task.quadrant} />
+        <TagChips tags={task.tags} />
         {task.completed && task.completedAt ? (
           <span className="shrink-0 whitespace-nowrap text-right text-xs text-tertiary">
             {formatCompletedShort(task.completedAt)}

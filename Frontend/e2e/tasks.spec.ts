@@ -8,11 +8,12 @@ test("quick-add and modal create tasks, completion persists across a reload", as
   await page.getByRole("link", { name: "Tasks" }).click();
   await expect(page.getByText("0 active · 0 done")).toBeVisible();
 
-  // quick-add: token parsing, field stays focused and clears
+  // quick-add: token parsing (priority, date, tag), field stays focused and clears
   const quickAdd = page.getByPlaceholder(/Add a task/);
-  await quickAdd.fill("pay rent tomorrow !high");
+  await quickAdd.fill("pay rent tomorrow !high #bills");
   await quickAdd.press("Enter");
   await expect(page.getByText("Pay rent")).toBeVisible();
+  await expect(page.getByText("#bills")).toBeVisible();
   await expect(page.getByText("1 active · 0 done")).toBeVisible();
   await expect(quickAdd).toHaveValue("");
 

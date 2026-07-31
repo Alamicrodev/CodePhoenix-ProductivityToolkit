@@ -1,4 +1,4 @@
-import { Grid2X2, List, Plus, Sparkles } from "lucide-react";
+import { Grid2X2, List, Plus, Sparkles, Tag } from "lucide-react";
 import { Task } from "../../context/DataContext";
 import {
   CommandDialog,
@@ -15,11 +15,13 @@ interface TaskCommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   tasks: Task[];
   viewMode: "list" | "matrix";
+  allTags: string[];
   onQuickAdd: () => void;
   onNewDetailedTask: () => void;
   onSwitchView: (view: "list" | "matrix") => void;
   onAutoCategorize: () => void;
   onEditTask: (task: Task) => void;
+  onFilterTag: (tag: string) => void;
 }
 
 /** ⌘K palette: commands plus fuzzy jump-to-task search. */
@@ -28,11 +30,13 @@ export function TaskCommandPalette({
   onOpenChange,
   tasks,
   viewMode,
+  allTags,
   onQuickAdd,
   onNewDetailedTask,
   onSwitchView,
   onAutoCategorize,
   onEditTask,
+  onFilterTag,
 }: TaskCommandPaletteProps) {
   const run = (action: () => void) => {
     onOpenChange(false);
@@ -80,6 +84,16 @@ export function TaskCommandPalette({
             Auto-categorize tasks
           </CommandItem>
         </CommandGroup>
+        {allTags.length > 0 && (
+          <CommandGroup heading="Filter by tag">
+            {allTags.map(tag => (
+              <CommandItem key={tag} value={`tag-${tag}`} onSelect={() => run(() => onFilterTag(tag))}>
+                <Tag />
+                #{tag}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
         {activeTasks.length > 0 && (
           <CommandGroup heading="Tasks">
             {activeTasks.map(task => (

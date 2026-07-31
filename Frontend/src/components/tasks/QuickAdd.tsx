@@ -35,7 +35,7 @@ export const QuickAdd = forwardRef<QuickAddHandle>(function QuickAdd(_props, ref
       priority: parsed.priority,
       dueDate: parsed.dueDate,
       dueTime: null,
-      tags: [],
+      tags: parsed.tags,
       subtasks: [],
       quadrant: parsed.quadrant,
     });

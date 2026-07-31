@@ -12,7 +12,21 @@ describe("parseQuickAdd", () => {
       priority: "medium",
       dueDate: null,
       quadrant: "not-urgent-important",
+      tags: [],
     });
+  });
+
+  it("parses #tags, lowercased and deduped, stripped from the title", () => {
+    const parsed = parseQuickAdd("pay rent #Bills #home #bills tomorrow", NOW);
+    expect(parsed.tags).toEqual(["bills", "home"]);
+    expect(parsed.title).toBe("Pay rent");
+    expect(parsed.dueDate).toBe("2026-07-30");
+  });
+
+  it("does not treat mid-word # as a tag", () => {
+    const parsed = parseQuickAdd("fix issue#42 now", NOW);
+    expect(parsed.tags).toEqual([]);
+    expect(parsed.title).toBe("Fix issue#42 now");
   });
 
   it("parses !high / !med / !low tokens case-insensitively", () => {

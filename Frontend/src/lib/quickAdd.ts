@@ -12,10 +12,12 @@ export interface ParsedQuickAdd {
   priority: TaskPriority;
   dueDate: string | null;
   quadrant: TaskQuadrant;
+  tags: string[];
 }
 
 const PRIORITY_TOKEN = /(?:^|\s)!(high|hi|medium|med|low)\b/i;
 const DATE_TOKEN = /(?:^|\s)(today|tomorrow)\b/i;
+const TAG_TOKEN = /(?:^|\s)#([\w-]+)/g;
 
 const PRIORITY_ALIASES: Record<string, TaskPriority> = {
   high: "high",
@@ -38,6 +40,15 @@ const QUADRANT_BY_PRIORITY: Record<TaskPriority, TaskQuadrant> = {
  */
 export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
   let title = input;
+
+  const tags: string[] = [];
+  title = title.replace(TAG_TOKEN, (_match, tag: string) => {
+    const normalized = tag.toLowerCase();
+    if (!tags.includes(normalized)) {
+      tags.push(normalized);
+    }
+    return " ";
+  });
 
   let priority: TaskPriority = "medium";
   const priorityMatch = title.match(PRIORITY_TOKEN);
@@ -62,5 +73,5 @@ export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
     title = title.charAt(0).toUpperCase() + title.slice(1);
   }
 
-  return { title, priority, dueDate, quadrant: QUADRANT_BY_PRIORITY[priority] };
+  return { title, priority, dueDate, quadrant: QUADRANT_BY_PRIORITY[priority], tags };
 }
