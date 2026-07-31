@@ -12,6 +12,7 @@ import {
   isInProgress,
   minutesFromGridY,
   ScheduleBlock,
+  snapDuration,
   snapToSlot,
 } from "../../lib/schedulePlan";
 import { CircleCheckbox } from "../tasks/CircleCheckbox";
@@ -30,6 +31,8 @@ interface TimelineViewProps {
   onEditTask: (block: ScheduleBlock) => void;
   /** Applies a drop: reschedule `item` to start at `minutes` on the viewed day. */
   onDropSchedule: (item: ScheduleDragItem, minutes: number) => void;
+  /** Commits a resize: set the task's duration estimate to `minutes`. */
+  onResizeTask: (block: ScheduleBlock, minutes: number) => void;
 }
 
 const topFor = (minutes: number) => ((minutes - DAY_START) / 60) * HOUR_PX + GRID_PAD;
@@ -124,6 +127,7 @@ function TimelineBlock({
   todayKey,
   onToggle,
   onEditTask,
+  onResize,
 }: {
   block: ScheduleBlock;
   nowMin: number;
@@ -131,6 +135,7 @@ function TimelineBlock({
   todayKey: string;
   onToggle: (block: ScheduleBlock) => void;
   onEditTask: (block: ScheduleBlock) => void;
+  onResize: (block: ScheduleBlock, minutes: number) => void;
 }) {
   const guard = useDragThenClickGuard();
   const [{ isDragging }, drag] = useDrag({
@@ -140,8 +145,48 @@ function TimelineBlock({
     collect: monitor => ({ isDragging: monitor.isDragging() }),
   });
 
+  // Bottom-edge resize: live local preview, committed on pointer-up.
+  const [previewDur, setPreviewDur] = useState<number | null>(null);
+  const resizeState = useRef<{ startY: number; origDur: number } | null>(null);
+
+  const durFromPointer = (clientY: number) => {
+    const state = resizeState.current;
+    if (!state) return block.dur;
+    return snapDuration(state.origDur + ((clientY - state.startY) / HOUR_PX) * 60);
+  };
+
+  const onResizeStart = (event: React.PointerEvent) => {
+    // preventDefault keeps the browser from starting a native (react-dnd) drag
+    // or text selection while the handle is held.
+    event.preventDefault();
+    event.stopPropagation();
+    resizeState.current = { startY: event.clientY, origDur: block.dur };
+    try {
+      (event.target as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events (tests) have no capturable pointer.
+    }
+    setPreviewDur(block.dur);
+  };
+
+  const onResizeMove = (event: React.PointerEvent) => {
+    if (!resizeState.current) return;
+    setPreviewDur(durFromPointer(event.clientY));
+  };
+
+  const onResizeEnd = (event: React.PointerEvent) => {
+    const state = resizeState.current;
+    if (!state) return;
+    const finalDur = durFromPointer(event.clientY);
+    resizeState.current = null;
+    setPreviewDur(null);
+    guard.markDragEnd();
+    if (finalDur !== state.origDur) onResize(block, finalDur);
+  };
+
   const inProgress = isInProgress(block, nowMin, isToday);
-  const height = Math.max((block.dur / 60) * HOUR_PX - 5, 14);
+  const displayDur = previewDur ?? block.dur;
+  const height = Math.max((displayDur / 60) * HOUR_PX - 5, 14);
   const extra = blockExtra(block, todayKey);
 
   const surface = inProgress
@@ -159,9 +204,9 @@ function TimelineBlock({
           : undefined
       }
       title="Drag to reschedule"
-      className={`absolute left-[70px] right-2 z-[2] flex cursor-grab items-center gap-2.5 overflow-hidden rounded-lg px-2.5 active:cursor-grabbing ${surface} ${
+      className={`group absolute left-[70px] right-2 z-[2] flex cursor-grab items-center gap-2.5 overflow-hidden rounded-lg px-2.5 active:cursor-grabbing ${surface} ${
         block.done ? "opacity-55" : ""
-      } ${isDragging ? "opacity-30" : ""}`}
+      } ${isDragging ? "opacity-30" : ""} ${previewDur !== null ? "border-primary" : ""}`}
       style={{
         top: topFor(block.start),
         height,
@@ -189,13 +234,17 @@ function TimelineBlock({
           )}
           <span className="flex-1" />
           {block.kind === "task" && block.priority && <PriorityBars priority={block.priority} />}
-          <span className="shrink-0 font-mono text-[10.5px] text-tertiary">
-            {formatBlockDuration(block.dur)}
+          <span
+            className={`shrink-0 font-mono text-[10.5px] ${
+              previewDur !== null ? "font-medium text-primary" : "text-tertiary"
+            }`}
+          >
+            {formatBlockDuration(displayDur)}
           </span>
         </div>
         {height >= 44 && (
           <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px] text-tertiary">
-            <span>{formatTimeRange(block.start, block.start + block.dur)}</span>
+            <span>{formatTimeRange(block.start, block.start + displayDur)}</span>
             {extra && (
               <>
                 <span>·</span>
@@ -205,6 +254,23 @@ function TimelineBlock({
           </div>
         )}
       </div>
+      {block.kind === "task" && (
+        <div
+          onPointerDown={onResizeStart}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeEnd}
+          onPointerCancel={onResizeEnd}
+          onClick={event => event.stopPropagation()}
+          title="Drag to adjust duration"
+          className="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize touch-none items-end justify-center"
+        >
+          <span
+            className={`mb-[2px] h-[3px] w-8 rounded-full transition-opacity ${
+              previewDur !== null ? "bg-primary opacity-100" : "bg-tertiary/60 opacity-0 group-hover:opacity-100"
+            }`}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -219,6 +285,7 @@ export function TimelineView({
   onToggle,
   onEditTask,
   onDropSchedule,
+  onResizeTask,
 }: TimelineViewProps) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [ghost, setGhost] = useState<{ slot: number; dur: number; title: string } | null>(null);
@@ -316,6 +383,7 @@ export function TimelineView({
             todayKey={todayKey}
             onToggle={onToggle}
             onEditTask={onEditTask}
+            onResize={onResizeTask}
           />
         ))}
 

@@ -191,6 +191,15 @@ describe("drag scheduling", () => {
     expect(snapToSlot(2000)).toBe(1065); // after 6:00 PM → 5:45 PM
   });
 
+  it("snaps resized durations to 15m between 15m and 12h", async () => {
+    const { snapDuration } = await import("./schedulePlan");
+    expect(snapDuration(50)).toBe(45);
+    expect(snapDuration(52.5)).toBe(60);
+    expect(snapDuration(7)).toBe(15); // floor
+    expect(snapDuration(-30)).toBe(15);
+    expect(snapDuration(1000)).toBe(720); // ceiling
+  });
+
   it("formats minutes as workspace clock times", async () => {
     const { minutesToClock } = await import("./schedulePlan");
     expect(minutesToClock(555)).toBe("09:15");

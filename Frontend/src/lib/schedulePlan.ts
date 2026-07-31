@@ -209,6 +209,12 @@ export function snapToSlot(rawMinutes: number): number {
   return Math.min(Math.max(snapped, DAY_START), DAY_END - SLOT_MINUTES);
 }
 
+/** Snaps a resized duration to the 15m grid, between 15m and 12h. */
+export function snapDuration(rawMinutes: number): number {
+  const snapped = Math.round(rawMinutes / SLOT_MINUTES) * SLOT_MINUTES;
+  return Math.min(Math.max(snapped, SLOT_MINUTES), 12 * 60);
+}
+
 /** Minutes from midnight → "HH:MM" (the workspace clock-time format). */
 export function minutesToClock(minutes: number): string {
   const clamped = Math.min(Math.max(minutes, 0), 23 * 60 + 59);

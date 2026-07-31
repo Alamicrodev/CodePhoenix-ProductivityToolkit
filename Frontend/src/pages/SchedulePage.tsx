@@ -167,6 +167,17 @@ export default function SchedulePage() {
     [taskById, habitById, updateTask, updateHabit, viewedKey],
   );
 
+  /** Resize commit: the grid handle sets the task's duration estimate. */
+  const handleResizeTask = useCallback(
+    (block: ScheduleBlock, minutes: number) => {
+      const task = taskById.get(block.sourceId);
+      if (!task) return;
+      void updateTask(task.id, { durationMinutes: minutes });
+      toast.success(`"${task.title}" estimated at ${formatBlockDuration(minutes)}`);
+    },
+    [taskById, updateTask],
+  );
+
   const handleNewTask = useCallback(() => {
     setEditingTask(undefined);
     setModalSeed({ dueDate: viewedKey });
@@ -353,6 +364,7 @@ export default function SchedulePage() {
                 onToggle={handleToggleBlock}
                 onEditTask={handleEditTask}
                 onDropSchedule={handleDropSchedule}
+                onResizeTask={handleResizeTask}
               />
             ) : (
               <AgendaView
