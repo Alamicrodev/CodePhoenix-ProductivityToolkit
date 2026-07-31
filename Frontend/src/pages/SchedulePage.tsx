@@ -72,7 +72,7 @@ export default function SchedulePage() {
   const todayKey = formatDateKeyLocal(now);
   const nowMin = minutesOfDay(now);
 
-  // Current week, Monday-first; day switching is clamped to today…Sunday.
+  // Current week, Monday-first; every day of the week is viewable.
   const todayIndex = (now.getDay() + 6) % 7;
   const weekDays = useMemo<WeekDay[]>(() => {
     const monday = startOfLocalDay(now);
@@ -85,15 +85,14 @@ export default function SchedulePage() {
         label: date.toLocaleDateString("en-US", { weekday: "short" }),
         num: String(date.getDate()),
         title: formatDayTitle(date),
-        past: i < todayIndex,
       };
     });
   }, [todayKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [dayIndex, setDayIndex] = useState(todayIndex);
-  const viewedIndex = Math.max(dayIndex, todayIndex);
+  const viewedIndex = Math.min(Math.max(dayIndex, 0), 6);
   const viewedKey = weekDays[viewedIndex].key;
-  const isToday = viewedIndex === todayIndex;
+  const isToday = viewedKey === todayKey;
 
   const taskById = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
   const habitById = useMemo(() => new Map(habits.map(h => [h.id, h])), [habits]);
@@ -217,11 +216,11 @@ export default function SchedulePage() {
           break;
         case "arrowright":
           event.preventDefault();
-          setDayIndex(i => Math.min(6, Math.max(i, todayIndex) + 1));
+          setDayIndex(i => Math.min(6, i + 1));
           break;
         case "arrowleft":
           event.preventDefault();
-          setDayIndex(i => Math.max(todayIndex, Math.max(i, todayIndex) - 1));
+          setDayIndex(i => Math.max(0, i - 1));
           break;
       }
     };
@@ -328,6 +327,7 @@ export default function SchedulePage() {
           <WeekStrip
             days={weekDays}
             activeIndex={viewedIndex}
+            todayIndex={todayIndex}
             onPick={index => setDayIndex(index)}
           />
         </div>

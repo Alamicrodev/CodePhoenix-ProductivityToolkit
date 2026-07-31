@@ -12,7 +12,7 @@ import { parseClockTime, parseDateOnlyLocal } from "./timeFormat";
 export const CORE_START = 6 * 60;
 export const CORE_END = 23 * 60;
 export const HOUR_PX = 68;
-export const NIGHT_HOUR_PX = 16;
+export const NIGHT_HOUR_PX = 10;
 /** Vertical offset of the first line inside the grid canvas. */
 export const GRID_PAD = 8;
 
