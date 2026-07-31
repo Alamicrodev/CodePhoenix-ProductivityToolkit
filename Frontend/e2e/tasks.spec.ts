@@ -20,8 +20,8 @@ test("quick-add and modal create tasks, completion persists across a reload", as
   // modal path still works
   await page.getByRole("button", { name: "New task" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByPlaceholder(/Complete project proposal/).fill("Ship the e2e suite");
-  await dialog.getByRole("button", { name: "Create Task" }).click();
+  await dialog.getByPlaceholder("Task title").fill("Ship the e2e suite");
+  await dialog.getByRole("button", { name: /Create task/ }).click();
   await expect(page.getByText("2 active · 0 done")).toBeVisible();
 
   // complete the quick-added task (sorted first: it has a due date)
@@ -71,7 +71,56 @@ test("keyboard shortcuts and command palette drive the page", async ({ page }) =
   await page.keyboard.press("ControlOrMeta+k");
   await palette.fill("triage");
   await page.getByRole("option", { name: /Triage support inbox/ }).click();
-  await expect(page.getByRole("heading", { name: "Edit Task" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Edit task" })).toBeVisible();
+});
+
+test("quick-add hands off to the full editor, which edits via chips and saves with the keyboard", async ({
+  page,
+}) => {
+  await registerFreshUser(page);
+  await page.getByRole("link", { name: "Tasks" }).click();
+
+  // ⌘↵ opens the editor pre-parsed instead of quick-adding
+  const quickAdd = page.getByPlaceholder(/Add a task/);
+  await quickAdd.fill("write launch email tomorrow !high #marketing");
+  await quickAdd.press("ControlOrMeta+Enter");
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "New task" })).toBeVisible();
+  await expect(dialog.getByPlaceholder("Task title")).toHaveValue("Write launch email");
+  await expect(dialog.getByText("High", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Tomorrow", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("#marketing")).toBeVisible();
+  await expect(quickAdd).toHaveValue("");
+
+  // property chips: set a time from the popover
+  await dialog.getByRole("button", { name: /^Time$/ }).click();
+  await dialog.getByRole("menuitem", { name: "9:00 AM" }).click();
+  await expect(dialog.getByText("9:00 AM")).toBeVisible();
+
+  // subtask checklist: ↵ appends and keeps the input ready
+  const subtaskInput = dialog.getByPlaceholder(/Add a subtask/);
+  await subtaskInput.fill("draft copy");
+  await subtaskInput.press("Enter");
+  await expect(dialog.getByText("0/1")).toBeVisible();
+  await expect(subtaskInput).toHaveValue("");
+
+  // ⌘↵ anywhere in the modal saves
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("Write launch email")).toBeVisible();
+  await expect(page.getByText("1 active · 0 done")).toBeVisible();
+
+  // reopen: Esc closes an open popover first, a second Esc closes the modal
+  await page.getByText("Write launch email").click();
+  await expect(dialog.getByRole("heading", { name: "Edit task" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Tomorrow" }).click();
+  await expect(dialog.getByRole("menuitem", { name: "Next week" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("menuitem", { name: "Next week" })).not.toBeVisible();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
 });
 
 test("row action opens the focus setup with the task preselected", async ({ page }) => {

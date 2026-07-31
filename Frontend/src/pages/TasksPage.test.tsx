@@ -222,7 +222,7 @@ describe("TasksPage", () => {
     await user.type(screen.getByPlaceholderText("Type a command or search tasks…"), "Write rep");
     await user.click(screen.getByText("Write report", { selector: "[cmdk-item] span" }));
 
-    expect(screen.getByText("Edit Task")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /edit task/i })).toBeInTheDocument();
   });
 
   it("creates tagged tasks from quick-add and filters by tag", async () => {

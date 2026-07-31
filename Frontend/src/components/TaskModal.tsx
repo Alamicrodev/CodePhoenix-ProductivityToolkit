@@ -1,473 +1,630 @@
-import { useState, useEffect } from "react";
-import { useData, Task } from "../context/DataContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "./ui/dialog";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Plus, X, AlertCircle, Loader2 } from "lucide-react";
-import { Checkbox } from "./ui/checkbox";
-import { DateInput } from "./ui/date-input";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
-import { TagInput } from "./tasks/TagInput";
+import { useEffect, useRef, useState } from "react";
+import { Calendar, Check, Clock, X } from "lucide-react";
+import { Task, useData } from "../context/DataContext";
+import { CMD_LABEL } from "../lib/platform";
+import { QUADRANT_BY_PRIORITY } from "../lib/quickAdd";
+import { formatDueLabel, isOverdue, TaskPriority } from "../lib/taskDates";
+import { formatClockTime12, formatDateKeyLocal } from "../lib/timeFormat";
+import { CircleCheckbox } from "./tasks/CircleCheckbox";
+import { Kbd } from "./tasks/Kbd";
+import { PriorityBars } from "./tasks/PriorityBars";
+
+/** Prefill for create mode (e.g. a parsed quick-add draft). Ignored when editing. */
+export interface TaskModalSeed {
+  title?: string;
+  priority?: TaskPriority;
+  dueDate?: string | null;
+  tags?: string[];
+}
 
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   task?: Task;
+  seed?: TaskModalSeed;
 }
 
-interface Subtask {
-  id: string;
+type Subtask = Task["subtasks"][number];
+type PopoverKey = "priority" | "due" | "time" | "tag";
+
+interface Draft {
   title: string;
-  completed: boolean;
-  priority: "low" | "medium" | "high";
+  description: string;
+  priority: TaskPriority;
   dueDate: string | null;
   dueTime: string | null;
+  tags: string[];
+  subtasks: Subtask[];
 }
 
-export function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+const TIME_OPTIONS: Array<{ label: string; value: string | null }> = [
+  { label: "9:00 AM", value: "09:00" },
+  { label: "12:00 PM", value: "12:00" },
+  { label: "3:00 PM", value: "15:00" },
+  { label: "6:00 PM", value: "18:00" },
+  { label: "No time", value: null },
+];
+
+function buildDueOptions(now = new Date()): Array<{ label: string; value: string | null }> {
+  const inDays = (days: number) => {
+    const date = new Date(now.getTime());
+    date.setDate(date.getDate() + days);
+    return formatDateKeyLocal(date);
+  };
+  return [
+    { label: "Today", value: inDays(0) },
+    { label: "Tomorrow", value: inDays(1) },
+    { label: "Next week", value: inDays(7) },
+    { label: "No due date", value: null },
+  ];
+}
+
+function emptyDraft(seed?: TaskModalSeed): Draft {
+  return {
+    title: seed?.title ?? "",
+    description: "",
+    priority: seed?.priority ?? "medium",
+    dueDate: seed?.dueDate ?? null,
+    dueTime: null,
+    tags: seed?.tags ? [...seed.tags] : [],
+    subtasks: [],
+  };
+}
+
+function draftFromTask(task: Task): Draft {
+  return {
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    dueDate: task.dueDate,
+    dueTime: task.dueTime,
+    tags: [...task.tags],
+    subtasks: task.subtasks.map(subtask => ({ ...subtask })),
+  };
+}
+
+/** Subtasks are title + done only in the editor; priority/due stay at their defaults. */
+function newSubtask(title: string): Subtask {
+  return {
+    id: Date.now().toString(),
+    title,
+    completed: false,
+    priority: "medium",
+    dueDate: null,
+    dueTime: null,
+  };
+}
+
+const CHIP_CLASS =
+  "flex items-center gap-[7px] rounded-md border border-border bg-card px-2.5 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+const POPOVER_CLASS =
+  "absolute left-0 top-[calc(100%+5px)] z-10 rounded-lg border border-border bg-popover p-1 shadow-lg";
+const POPOVER_ROW_CLASS =
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent";
+
+export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
   const { addTask, updateTask, deleteTask, isSyncing } = useData();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [dueTime, setDueTime] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
-  const [subtaskInput, setSubtaskInput] = useState("");
-  const [subtaskPriority, setSubtaskPriority] = useState<"low" | "medium" | "high">("medium");
-  const [subtaskDueDate, setSubtaskDueDate] = useState("");
-  const [subtaskDueTime, setSubtaskDueTime] = useState("");
-  const [dueDateError, setDueDateError] = useState<string>("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [draft, setDraft] = useState<Draft>(() => emptyDraft());
+  const [pop, setPop] = useState<PopoverKey | null>(null);
+  const [subDraft, setSubDraft] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (task) {
-      setTitle(task.title);
-      setDescription(task.description);
-      setPriority(task.priority);
-      setDueDate(task.dueDate || "");
-      setDueTime(task.dueTime || "");
-      setTags(task.tags);
-      setSubtasks(task.subtasks);
-    } else {
-      resetForm();
+    if (!isOpen) {
+      return;
     }
-  }, [task, isOpen]);
-
-  const resetForm = () => {
-    setTitle("");
-    setDescription("");
-    setPriority("medium");
-    setDueDate("");
-    setDueTime("");
-    setTags([]);
-    setSubtasks([]);
-    setSubtaskInput("");
-    setSubtaskPriority("medium");
-    setSubtaskDueDate("");
-    setSubtaskDueTime("");
-    setDueDateError("");
-  };
-
-  const validateSubtaskDateTime = (
-    subtaskDate: string,
-    subtaskTime: string | null,
-    parentDate: string,
-    parentTime: string | null
-  ): boolean => {
-    if (!subtaskDate || !parentDate) return true;
-    
-    const subtaskDateTime = new Date(`${subtaskDate}T${subtaskTime || "23:59"}`);
-    const parentDateTime = new Date(`${parentDate}T${parentTime || "23:59"}`);
-    
-    return subtaskDateTime <= parentDateTime;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate all subtask due dates
-    if (dueDate) {
-      for (const subtask of subtasks) {
-        if (subtask.dueDate && !validateSubtaskDateTime(subtask.dueDate, subtask.dueTime, dueDate, dueTime)) {
-          setDueDateError(`Subtask "${subtask.title}" has a due date later than the parent task`);
-          return;
-        }
+    setDraft(task ? draftFromTask(task) : emptyDraft(seed));
+    setPop(null);
+    setSubDraft("");
+    setTagDraft("");
+    const timer = window.setTimeout(() => {
+      // Don't steal focus if the user already started interacting with the modal.
+      if (modalRef.current?.contains(document.activeElement)) {
+        return;
       }
+      titleRef.current?.focus();
+    }, 30);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, task, seed]);
+
+  // The page behind must not scroll while the editor is open.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
     }
-
-    const taskData = {
-      title,
-      description,
-      priority,
-      dueDate: dueDate || null,
-      dueTime: dueTime || null,
-      tags,
-      subtasks,
-      completed: task?.completed || false,
-      completedAt: task?.completedAt || null,
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
     };
+  }, [isOpen]);
 
-    const ok = task ? await updateTask(task.id, taskData) : await addTask(taskData);
+  const canSave = draft.title.trim().length > 0;
 
+  const handleSave = async () => {
+    const title = draft.title.trim();
+    if (!title || isSyncing) {
+      return;
+    }
+    const fields = {
+      title,
+      description: draft.description.trim(),
+      priority: draft.priority,
+      dueDate: draft.dueDate,
+      dueTime: draft.dueTime,
+      tags: draft.tags,
+      subtasks: draft.subtasks
+        .map(subtask => ({ ...subtask, title: subtask.title.trim() }))
+        .filter(subtask => subtask.title.length > 0),
+    };
+    const ok = task
+      ? await updateTask(task.id, fields)
+      : await addTask({
+          ...fields,
+          completed: false,
+          completedAt: null,
+          quadrant: QUADRANT_BY_PRIORITY[draft.priority],
+        });
     if (ok) {
       onClose();
     }
   };
 
   const handleDelete = async () => {
-    if (!task) {
+    if (!task || isSyncing) {
       return;
     }
-    setShowDeleteConfirm(false);
     await deleteTask(task.id);
     onClose();
   };
 
-  const addSubtask = () => {
-    if (subtaskInput.trim()) {
-      // Validate subtask due date against parent
-      if (subtaskDueDate && dueDate && !validateSubtaskDateTime(subtaskDueDate, subtaskDueTime, dueDate, dueTime)) {
-        setDueDateError("Subtask due date cannot be later than parent task due date");
-        return;
-      }
+  // Kept fresh each render so the window listener below never sees stale state.
+  const keyContext = useRef({ pop, handleSave, onClose });
+  keyContext.current = { pop, handleSave, onClose };
 
-      setSubtasks([
-        ...subtasks,
-        {
-          id: Date.now().toString(),
-          title: subtaskInput.trim(),
-          completed: false,
-          priority: subtaskPriority,
-          dueDate: subtaskDueDate || null,
-          dueTime: subtaskDueTime || null,
-        },
-      ]);
-      setSubtaskInput("");
-      setSubtaskPriority("medium");
-      setSubtaskDueDate("");
-      setSubtaskDueTime("");
-      setDueDateError("");
-    }
-  };
-
-  const removeSubtask = (id: string) => {
-    setSubtasks(subtasks.filter(st => st.id !== id));
-  };
-
-  const toggleSubtask = (id: string) => {
-    setSubtasks(
-      subtasks.map(st => (st.id === id ? { ...st, completed: !st.completed } : st))
-    );
-  };
-
-  const updateSubtaskField = (id: string, field: keyof Subtask, value: any) => {
-    // Validate if updating due date
-    if (field === "dueDate" && value && dueDate && !validateSubtaskDateTime(value, subtaskDueTime, dueDate, dueTime)) {
-      setDueDateError("Subtask due date cannot be later than parent task due date");
+  useEffect(() => {
+    if (!isOpen) {
       return;
     }
-    
-    setSubtasks(
-      subtasks.map(st => (st.id === id ? { ...st, [field]: value } : st))
-    );
-    setDueDateError("");
+    const containFocus = (event: KeyboardEvent) => {
+      const root = modalRef.current;
+      if (!root) {
+        return;
+      }
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button, input, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter(el => !el.hasAttribute("disabled"));
+      if (focusables.length === 0) {
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const outside = !root.contains(active);
+      if (event.shiftKey && (active === first || outside)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || outside)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        void keyContext.current.handleSave();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (keyContext.current.pop) {
+          setPop(null);
+        } else {
+          keyContext.current.onClose();
+        }
+        return;
+      }
+      if (event.key === "Tab") {
+        containFocus(event);
+      }
+    };
+    // Capture phase: the editor owns the keyboard while open; page shortcuts never fire.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [isOpen]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const isEditing = Boolean(task);
+  const dueOptions = buildDueOptions();
+  const subDone = draft.subtasks.filter(subtask => subtask.completed).length;
+  const subTotal = draft.subtasks.length;
+  const dueLabel = draft.dueDate ? formatDueLabel(draft.dueDate) : "Due date";
+  const dueUrgent = draft.dueDate !== null && (isOverdue(draft.dueDate) || dueLabel === "Today");
+
+  const togglePop = (key: PopoverKey) => (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setPop(current => (current === key ? null : key));
+  };
+  const stop = (event: React.MouseEvent) => event.stopPropagation();
+
+  const addTag = () => {
+    const tag = tagDraft.trim().replace(/^#/, "").toLowerCase();
+    if (!tag) {
+      return;
+    }
+    setDraft(d => (d.tags.includes(tag) ? d : { ...d, tags: [...d.tags, tag] }));
+    setTagDraft("");
   };
 
-  const handleParentDueDateChange = (newDueDate: string) => {
-    setDueDate(newDueDate);
-    
-    // Check if any existing subtasks violate the new parent due date
-    if (newDueDate) {
-      const violations = subtasks.filter(
-        st => st.dueDate && !validateSubtaskDateTime(st.dueDate, st.dueTime, newDueDate, dueTime)
-      );
-      if (violations.length > 0) {
-        setDueDateError(
-          `${violations.length} subtask(s) have due dates later than the new parent due date`
-        );
-      } else {
-        setDueDateError("");
-      }
-    } else {
-      setDueDateError("");
+  const addSubtask = () => {
+    const title = subDraft.trim();
+    if (!title) {
+      return;
     }
+    setDraft(d => ({ ...d, subtasks: [...d.subtasks, newSubtask(title)] }));
+    setSubDraft("");
+  };
+
+  const updateSubtask = (id: string, patch: Partial<Subtask>) => {
+    setDraft(d => ({
+      ...d,
+      subtasks: d.subtasks.map(subtask =>
+        subtask.id === id ? { ...subtask, ...patch } : subtask,
+      ),
+    }));
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-base">{task ? "Edit Task" : "Create New Task"}</DialogTitle>
-          <DialogDescription className="text-xs">
-            {task ? "Edit the details of your task." : "Create a new task."}
-          </DialogDescription>
-        </DialogHeader>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/35 pt-[9vh]"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-modal-title"
+        onClick={event => {
+          event.stopPropagation();
+          setPop(null);
+        }}
+        className="flex max-h-[82vh] w-[620px] max-w-[calc(100vw-32px)] flex-col overflow-y-auto rounded-xl border border-border bg-card shadow-xl"
+      >
+        {/* Header strip */}
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+          <h2
+            id="task-modal-title"
+            className="text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary"
+          >
+            {isEditing ? "Edit task" : "New task"}
+          </h2>
+          <span className="flex-1" />
+          <Kbd>esc</Kbd>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="title" className="text-xs">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="e.g., Complete project proposal, Review design mockups..."
-              className="h-9 text-sm"
-              required
-            />
-          </div>
+        {/* Title, description, property chips */}
+        <div className="px-[18px] pt-3.5">
+          <input
+            ref={titleRef}
+            value={draft.title}
+            onChange={event => setDraft(d => ({ ...d, title: event.target.value }))}
+            placeholder="Task title"
+            aria-label="Task title"
+            className="w-full bg-transparent text-base font-semibold text-foreground outline-none placeholder:text-tertiary"
+          />
+          <textarea
+            value={draft.description}
+            onChange={event => setDraft(d => ({ ...d, description: event.target.value }))}
+            placeholder="Add a description…"
+            aria-label="Task description"
+            rows={2}
+            className="mt-1.5 w-full resize-none bg-transparent text-[13px] leading-relaxed text-muted-foreground outline-none placeholder:text-tertiary"
+          />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="description" className="text-xs">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Add more details..."
-              rows={2}
-              className="text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="priority" className="text-xs">Priority</Label>
-              <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                <SelectTrigger id="priority" className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dueDate" className="text-xs">Due Date (Optional)</Label>
-              <DateInput
-                id="dueDate"
-                value={dueDate}
-                onChange={e => handleParentDueDateChange(e.target.value)}
-                className="h-9 text-sm"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dueTime" className="text-xs">Due Time (Optional)</Label>
-              <Input
-                id="dueTime"
-                type="time"
-                value={dueTime}
-                onChange={e => setDueTime(e.target.value)}
-                className="h-9 w-full text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tags (Optional)</Label>
-            <TagInput tags={tags} onChange={setTags} />
-          </div>
-
-          {/* Due Date Error Message */}
-          {dueDateError && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg">
-              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-red-600 dark:text-red-400">{dueDateError}</p>
-            </div>
-          )}
-
-          {/* Subtasks */}
-          <div className="space-y-2">
-            <Label className="text-xs">Subtasks</Label>
-
-            {/* Add Subtask Form */}
-            <div className="space-y-2 rounded-lg border border-border bg-accent/50 p-3">
-              <Input
-                value={subtaskInput}
-                onChange={e => setSubtaskInput(e.target.value)}
-                placeholder="Add a subtask..."
-                className="h-9 text-sm"
-                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addSubtask())}
-              />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Priority</Label>
-                  <Select value={subtaskPriority} onValueChange={(v: any) => setSubtaskPriority(v)}>
-                    <SelectTrigger className="h-9 text-sm" aria-label="Subtask priority">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Due Date</Label>
-                  <DateInput
-                    value={subtaskDueDate}
-                    onChange={e => setSubtaskDueDate(e.target.value)}
-                    max={dueDate || undefined}
-                    className="h-9 text-sm"
-                    aria-label="Subtask due date"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Due Time</Label>
-                  <Input
-                    type="time"
-                    value={subtaskDueTime}
-                    onChange={e => setSubtaskDueTime(e.target.value)}
-                    className="h-9 text-sm"
-                    aria-label="Subtask due time"
-                  />
-                </div>
-              </div>
-              <Button type="button" variant="secondary" size="sm" onClick={addSubtask} className="w-full gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                Add Subtask
-              </Button>
-            </div>
-
-            {/* Existing Subtasks */}
-            {subtasks.length > 0 && (
-              <div className="space-y-2">
-                {subtasks.map(subtask => (
-                  <div
-                    key={subtask.id}
-                    className="space-y-1.5 rounded-lg border border-border bg-card p-2.5"
-                  >
-                    <div className="flex items-start gap-2">
-                      <Checkbox
-                        checked={subtask.completed}
-                        onCheckedChange={() => toggleSubtask(subtask.id)}
-                        className="mt-0.5"
-                        aria-label={`Complete subtask: ${subtask.title}`}
-                      />
-                      <span
-                        className={`flex-1 text-sm ${
-                          subtask.completed ? "line-through text-muted-foreground" : ""
-                        }`}
-                      >
-                        {subtask.title}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => removeSubtask(subtask.id)}
-                        aria-label={`Remove subtask: ${subtask.title}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 pl-7 sm:grid-cols-3">
-                      <Select
-                        value={subtask.priority}
-                        onValueChange={v => updateSubtaskField(subtask.id, "priority", v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs" aria-label={`Priority for ${subtask.title}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <DateInput
-                        value={subtask.dueDate || ""}
-                        onChange={e => updateSubtaskField(subtask.id, "dueDate", e.target.value || null)}
-                        className="h-8 text-xs"
-                        max={dueDate || undefined}
-                        aria-label={`Due date for ${subtask.title}`}
-                      />
-                      <Input
-                        type="time"
-                        value={subtask.dueTime || ""}
-                        onChange={e => updateSubtaskField(subtask.id, "dueTime", e.target.value || null)}
-                        className="h-8 text-xs"
-                        aria-label={`Due time for ${subtask.title}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2">
-            {task && (
-              <Button
+          <div className="flex flex-wrap items-center gap-1.5 pb-3.5 pt-2.5">
+            {/* Priority chip */}
+            <div className="relative">
+              <button
                 type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={isSyncing}
+                onClick={togglePop("priority")}
+                aria-haspopup="menu"
+                aria-expanded={pop === "priority"}
+                className={CHIP_CLASS}
               >
-                Delete
-              </Button>
-            )}
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSyncing}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={!!dueDateError || isSyncing} className="gap-2">
-              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {task ? (isSyncing ? "Saving..." : "Update Task") : (isSyncing ? "Creating..." : "Create Task")}
-            </Button>
-          </DialogFooter>
-        </form>
+                <PriorityBars priority={draft.priority} />
+                <span>{PRIORITY_LABELS[draft.priority]}</span>
+              </button>
+              {pop === "priority" && (
+                <div className={`${POPOVER_CLASS} w-[170px]`} role="menu" onClick={stop}>
+                  {(["high", "medium", "low"] as const).map(level => (
+                    <button
+                      key={level}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setDraft(d => ({ ...d, priority: level }));
+                        setPop(null);
+                      }}
+                      className={POPOVER_ROW_CLASS}
+                    >
+                      <PriorityBars priority={level} />
+                      <span className="flex-1">{PRIORITY_LABELS[level]}</span>
+                      {draft.priority === level && <Check className="h-3 w-3 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete this task?</AlertDialogTitle>
-              <AlertDialogDescription>
-                "{task?.title}" and its subtasks will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            {/* Due date chip */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={togglePop("due")}
+                aria-haspopup="menu"
+                aria-expanded={pop === "due"}
+                className={CHIP_CLASS}
               >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </DialogContent>
-    </Dialog>
+                <Calendar className="h-3.5 w-3.5 text-tertiary" />
+                <span
+                  className={
+                    draft.dueDate
+                      ? dueUrgent
+                        ? "text-priority-high"
+                        : "text-foreground"
+                      : "text-tertiary"
+                  }
+                >
+                  {dueLabel}
+                </span>
+              </button>
+              {pop === "due" && (
+                <div className={`${POPOVER_CLASS} w-[150px]`} role="menu" onClick={stop}>
+                  {dueOptions.map(option => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setDraft(d => ({ ...d, dueDate: option.value }));
+                        setPop(null);
+                      }}
+                      className={POPOVER_ROW_CLASS}
+                    >
+                      <span className="flex-1">{option.label}</span>
+                      {draft.dueDate === option.value && (
+                        <Check className="h-3 w-3 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Time chip */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={togglePop("time")}
+                aria-haspopup="menu"
+                aria-expanded={pop === "time"}
+                className={CHIP_CLASS}
+              >
+                <Clock className="h-3.5 w-3.5 text-tertiary" />
+                <span className={draft.dueTime ? "text-foreground" : "text-tertiary"}>
+                  {draft.dueTime ? formatClockTime12(draft.dueTime) : "Time"}
+                </span>
+              </button>
+              {pop === "time" && (
+                <div className={`${POPOVER_CLASS} w-[140px]`} role="menu" onClick={stop}>
+                  {TIME_OPTIONS.map(option => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setDraft(d => ({ ...d, dueTime: option.value }));
+                        setPop(null);
+                      }}
+                      className={POPOVER_ROW_CLASS}
+                    >
+                      <span className="flex-1">{option.label}</span>
+                      {draft.dueTime === option.value && (
+                        <Check className="h-3 w-3 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <span className="h-4 w-px bg-border" aria-hidden="true" />
+
+            {/* Tag pills */}
+            {draft.tags.map(tag => (
+              <span
+                key={tag}
+                className="flex items-center gap-[5px] rounded-full border border-border bg-card py-[2px] pl-2 pr-1.5 text-[11px] text-primary"
+              >
+                #{tag}
+                <button
+                  type="button"
+                  aria-label={`Remove tag: ${tag}`}
+                  onClick={() => setDraft(d => ({ ...d, tags: d.tags.filter(t => t !== tag) }))}
+                  className="text-tertiary transition-colors hover:text-priority-high"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={togglePop("tag")}
+                aria-haspopup="true"
+                aria-expanded={pop === "tag"}
+                className="rounded-full border border-border px-2.5 py-[2px] text-[11px] text-tertiary transition-colors hover:bg-accent hover:text-foreground"
+              >
+                + Tag
+              </button>
+              {pop === "tag" && (
+                <div className={`${POPOVER_CLASS} w-[170px] px-2.5 py-2`} onClick={stop}>
+                  <input
+                    autoFocus
+                    value={tagDraft}
+                    onChange={event => setTagDraft(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="#tag · ↵ to add"
+                    aria-label="Add tag"
+                    className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-tertiary"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Subtasks */}
+        <div className="border-t border-border px-[18px] pb-3 pt-2.5">
+          <div className="flex items-center gap-2 pb-1">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
+              Subtasks
+            </h3>
+            {subTotal > 0 && (
+              <>
+                <span className="font-mono text-[11px] text-tertiary">
+                  {subDone}/{subTotal}
+                </span>
+                <div
+                  className="h-[3px] w-[72px] overflow-hidden rounded-full bg-border"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={subTotal}
+                  aria-valuenow={subDone}
+                  aria-label="Subtask progress"
+                >
+                  <div
+                    className="h-full bg-done"
+                    style={{ width: `${Math.round((subDone / subTotal) * 100)}%` }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          {draft.subtasks.map(subtask => (
+            <div key={subtask.id} className="flex items-center gap-2.5 py-[3px]">
+              <CircleCheckbox
+                checked={subtask.completed}
+                onToggle={() => updateSubtask(subtask.id, { completed: !subtask.completed })}
+                label={
+                  subtask.completed
+                    ? `Reopen subtask: ${subtask.title}`
+                    : `Complete subtask: ${subtask.title}`
+                }
+                size="sm"
+              />
+              <input
+                value={subtask.title}
+                onChange={event => updateSubtask(subtask.id, { title: event.target.value })}
+                aria-label="Subtask title"
+                className={`min-w-0 flex-1 bg-transparent text-[12.5px] outline-none ${
+                  subtask.completed ? "text-foreground/55 line-through" : "text-foreground"
+                }`}
+              />
+              <button
+                type="button"
+                aria-label={`Remove subtask: ${subtask.title}`}
+                onClick={() =>
+                  setDraft(d => ({
+                    ...d,
+                    subtasks: d.subtasks.filter(st => st.id !== subtask.id),
+                  }))
+                }
+                className="rounded p-1 text-tertiary transition-colors hover:bg-accent hover:text-priority-high"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-2.5 pt-[3px]">
+            <span
+              className="w-[13px] shrink-0 text-center text-sm leading-none text-primary"
+              aria-hidden="true"
+            >
+              +
+            </span>
+            <input
+              value={subDraft}
+              onChange={event => setSubDraft(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addSubtask();
+                }
+              }}
+              placeholder="Add a subtask…  ↵ to add, stays open"
+              aria-label="Add a subtask"
+              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-tertiary"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2.5">
+          {isEditing && (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={isSyncing}
+              className="rounded-md px-2 py-1 text-xs text-tertiary transition-colors hover:bg-accent hover:text-priority-high disabled:opacity-50"
+            >
+              Delete task
+            </button>
+          )}
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSyncing}
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!canSave || isSyncing}
+            className={`flex items-center gap-[7px] rounded-md bg-primary px-3 py-[5px] text-xs font-medium text-primary-foreground transition-opacity ${
+              canSave ? "" : "opacity-45"
+            }`}
+          >
+            {isEditing ? "Save changes" : "Create task"}
+            <span className="rounded bg-white/[0.18] px-[5px] py-px font-mono text-[10px]">
+              {CMD_LABEL}↵
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

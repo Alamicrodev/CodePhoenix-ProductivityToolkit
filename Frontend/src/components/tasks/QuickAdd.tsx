@@ -1,17 +1,26 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useData } from "../../context/DataContext";
-import { parseQuickAdd } from "../../lib/quickAdd";
+import { CMD_LABEL } from "../../lib/platform";
+import { ParsedQuickAdd, parseQuickAdd } from "../../lib/quickAdd";
 
 export interface QuickAddHandle {
   focus: () => void;
+}
+
+interface QuickAddProps {
+  /** ⌘↵ hands the parsed draft off to the full editor instead of quick-adding. */
+  onOpenFull: (parsed: ParsedQuickAdd) => void;
 }
 
 /**
  * Always-visible one-line task capture. Enter creates the task optimistically,
  * clears the field, and keeps focus for rapid consecutive entry.
  */
-export const QuickAdd = forwardRef<QuickAddHandle>(function QuickAdd(_props, ref) {
+export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function QuickAdd(
+  { onOpenFull },
+  ref,
+) {
   const { addTask } = useData();
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +62,12 @@ export const QuickAdd = forwardRef<QuickAddHandle>(function QuickAdd(_props, ref
           value={draft}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              onOpenFull(parseQuickAdd(draft));
+              setDraft("");
+              return;
+            }
             if (event.key === "Escape") {
               inputRef.current?.blur();
             }
@@ -62,7 +77,7 @@ export const QuickAdd = forwardRef<QuickAddHandle>(function QuickAdd(_props, ref
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-tertiary"
         />
         <span className="hidden shrink-0 font-mono text-[10px] text-tertiary md:inline">
-          ↵ to add · stays open
+          ↵ add · {CMD_LABEL}↵ full editor
         </span>
       </div>
     </form>

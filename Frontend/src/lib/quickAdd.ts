@@ -27,8 +27,8 @@ const PRIORITY_ALIASES: Record<string, TaskPriority> = {
   low: "low",
 };
 
-/** Quick-add auto-files by priority: high → Do first, medium → Schedule, low → Eliminate. */
-const QUADRANT_BY_PRIORITY: Record<TaskPriority, TaskQuadrant> = {
+/** Tasks auto-file by priority: high → Do first, medium → Schedule, low → Eliminate. */
+export const QUADRANT_BY_PRIORITY: Record<TaskPriority, TaskQuadrant> = {
   high: "urgent-important",
   medium: "not-urgent-important",
   low: "not-urgent-not-important",

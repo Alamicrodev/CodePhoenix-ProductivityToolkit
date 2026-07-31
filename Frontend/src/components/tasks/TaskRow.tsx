@@ -103,7 +103,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
               event.stopPropagation();
               setExpanded(current => !current);
             }}
-            className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs text-tertiary hover:bg-accent hover:text-foreground transition-colors"
+            className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 font-mono text-[11px] text-tertiary hover:bg-accent hover:text-foreground transition-colors"
           >
             <ChevronRight
               className={`h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}

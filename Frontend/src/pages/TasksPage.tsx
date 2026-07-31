@@ -5,7 +5,7 @@ import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2, Search, Sparkles } from "lucide-react";
-import { TaskModal } from "../components/TaskModal";
+import { TaskModal, TaskModalSeed } from "../components/TaskModal";
 import { TaskRow } from "../components/tasks/TaskRow";
 import { QuickAdd, QuickAddHandle } from "../components/tasks/QuickAdd";
 import { TaskCommandPalette } from "../components/tasks/TaskCommandPalette";
@@ -13,6 +13,8 @@ import { Kbd } from "../components/tasks/Kbd";
 import { EisenhowerMatrix } from "../components/EisenhowerMatrix";
 import { autoCategorizeTasks } from "../lib/autoCategorize";
 import { usePersistentState } from "../hooks/usePersistentState";
+import { CMD_LABEL } from "../lib/platform";
+import { ParsedQuickAdd } from "../lib/quickAdd";
 import {
   Select,
   SelectContent,
@@ -47,10 +49,6 @@ const PRIORITY_CHIPS: Array<{ value: FilterPriority; label: string }> = [
   { value: "low", label: "Low" },
 ];
 
-const IS_MAC =
-  typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
-const CMD_LABEL = IS_MAC ? "⌘" : "Ctrl";
-
 const isSortBy = (v: unknown): v is SortBy => v === "dueDate" || v === "priority";
 const isViewMode = (v: unknown): v is ViewMode => v === "list" || v === "matrix";
 const isFilterPriority = (v: unknown): v is FilterPriority =>
@@ -64,6 +62,7 @@ export default function TasksPage() {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
+  const [modalSeed, setModalSeed] = useState<TaskModalSeed | undefined>();
   const [sortBy, setSortBy] = usePersistentState<SortBy>("tasks.sortBy", "dueDate", isSortBy);
   const [filterPriority, setFilterPriority] = usePersistentState<FilterPriority>(
     "tasks.filterPriority",
@@ -198,6 +197,18 @@ export default function TasksPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingTask(undefined);
+    setModalSeed(undefined);
+  };
+
+  /** ⌘↵ in quick-add: open the full editor pre-filled from the parsed draft. */
+  const handleOpenFullEditor = (parsed: ParsedQuickAdd) => {
+    setModalSeed({
+      title: parsed.title,
+      priority: parsed.priority,
+      dueDate: parsed.dueDate,
+      tags: parsed.tags,
+    });
+    setIsModalOpen(true);
   };
 
   const focusQuickAdd = () => {
@@ -217,6 +228,9 @@ export default function TasksPage() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        if (isModalOpen) {
+          return;
+        }
         event.preventDefault();
         setIsPaletteOpen(open => !open);
         return;
@@ -387,7 +401,7 @@ export default function TasksPage() {
         {/* Content */}
         {viewMode === "list" ? (
           <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-6">
-            <QuickAdd ref={quickAddRef} />
+            <QuickAdd ref={quickAddRef} onOpenFull={handleOpenFullEditor} />
 
             <h2 className="mb-1 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
               Active · {sortedTasks.length}
@@ -516,6 +530,7 @@ export default function TasksPage() {
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           task={editingTask}
+          seed={modalSeed}
         />
       </div>
     </DashboardLayout>
