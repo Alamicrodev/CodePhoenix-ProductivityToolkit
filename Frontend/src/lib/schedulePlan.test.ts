@@ -2,20 +2,18 @@ import { describe, expect, it } from "vitest";
 import { Habit, Task } from "../context/DataContext";
 import {
   agendaGroups,
-  AiScheduleItem,
-  blocksFromAiItems,
-  buildPlanItems,
   computePlanStats,
+  deriveDayBlocks,
   formatBlockDuration,
   formatMinutes,
   formatTimeRange,
   isInProgress,
-  isPlanMap,
-  newBlockStart,
-  packBlocks,
-  replanBlocks,
+  layoutTimedBlocks,
   ScheduleBlock,
+  UNTIMED,
 } from "./schedulePlan";
+
+const DAY = "2026-07-31"; // a Friday
 
 const block = (overrides: Partial<ScheduleBlock>): ScheduleBlock => ({
   id: "b1",
@@ -25,6 +23,7 @@ const block = (overrides: Partial<ScheduleBlock>): ScheduleBlock => ({
   title: "Block",
   done: false,
   priority: "medium",
+  sourceId: "t1",
   ...overrides,
 });
 
@@ -72,218 +71,107 @@ describe("formatting", () => {
   });
 });
 
-describe("packBlocks", () => {
-  it("packs sequentially and rounds each cursor up to 5m", () => {
-    const placed = packBlocks(
-      [block({ id: "a", dur: 32 }), block({ id: "b", dur: 45 })],
-      540,
-    );
-    expect(placed.map(b => b.start)).toEqual([540, 575]); // 540+32=572 → 575
-  });
-
-  it("inserts a 15m break after ≥120m of continuous work", () => {
-    const placed = packBlocks(
+describe("deriveDayBlocks", () => {
+  it("includes only tasks due that day, timed at their due time", () => {
+    const { timed, untimed } = deriveDayBlocks(
       [
-        block({ id: "a", dur: 60 }),
-        block({ id: "b", dur: 60 }),
-        block({ id: "c", dur: 30 }),
-      ],
-      540,
-    );
-    expect(placed.map(b => [b.kind, b.start])).toEqual([
-      ["task", 540],
-      ["task", 600],
-      ["break", 660],
-      ["task", 675],
-    ]);
-  });
-});
-
-describe("replanBlocks", () => {
-  const day = "2026-07-31";
-
-  it("keeps done and ended blocks in place and drops future breaks", () => {
-    const blocks = [
-      block({ id: "done-later", start: 900, dur: 30, done: true }),
-      block({ id: "ended", start: 480, dur: 30 }),
-      block({ id: "break", start: 700, dur: 15, kind: "break", title: "Break" }),
-      block({ id: "future", start: 800, dur: 30 }),
-    ];
-    const result = replanBlocks(blocks, 600, day);
-    const ids = result.map(b => b.id);
-    expect(ids).toContain("done-later");
-    expect(ids).toContain("ended");
-    expect(ids).not.toContain("break");
-    expect(result.find(b => b.id === "done-later")!.start).toBe(900);
-    expect(result.find(b => b.id === "future")!.start).toBe(600);
-  });
-
-  it("packs after the in-progress block", () => {
-    const blocks = [
-      block({ id: "running", start: 590, dur: 40 }), // 9:50–10:30, in progress at 10:00
-      block({ id: "next", start: 700, dur: 30 }),
-    ];
-    const result = replanBlocks(blocks, 600, day);
-    expect(result.find(b => b.id === "running")!.start).toBe(590);
-    expect(result.find(b => b.id === "next")!.start).toBe(630);
-  });
-
-  it("orders movables: overdue → due that day → other → habits, by priority", () => {
-    const blocks = [
-      block({ id: "habit", start: 800, dur: 30, kind: "habit", priority: undefined }),
-      block({ id: "other-high", start: 810, dur: 30, priority: "high", dueDate: "2026-08-05" }),
-      block({ id: "due-today", start: 820, dur: 30, priority: "low", dueDate: day }),
-      block({ id: "overdue", start: 830, dur: 30, priority: "low", dueDate: "2026-07-20" }),
-    ];
-    const result = replanBlocks(blocks, 600, day).filter(b => b.kind !== "break");
-    expect(result.map(b => b.id)).toEqual(["overdue", "due-today", "other-high", "habit"]);
-  });
-});
-
-describe("newBlockStart", () => {
-  it("starts after the last end + 10 rounded to :15", () => {
-    expect(newBlockStart([block({ start: 600, dur: 35 })])).toBe(645);
-  });
-
-  it("caps the start at 5:15 PM", () => {
-    expect(newBlockStart([block({ start: 1080, dur: 60 })])).toBe(1035);
-  });
-});
-
-describe("buildPlanItems", () => {
-  const day = "2026-07-31";
-
-  it("leads with the planning ritual, then tiered tasks, then habits", () => {
-    const items = buildPlanItems(
-      [
-        task({ id: "later", dueDate: "2026-08-04", priority: "high" }),
-        task({ id: "overdue", dueDate: "2026-07-25", priority: "low" }),
-        task({ id: "today", dueDate: day, priority: "medium" }),
-      ],
-      [habit({ id: "h1" })],
-      day,
-    );
-    expect(items.map(i => i.kind)).toEqual(["planning", "task", "task", "task", "habit"]);
-    expect(items.slice(1, 4).map(i => i.sourceId)).toEqual(["overdue", "today", "later"]);
-  });
-
-  it("skips completed, excluded, undated, and far-future tasks", () => {
-    const items = buildPlanItems(
-      [
-        task({ id: "done", completed: true, dueDate: day }),
-        task({ id: "excluded", dueDate: day }),
-        task({ id: "undated" }),
-        task({ id: "far", dueDate: "2026-09-20" }),
+        task({ id: "timed", dueDate: DAY, dueTime: "14:30" }),
+        task({ id: "untimed", dueDate: DAY }),
+        task({ id: "other-day", dueDate: "2026-08-01", dueTime: "09:00" }),
+        task({ id: "no-date" }),
       ],
       [],
-      day,
-      { excludeTaskIds: new Set(["excluded"]) },
-    );
-    expect(items.filter(i => i.kind === "task")).toHaveLength(0);
-  });
-
-  it("skips habits already completed that day", () => {
-    const items = buildPlanItems([], [habit({ completedDates: [day] })], day);
-    expect(items.filter(i => i.kind === "habit")).toHaveLength(0);
-  });
-
-  it("sizes task blocks by priority", () => {
-    const items = buildPlanItems(
-      [
-        task({ id: "hi", dueDate: day, priority: "high" }),
-        task({ id: "lo", dueDate: day, priority: "low" }),
-      ],
-      [],
-      day,
-    );
-    const durs = Object.fromEntries(
-      items.filter(i => i.kind === "task").map(i => [i.sourceId, i.dur]),
-    );
-    expect(durs).toEqual({ hi: 60, lo: 30 });
-  });
-});
-
-describe("blocksFromAiItems", () => {
-  const item = (overrides: Partial<AiScheduleItem>): AiScheduleItem => ({
-    time: "9:00 AM",
-    type: "task",
-    title: "Item",
-    priority: "medium",
-    duration: "30 min",
-    ...overrides,
-  });
-
-  const DAY = "2026-07-31";
-
-  it("keeps model clock times and sorts by start", () => {
-    const blocks = blocksFromAiItems(
-      [
-        item({ time: "2:30 PM", duration: "1 hour" }),
-        item({ time: "9:15 AM", duration: "45 min" }),
-      ],
-      [],
-      [],
-      600,
       DAY,
     );
-    expect(blocks!.map(b => [b.start, b.dur])).toEqual([
-      [555, 45],
-      [870, 60],
+    expect(timed.map(b => [b.sourceId, b.start])).toEqual([["timed", 870]]);
+    expect(untimed.map(b => b.sourceId)).toEqual(["untimed"]);
+  });
+
+  it("estimates task duration from priority", () => {
+    const { timed } = deriveDayBlocks(
+      [
+        task({ id: "hi", dueDate: DAY, dueTime: "09:00", priority: "high" }),
+        task({ id: "lo", dueDate: DAY, dueTime: "12:00", priority: "low" }),
+      ],
+      [],
+      DAY,
+    );
+    expect(timed.map(b => b.dur)).toEqual([60, 30]);
+  });
+
+  it("keeps completed tasks with done state", () => {
+    const { untimed } = deriveDayBlocks(
+      [task({ dueDate: DAY, completed: true })],
+      [],
+      DAY,
+    );
+    expect(untimed[0].done).toBe(true);
+  });
+
+  it("places habits at their active-hours start and honors active days", () => {
+    const { timed, untimed } = deriveDayBlocks(
+      [],
+      [
+        habit({ id: "morning", activeHours: { start: "07:30", end: "09:00" } }),
+        habit({ id: "anytime" }),
+        habit({ id: "weekend-only", activeDays: [0, 6] }), // Fri excluded
+        habit({ id: "hourly", frequency: "hourly" }),
+      ],
+      DAY,
+    );
+    expect(timed.map(b => [b.sourceId, b.start])).toEqual([["morning", 450]]);
+    expect(untimed.map(b => b.sourceId)).toEqual(["anytime"]);
+  });
+
+  it("derives habit done from that day's completion", () => {
+    const { untimed } = deriveDayBlocks([], [habit({ completedDates: [DAY] })], DAY);
+    expect(untimed[0].done).toBe(true);
+  });
+
+  it("orders untimed items tasks-first by priority", () => {
+    const { untimed } = deriveDayBlocks(
+      [
+        task({ id: "lo", dueDate: DAY, priority: "low" }),
+        task({ id: "hi", dueDate: DAY, priority: "high" }),
+      ],
+      [habit({ id: "h" })],
+      DAY,
+    );
+    expect(untimed.map(b => b.sourceId)).toEqual(["hi", "lo", "h"]);
+  });
+});
+
+describe("layoutTimedBlocks", () => {
+  it("keeps non-overlapping blocks in place", () => {
+    const laid = layoutTimedBlocks([
+      block({ id: "b", start: 700 }),
+      block({ id: "a", start: 540 }),
+    ]);
+    expect(laid.map(b => [b.id, b.start])).toEqual([
+      ["a", 540],
+      ["b", 700],
     ]);
   });
 
-  it("enriches from the linked task and habit", () => {
-    const blocks = blocksFromAiItems(
-      [
-        item({ source_id: "t1", source_type: "task" }),
-        item({ time: "10:00 AM", type: "habit", source_id: "h1", source_type: "habit" }),
-      ],
-      [task({ id: "t1", priority: "high", dueDate: "2026-07-30" })],
-      [habit({ id: "h1", streak: 9 })],
-      600,
-      DAY,
-    );
-    expect(blocks![0]).toMatchObject({ priority: "high", dueDate: "2026-07-30", sourceId: "t1" });
-    expect(blocks![1]).toMatchObject({ kind: "habit", streak: 9, sourceId: "h1" });
-  });
-
-  it("places pseudo-time items via the replan engine from the anchor", () => {
-    // Heuristic-fallback shape: only system items carry clock times.
-    const blocks = blocksFromAiItems(
-      [
-        item({ time: "9:00 AM", type: "planning", title: "Morning planning" }),
-        item({ time: "Today", title: "Due today task", source_id: "t1", source_type: "task" }),
-        item({ time: "Now", type: "habit", title: "Meditate", source_id: "h1", source_type: "habit" }),
-        item({ time: "Thu, Jul 23", title: "Overdue task", source_id: "t2", source_type: "task" }),
-      ],
-      [
-        task({ id: "t1", dueDate: DAY }),
-        task({ id: "t2", dueDate: "2026-07-23" }),
-      ],
-      [habit({ id: "h1" })],
-      900, // 3:00 PM
-      DAY,
-    );
-    const ids = blocks!.map(b => [b.title, b.start]);
-    // Ended system block keeps its 9:00 slot; the rest pack from 3:00 by tier.
-    expect(ids).toContainEqual(["Morning planning", 540]);
-    expect(ids).toContainEqual(["Overdue task", 900]);
-    expect(ids).toContainEqual(["Due today task", 930]);
-    expect(ids).toContainEqual(["Meditate", 960]);
-  });
-
-  it("skips untitled items and returns null when nothing is usable", () => {
-    expect(blocksFromAiItems([item({ title: "" })], [], [], 600, DAY)).toBeNull();
-    const blocks = blocksFromAiItems([item({ title: "" }), item({})], [], [], 600, DAY);
-    expect(blocks).toHaveLength(1);
+  it("cascades simultaneous and overlapping blocks", () => {
+    const laid = layoutTimedBlocks([
+      block({ id: "a", start: 540, dur: 60 }),
+      block({ id: "b", start: 540, dur: 30 }),
+      block({ id: "c", start: 615, dur: 30 }),
+    ]);
+    // a and b both 9:00 — b pushes to 10:00; c (10:15) fits after b's new end? b ends 10:30 → c pushes to 10:30.
+    expect(laid.map(b => [b.id, b.start])).toEqual([
+      ["a", 540],
+      ["b", 600],
+      ["c", 630],
+    ]);
   });
 });
 
 describe("derivations", () => {
-  it("groups agenda rows into morning/afternoon/evening, excluding breaks", () => {
+  it("groups agenda rows into morning/afternoon/evening", () => {
     const groups = agendaGroups([
       block({ id: "m", start: 540 }),
-      block({ id: "brk", start: 700, kind: "break" }),
       block({ id: "a", start: 800 }),
       block({ id: "e", start: 1030 }),
     ]);
@@ -299,8 +187,7 @@ describe("derivations", () => {
       block({ id: "a", dur: 60, done: true }),
       block({ id: "b", dur: 90 }),
       block({ id: "hab", dur: 60, kind: "habit" }),
-      block({ id: "brk", dur: 45, kind: "break" }),
-      block({ id: "short", dur: 30 }),
+      block({ id: "short", dur: 30, start: UNTIMED }),
     ]);
     expect(stats).toEqual({ plannedMin: 240, focusMin: 150, doneCount: 1, totalCount: 4 });
   });
@@ -310,18 +197,7 @@ describe("derivations", () => {
     expect(isInProgress(b, 630, true)).toBe(true);
     expect(isInProgress(b, 630, false)).toBe(false);
     expect(isInProgress({ ...b, done: true }, 630, true)).toBe(false);
+    expect(isInProgress({ ...b, start: UNTIMED }, 630, true)).toBe(false);
     expect(isInProgress(b, 660, true)).toBe(false);
-  });
-
-  it("validates persisted plan maps", () => {
-    expect(isPlanMap({})).toBe(true);
-    expect(
-      isPlanMap({
-        "2026-07-31": { optimizedAt: "2026-07-31T09:12:00Z", blocks: [block({})] },
-      }),
-    ).toBe(true);
-    expect(isPlanMap({ day: { optimizedAt: "x", blocks: [{ id: 1 }] } })).toBe(false);
-    expect(isPlanMap(null)).toBe(false);
-    expect(isPlanMap([])).toBe(false);
   });
 });

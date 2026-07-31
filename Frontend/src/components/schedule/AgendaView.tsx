@@ -4,30 +4,36 @@ import {
   formatMinutes,
   isInProgress,
   ScheduleBlock,
+  UNTIMED,
 } from "../../lib/schedulePlan";
 import { CircleCheckbox } from "../tasks/CircleCheckbox";
 import { PriorityBars } from "../tasks/PriorityBars";
 import { blockExtra, KindGlyph } from "./blockMeta";
 
 interface AgendaViewProps {
-  blocks: ScheduleBlock[];
+  timed: ScheduleBlock[];
+  untimed: ScheduleBlock[];
   nowMin: number;
   isToday: boolean;
   todayKey: string;
-  replanning: boolean;
   onToggle: (block: ScheduleBlock) => void;
+  onEditTask: (block: ScheduleBlock) => void;
 }
 
-/** List day view grouped Morning / Afternoon / Evening; breaks excluded. */
+/** List day view grouped Anytime / Morning / Afternoon / Evening. */
 export function AgendaView({
-  blocks,
+  timed,
+  untimed,
   nowMin,
   isToday,
   todayKey,
-  replanning,
   onToggle,
+  onEditTask,
 }: AgendaViewProps) {
-  const groups = agendaGroups(blocks);
+  const groups = [
+    ...(untimed.length > 0 ? [{ name: "Anytime", rows: untimed }] : []),
+    ...agendaGroups(timed),
+  ];
 
   return (
     <div className="mx-auto w-full max-w-[780px] px-4 pb-10 pt-4">
@@ -43,16 +49,17 @@ export function AgendaView({
               return (
                 <div
                   key={block.id}
+                  onClick={block.kind === "task" ? () => onEditTask(block) : undefined}
                   className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-opacity hover:bg-accent/50 ${
-                    replanning ? "opacity-35" : block.done ? "opacity-55" : ""
-                  }`}
+                    block.done ? "opacity-55" : ""
+                  } ${block.kind === "task" ? "cursor-pointer" : ""}`}
                 >
                   <span
                     className={`w-[58px] shrink-0 font-mono text-[11px] ${
                       inProgress ? "text-primary" : "text-tertiary"
                     }`}
                   >
-                    {formatMinutes(block.start, true)}
+                    {block.start === UNTIMED ? "—" : formatMinutes(block.start, true)}
                   </span>
                   <CircleCheckbox
                     checked={block.done}
@@ -77,6 +84,11 @@ export function AgendaView({
                       <span className="truncate text-xs text-tertiary">{block.desc}</span>
                     )}
                   </div>
+                  {inProgress && (
+                    <span className="shrink-0 rounded border border-primary px-[5px] text-[9.5px] font-semibold uppercase tracking-[0.05em] text-primary">
+                      Now
+                    </span>
+                  )}
                   {extra && (
                     <span className={`whitespace-nowrap text-[11.5px] ${extra.className}`}>
                       {extra.text}
