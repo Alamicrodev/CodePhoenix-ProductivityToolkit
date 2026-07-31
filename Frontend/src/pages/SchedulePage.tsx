@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "sonner";
 import { Task, useData } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
@@ -11,12 +13,16 @@ import { TimelineView } from "../components/schedule/TimelineView";
 import { WeekDay, WeekStrip } from "../components/schedule/WeekStrip";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { findCompletionMarkerForDay } from "../lib/habitStats";
+import { ScheduleDragItem } from "../components/schedule/dnd";
 import {
   computePlanStats,
   deriveDayBlocks,
   formatBlockDuration,
+  formatMinutes,
   minutesOfDay,
+  minutesToClock,
   ScheduleBlock,
+  shiftWindow,
 } from "../lib/schedulePlan";
 import { compareByDueDate, formatDueLabel } from "../lib/taskDates";
 import { formatClockTime12, formatDateKeyLocal, startOfLocalDay } from "../lib/timeFormat";
@@ -29,8 +35,12 @@ function formatDayTitle(date: Date) {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+function dayShortLabel(dayKey: string) {
+  return new Date(`${dayKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short" });
+}
+
 export default function SchedulePage() {
-  const { tasks, habits, completeHabit, undoCompleteHabit } = useData();
+  const { tasks, habits, completeHabit, undoCompleteHabit, updateTask, updateHabit } = useData();
   const completeTask = useCompleteTask();
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -132,6 +142,29 @@ export default function SchedulePage() {
       }
     },
     [taskById],
+  );
+
+  /** Drop on the grid: move the task/habit to start at `minutes` on the viewed day. */
+  const handleDropSchedule = useCallback(
+    (item: ScheduleDragItem, minutes: number) => {
+      if (item.kind === "task") {
+        const task = taskById.get(item.sourceId);
+        if (!task) return;
+        const movedDay = task.dueDate !== viewedKey;
+        void updateTask(task.id, { dueDate: viewedKey, dueTime: minutesToClock(minutes) });
+        toast.success(
+          movedDay
+            ? `Scheduled "${task.title}" for ${dayShortLabel(viewedKey)} ${formatMinutes(minutes, true)}`
+            : `Moved "${task.title}" to ${formatMinutes(minutes, true)}`,
+        );
+        return;
+      }
+      const habit = habitById.get(item.sourceId);
+      if (!habit) return;
+      void updateHabit(habit.id, { activeHours: shiftWindow(habit.activeHours, minutes) });
+      toast.success(`Moved "${habit.title}" to ${formatMinutes(minutes, true)}`);
+    },
+    [taskById, habitById, updateTask, updateHabit, viewedKey],
   );
 
   const handleNewTask = useCallback(() => {
@@ -244,7 +277,8 @@ export default function SchedulePage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col md:h-dvh">
+      <DndProvider backend={HTML5Backend}>
+        <div className="flex flex-col md:h-dvh">
         {/* Page header */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-2 sm:h-[46px] sm:flex-nowrap sm:py-0">
           <h1 className="shrink-0 text-sm font-semibold">Schedule</h1>
@@ -318,6 +352,7 @@ export default function SchedulePage() {
                 todayKey={todayKey}
                 onToggle={handleToggleBlock}
                 onEditTask={handleEditTask}
+                onDropSchedule={handleDropSchedule}
               />
             ) : (
               <AgendaView
@@ -357,14 +392,15 @@ export default function SchedulePage() {
           </span>
         </div>
 
-        {/* Task editor */}
-        <TaskModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          task={editingTask}
-          seed={modalSeed}
-        />
-      </div>
+          {/* Task editor */}
+          <TaskModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            task={editingTask}
+            seed={modalSeed}
+          />
+        </div>
+      </DndProvider>
     </DashboardLayout>
   );
 }

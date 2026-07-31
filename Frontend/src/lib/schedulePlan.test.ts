@@ -168,6 +168,37 @@ describe("layoutTimedBlocks", () => {
   });
 });
 
+describe("drag scheduling", () => {
+  it("snaps to the 15m grid and clamps to the visible day", async () => {
+    const { snapToSlot } = await import("./schedulePlan");
+    expect(snapToSlot(547)).toBe(540); // 9:07 → 9:00
+    expect(snapToSlot(553)).toBe(555); // 9:13 → 9:15
+    expect(snapToSlot(100)).toBe(480); // before 8:00 → 8:00
+    expect(snapToSlot(2000)).toBe(1065); // after 6:00 PM → 5:45 PM
+  });
+
+  it("formats minutes as workspace clock times", async () => {
+    const { minutesToClock } = await import("./schedulePlan");
+    expect(minutesToClock(555)).toBe("09:15");
+    expect(minutesToClock(990)).toBe("16:30");
+  });
+
+  it("shifts a habit window preserving its length", async () => {
+    const { shiftWindow } = await import("./schedulePlan");
+    expect(shiftWindow({ start: "08:15", end: "09:00" }, 600)).toEqual({
+      start: "10:00",
+      end: "10:45",
+    });
+    expect(shiftWindow(undefined, 540)).toEqual({ start: "09:00", end: "09:30" });
+  });
+
+  it("maps grid Y offsets to minutes", async () => {
+    const { minutesFromGridY, GRID_PAD, HOUR_PX, DAY_START } = await import("./schedulePlan");
+    expect(minutesFromGridY(GRID_PAD)).toBe(DAY_START);
+    expect(minutesFromGridY(GRID_PAD + HOUR_PX)).toBe(DAY_START + 60);
+  });
+});
+
 describe("derivations", () => {
   it("groups agenda rows into morning/afternoon/evening", () => {
     const groups = agendaGroups([

@@ -1,7 +1,10 @@
+import { ReactNode } from "react";
+import { useDrag } from "react-dnd";
 import { Task } from "../../context/DataContext";
-import { formatBlockDuration, PlanStats } from "../../lib/schedulePlan";
+import { estimatedTaskDuration, formatBlockDuration, PlanStats } from "../../lib/schedulePlan";
 import { CircleCheckbox } from "../tasks/CircleCheckbox";
 import { PriorityBars } from "../tasks/PriorityBars";
+import { SCHEDULE_ITEM, ScheduleDragItem } from "./dnd";
 
 interface ScheduleRailProps {
   stats: PlanStats;
@@ -11,7 +14,7 @@ interface ScheduleRailProps {
   onCompleteTask: (task: Task) => void;
 }
 
-function SectionHeader({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "danger" }) {
+function SectionHeader({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "danger" }) {
   return (
     <h2
       className={`px-0.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.06em] ${
@@ -20,6 +23,36 @@ function SectionHeader({ children, tone = "muted" }: { children: React.ReactNode
     >
       {children}
     </h2>
+  );
+}
+
+/** Draggable rail row: drop it on the timeline to schedule the task there. */
+function RailTaskRow({ task, trailing, check }: { task: Task; trailing: ReactNode; check?: ReactNode }) {
+  const [{ isDragging }, drag] = useDrag({
+    type: SCHEDULE_ITEM,
+    item: (): ScheduleDragItem => ({
+      kind: "task",
+      sourceId: task.id,
+      dur: estimatedTaskDuration(task.priority),
+      title: task.title,
+    }),
+    collect: monitor => ({ isDragging: monitor.isDragging() }),
+  });
+
+  return (
+    <div
+      ref={node => {
+        drag(node);
+      }}
+      title="Drag onto the timeline to schedule"
+      className={`flex cursor-grab items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50 active:cursor-grabbing ${
+        isDragging ? "opacity-40" : ""
+      }`}
+    >
+      {check ?? <PriorityBars priority={task.priority} />}
+      <span className="min-w-0 flex-1 truncate text-xs font-medium">{task.title}</span>
+      {trailing}
+    </div>
   );
 }
 
@@ -59,19 +92,21 @@ export function ScheduleRail({
         )}
         <div className="flex flex-col">
           {overdueRows.map(({ task, dateLabel }) => (
-            <div
+            <RailTaskRow
               key={task.id}
-              className="flex items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50"
-            >
-              <CircleCheckbox
-                checked={false}
-                onToggle={() => onCompleteTask(task)}
-                label={`Mark ${task.title} done`}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">{task.title}</span>
-              <span className="whitespace-nowrap text-[11px] text-priority-high">{dateLabel}</span>
-            </div>
+              task={task}
+              check={
+                <CircleCheckbox
+                  checked={false}
+                  onToggle={() => onCompleteTask(task)}
+                  label={`Mark ${task.title} done`}
+                  size="sm"
+                />
+              }
+              trailing={
+                <span className="whitespace-nowrap text-[11px] text-priority-high">{dateLabel}</span>
+              }
+            />
           ))}
         </div>
       </div>
@@ -83,21 +118,23 @@ export function ScheduleRail({
         )}
         <div className="flex flex-col">
           {dueTodayRows.map(({ task, timeLabel }) => (
-            <div
+            <RailTaskRow
               key={task.id}
-              className="flex items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50"
-            >
-              <CircleCheckbox
-                checked={false}
-                onToggle={() => onCompleteTask(task)}
-                label={`Mark ${task.title} done`}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">{task.title}</span>
-              <span className="whitespace-nowrap font-mono text-[10.5px] text-tertiary">
-                {timeLabel}
-              </span>
-            </div>
+              task={task}
+              check={
+                <CircleCheckbox
+                  checked={false}
+                  onToggle={() => onCompleteTask(task)}
+                  label={`Mark ${task.title} done`}
+                  size="sm"
+                />
+              }
+              trailing={
+                <span className="whitespace-nowrap font-mono text-[10.5px] text-tertiary">
+                  {timeLabel}
+                </span>
+              }
+            />
           ))}
         </div>
       </div>
@@ -109,14 +146,13 @@ export function ScheduleRail({
         )}
         <div className="flex flex-col">
           {weekRows.map(({ task, dateLabel }) => (
-            <div
+            <RailTaskRow
               key={task.id}
-              className="flex items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50"
-            >
-              <PriorityBars priority={task.priority} />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">{task.title}</span>
-              <span className="whitespace-nowrap text-[11px] text-tertiary">{dateLabel}</span>
-            </div>
+              task={task}
+              trailing={
+                <span className="whitespace-nowrap text-[11px] text-tertiary">{dateLabel}</span>
+              }
+            />
           ))}
         </div>
       </div>

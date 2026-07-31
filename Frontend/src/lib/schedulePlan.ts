@@ -74,6 +74,11 @@ export function formatTimeRange(start: number, end: number): string {
 const TASK_DURATION: Record<TaskPriority, number> = { high: 60, medium: 45, low: 30 };
 const HABIT_DURATION = 30;
 
+/** Estimated display duration for a task of the given priority. */
+export function estimatedTaskDuration(priority: TaskPriority): number {
+  return TASK_DURATION[priority];
+}
+
 /** Minutes from a "HH:MM" clock string. */
 export function clockToMinutes(value: string): number {
   const { hours, minutes } = parseClockTime(value);
@@ -191,6 +196,44 @@ export function computePlanStats(blocks: ScheduleBlock[]): PlanStats {
     doneCount: blocks.filter(b => b.done).length,
     totalCount: blocks.length,
   };
+}
+
+/* ------------------------------- drag scheduling -------------------------------- */
+
+/** Drag-and-drop snap grid on the timeline. */
+export const SLOT_MINUTES = 15;
+
+/** Snaps a raw minute offset to the 15m grid, clamped to the visible day. */
+export function snapToSlot(rawMinutes: number): number {
+  const snapped = Math.round(rawMinutes / SLOT_MINUTES) * SLOT_MINUTES;
+  return Math.min(Math.max(snapped, DAY_START), DAY_END - SLOT_MINUTES);
+}
+
+/** Minutes from midnight → "HH:MM" (the workspace clock-time format). */
+export function minutesToClock(minutes: number): string {
+  const clamped = Math.min(Math.max(minutes, 0), 23 * 60 + 59);
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Moves a habit's active-hours window to start at `newStart`, preserving the
+ * window length (default 30m when the habit had no window).
+ */
+export function shiftWindow(
+  window: { start: string; end: string } | undefined,
+  newStart: number,
+): { start: string; end: string } {
+  const length = window
+    ? Math.max(clockToMinutes(window.end) - clockToMinutes(window.start), SLOT_MINUTES)
+    : HABIT_DURATION;
+  return { start: minutesToClock(newStart), end: minutesToClock(newStart + length) };
+}
+
+/** Converts a Y offset inside the grid canvas (below GRID_PAD) to raw minutes. */
+export function minutesFromGridY(y: number): number {
+  return ((y - GRID_PAD) / HOUR_PX) * 60 + DAY_START;
 }
 
 /** True when the block is running right now (today only, timed, undone). */
