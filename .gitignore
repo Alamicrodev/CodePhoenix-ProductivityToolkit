@@ -157,3 +157,9 @@ blob-report/
 playwright/.cache/
 TEST_CREDENTIALS.md
 .playwright-mcp/
+
+# Design assets — handoff prototypes and screenshot captures.
+# Kept locally as references while restyling; the repo stays code-only.
+design_handoff_*/
+design_screenshots/
+*.zip
