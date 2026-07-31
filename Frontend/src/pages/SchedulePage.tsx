@@ -273,7 +273,8 @@ export default function SchedulePage() {
   /* ----------------------------------- header ----------------------------------- */
 
   const viewedDate = new Date(`${viewedKey}T12:00:00`);
-  const dayTitle = isToday ? `Today · ${formatDayTitle(now)}` : formatDayTitle(viewedDate);
+  // The page is titled "Today", so the summary leads with the concrete date.
+  const dayTitle = isToday ? formatDayTitle(now) : formatDayTitle(viewedDate);
   const viewedCount = viewedBlocks.timed.length + viewedBlocks.untimed.length;
   const viewedStats = computePlanStats([...viewedBlocks.timed, ...viewedBlocks.untimed]);
   const summary =
@@ -292,7 +293,7 @@ export default function SchedulePage() {
         <div className="flex flex-col md:h-dvh">
         {/* Page header */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-2 sm:h-[46px] sm:flex-nowrap sm:py-0">
-          <h1 className="shrink-0 text-sm font-semibold">Schedule</h1>
+          <h1 className="shrink-0 text-sm font-semibold">Today</h1>
           <span className="min-w-0 flex-1 truncate text-xs text-tertiary">{summary}</span>
           <div className="flex shrink-0 rounded-[7px] border border-border bg-muted p-0.5">
             <button

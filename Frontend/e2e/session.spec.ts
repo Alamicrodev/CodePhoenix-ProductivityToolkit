@@ -7,6 +7,6 @@ test("session restores from the stored token after a reload", async ({ page }) =
 
   await page.reload();
 
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   await expect(page.getByText(name)).toBeVisible();
 });

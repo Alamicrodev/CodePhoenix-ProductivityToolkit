@@ -11,6 +11,6 @@ export async function registerFreshUser(page: Page, name = "E2E Tester") {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   return { email, password, name };
 }

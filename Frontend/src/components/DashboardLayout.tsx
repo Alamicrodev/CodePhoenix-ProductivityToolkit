@@ -13,7 +13,6 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 import {
-  LayoutDashboard,
   CheckSquare,
   Target,
   Timer,
@@ -30,12 +29,11 @@ interface LayoutProps {
 }
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Today", href: "/", icon: Calendar },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Habits", href: "/habits", icon: Target },
   { name: "Focus", href: "/focus", icon: Timer },
   { name: "Cowork", href: "/cowork", icon: Users },
-  { name: "Schedule", href: "/schedule", icon: Calendar },
 ];
 
 export default function DashboardLayout({ children }: LayoutProps) {

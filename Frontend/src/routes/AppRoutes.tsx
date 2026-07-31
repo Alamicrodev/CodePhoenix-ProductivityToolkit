@@ -1,8 +1,7 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import AuthGuard from "./AuthGuard";
 import CoworkPage from "../pages/CoworkPage";
 import CoworkRoomPage from "../pages/CoworkRoomPage";
-import DashboardPage from "../pages/DashboardPage";
 import FocusPage from "../pages/FocusPage";
 import HabitDetailPage from "../pages/HabitDetailPage";
 import HabitsPage from "../pages/HabitsPage";
@@ -26,14 +25,16 @@ export const appRouter = createBrowserRouter([
     path: "/",
     element: <AuthGuard />,     //AuthGuard essentially wraps arround its children, and only allows access if authenticated.
     children: [
-      { index: true, element: <DashboardPage /> },
+      // The schedule ("Today") is the home page; the old dashboard is gone.
+      { index: true, element: <SchedulePage /> },
       { path: "tasks", element: <TasksPage /> },
       { path: "habits", element: <HabitsPage /> },
       { path: "habits/:habitId", element: <HabitDetailPage /> },
       { path: "focus", element: <FocusPage /> },
       { path: "cowork", element: <CoworkPage /> },
       { path: "cowork/:slug", element: <CoworkRoomPage /> },
-      { path: "schedule", element: <SchedulePage /> },
+      // Old bookmarks and links keep working.
+      { path: "schedule", element: <Navigate to="/" replace /> },
       { path: "profile", element: <ProfilePage /> },
     ],
   },

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { registerFreshUser } from "./helpers";
 
-test("signup lands on the dashboard with the user in the sidebar", async ({ page }) => {
+test("signup lands on Today with the user in the sidebar", async ({ page }) => {
   const { email } = await registerFreshUser(page, "Signup Flow");
   await expect(page.getByText("Signup Flow")).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
@@ -34,5 +34,5 @@ test("login rejects wrong credentials and accepts the right ones", async ({ page
 
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
 });
