@@ -16,6 +16,7 @@ const TASK = {
   priority: "high" as const,
   dueDate: null,
   dueTime: null,
+  durationMinutes: null,
   tags: ["project"],
   quadrant: "urgent-important" as const,
   subtasks: [

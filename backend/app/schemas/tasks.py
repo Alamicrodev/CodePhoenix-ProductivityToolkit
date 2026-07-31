@@ -40,6 +40,7 @@ class TaskBase(BaseModel):
     priority: Priority = "medium"
     due_date: str | None = None
     due_time: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
     tags: list[str] = Field(default_factory=list)
     quadrant: Quadrant | None = None
 
@@ -56,6 +57,7 @@ class TaskUpdate(BaseModel):
     priority: Priority | None = None
     due_date: str | None = None
     due_time: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
     tags: list[str] | None = None
     quadrant: Quadrant | None = None
     subtasks: list[SubtaskCreate] | None = None

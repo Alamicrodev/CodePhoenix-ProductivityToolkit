@@ -70,13 +70,13 @@ export function formatTimeRange(start: number, end: number): string {
 
 /* ---------------------------------- derivation ---------------------------------- */
 
-/** Display duration of a task block, estimated from its priority. */
+/** Fallback display duration when a task has no estimate, keyed by priority. */
 const TASK_DURATION: Record<TaskPriority, number> = { high: 60, medium: 45, low: 30 };
 const HABIT_DURATION = 30;
 
-/** Estimated display duration for a task of the given priority. */
-export function estimatedTaskDuration(priority: TaskPriority): number {
-  return TASK_DURATION[priority];
+/** A task's schedule duration: its own estimate, else a priority-based default. */
+export function taskDuration(task: Pick<Task, "durationMinutes" | "priority">): number {
+  return task.durationMinutes ?? TASK_DURATION[task.priority];
 }
 
 /** Minutes from a "HH:MM" clock string. */
@@ -94,7 +94,7 @@ function taskBlock(task: Task): ScheduleBlock {
   return {
     id: `task-${task.id}`,
     start: task.dueTime ? clockToMinutes(task.dueTime) : UNTIMED,
-    dur: TASK_DURATION[task.priority],
+    dur: taskDuration(task),
     kind: "task",
     title: task.title,
     desc: task.description || undefined,

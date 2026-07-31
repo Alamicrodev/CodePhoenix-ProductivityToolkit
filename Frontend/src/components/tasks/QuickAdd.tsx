@@ -41,6 +41,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function Quick
       description: "",
       completed: false,
       completedAt: null,
+      durationMinutes: null,
       priority: parsed.priority,
       dueDate: parsed.dueDate,
       dueTime: null,

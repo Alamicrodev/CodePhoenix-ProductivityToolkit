@@ -88,6 +88,41 @@ def test_patch_updates_only_sent_fields(client, auth_headers):
     assert len(body["subtasks"]) == 1
 
 
+def test_duration_defaults_to_none_and_round_trips(client, auth_headers):
+    body = create_task(client, auth_headers)
+    assert body["duration_minutes"] is None
+
+    created = create_task(client, auth_headers, duration_minutes=45)
+    assert created["duration_minutes"] == 45
+
+
+def test_patch_sets_and_clears_duration(client, auth_headers):
+    task = create_task(client, auth_headers, duration_minutes=30)
+    response = client.patch(
+        f"{API}/tasks/{task['id']}",
+        json={"duration_minutes": 90},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["duration_minutes"] == 90
+
+    response = client.patch(
+        f"{API}/tasks/{task['id']}",
+        json={"duration_minutes": None},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["duration_minutes"] is None
+
+
+def test_create_task_invalid_duration_rejected(client, auth_headers):
+    for bad in (0, -15, 24 * 60 + 1):
+        response = client.post(
+            f"{API}/tasks", json=task_payload(duration_minutes=bad), headers=auth_headers
+        )
+        assert response.status_code == 422, bad
+
+
 def test_patch_replaces_subtasks_when_provided(client, auth_headers):
     task = create_task(client, auth_headers)
     response = client.patch(

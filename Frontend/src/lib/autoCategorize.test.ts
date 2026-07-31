@@ -13,6 +13,7 @@ function task(overrides: Partial<Task>): Task {
     description: "",
     completed: false,
     completedAt: null,
+    durationMinutes: null,
     priority: "medium",
     dueDate: null,
     dueTime: null,

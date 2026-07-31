@@ -30,6 +30,7 @@ def create_task(db: Session, user_id: str, payload: TaskCreate) -> Task:
         priority=payload.priority,
         due_date=payload.due_date,
         due_time=payload.due_time,
+        duration_minutes=payload.duration_minutes,
         tags=payload.tags,
         quadrant=payload.quadrant,
         subtasks=[

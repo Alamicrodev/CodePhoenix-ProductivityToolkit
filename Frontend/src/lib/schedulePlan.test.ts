@@ -33,6 +33,7 @@ const task = (overrides: Partial<Task>): Task => ({
   description: "",
   completed: false,
   completedAt: null,
+  durationMinutes: null,
   priority: "medium",
   dueDate: null,
   dueTime: null,
@@ -87,7 +88,7 @@ describe("deriveDayBlocks", () => {
     expect(untimed.map(b => b.sourceId)).toEqual(["untimed"]);
   });
 
-  it("estimates task duration from priority", () => {
+  it("estimates task duration from priority when no estimate is set", () => {
     const { timed } = deriveDayBlocks(
       [
         task({ id: "hi", dueDate: DAY, dueTime: "09:00", priority: "high" }),
@@ -97,6 +98,19 @@ describe("deriveDayBlocks", () => {
       DAY,
     );
     expect(timed.map(b => b.dur)).toEqual([60, 30]);
+  });
+
+  it("uses the task's own duration when set", () => {
+    const { timed, untimed } = deriveDayBlocks(
+      [
+        task({ id: "est", dueDate: DAY, dueTime: "09:00", priority: "low", durationMinutes: 120 }),
+        task({ id: "untimed-est", dueDate: DAY, durationMinutes: 15 }),
+      ],
+      [],
+      DAY,
+    );
+    expect(timed[0].dur).toBe(120);
+    expect(untimed[0].dur).toBe(15);
   });
 
   it("keeps completed tasks with done state", () => {

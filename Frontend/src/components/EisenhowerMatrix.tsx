@@ -72,6 +72,7 @@ function InlineQuadrantAdd({ quadrant, name }: { quadrant: Quadrant; name: strin
       description: "",
       completed: false,
       completedAt: null,
+      durationMinutes: null,
       priority: parsed.priority,
       dueDate: parsed.dueDate,
       dueTime: null,

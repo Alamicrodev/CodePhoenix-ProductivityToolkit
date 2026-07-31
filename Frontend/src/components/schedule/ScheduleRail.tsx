@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useDrag } from "react-dnd";
 import { Task } from "../../context/DataContext";
-import { estimatedTaskDuration, formatBlockDuration, PlanStats } from "../../lib/schedulePlan";
+import { formatBlockDuration, PlanStats, taskDuration } from "../../lib/schedulePlan";
 import { CircleCheckbox } from "../tasks/CircleCheckbox";
 import { PriorityBars } from "../tasks/PriorityBars";
 import { SCHEDULE_ITEM, ScheduleDragItem } from "./dnd";
@@ -33,7 +33,7 @@ function RailTaskRow({ task, trailing, check }: { task: Task; trailing: ReactNod
     item: (): ScheduleDragItem => ({
       kind: "task",
       sourceId: task.id,
-      dur: estimatedTaskDuration(task.priority),
+      dur: taskDuration(task),
       title: task.title,
     }),
     collect: monitor => ({ isDragging: monitor.isDragging() }),

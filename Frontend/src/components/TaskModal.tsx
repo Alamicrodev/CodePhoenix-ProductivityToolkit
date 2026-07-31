@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Check, Clock, X } from "lucide-react";
+import { Calendar, Check, Clock, Timer, X } from "lucide-react";
 import { Task, useData } from "../context/DataContext";
 import { CMD_LABEL } from "../lib/platform";
 import { QUADRANT_BY_PRIORITY } from "../lib/quickAdd";
+import { formatBlockDuration } from "../lib/schedulePlan";
 import { formatDueLabel, isOverdue, TaskPriority } from "../lib/taskDates";
 import { formatClockTime12, formatDateKeyLocal } from "../lib/timeFormat";
 import { CircleCheckbox } from "./tasks/CircleCheckbox";
@@ -25,7 +26,7 @@ interface TaskModalProps {
 }
 
 type Subtask = Task["subtasks"][number];
-type PopoverKey = "priority" | "due" | "time" | "tag";
+type PopoverKey = "priority" | "due" | "time" | "duration" | "tag";
 
 interface Draft {
   title: string;
@@ -33,6 +34,7 @@ interface Draft {
   priority: TaskPriority;
   dueDate: string | null;
   dueTime: string | null;
+  durationMinutes: number | null;
   tags: string[];
   subtasks: Subtask[];
 }
@@ -49,6 +51,17 @@ const TIME_OPTIONS: Array<{ label: string; value: string | null }> = [
   { label: "3:00 PM", value: "15:00" },
   { label: "6:00 PM", value: "18:00" },
   { label: "No time", value: null },
+];
+
+const DURATION_OPTIONS: Array<{ label: string; value: number | null }> = [
+  { label: "15m", value: 15 },
+  { label: "30m", value: 30 },
+  { label: "45m", value: 45 },
+  { label: "1h", value: 60 },
+  { label: "1h 30m", value: 90 },
+  { label: "2h", value: 120 },
+  { label: "3h", value: 180 },
+  { label: "No estimate", value: null },
 ];
 
 function buildDueOptions(now = new Date()): Array<{ label: string; value: string | null }> {
@@ -72,6 +85,7 @@ function emptyDraft(seed?: TaskModalSeed): Draft {
     priority: seed?.priority ?? "medium",
     dueDate: seed?.dueDate ?? null,
     dueTime: null,
+    durationMinutes: null,
     tags: seed?.tags ? [...seed.tags] : [],
     subtasks: [],
   };
@@ -84,6 +98,7 @@ function draftFromTask(task: Task): Draft {
     priority: task.priority,
     dueDate: task.dueDate,
     dueTime: task.dueTime,
+    durationMinutes: task.durationMinutes,
     tags: [...task.tags],
     subtasks: task.subtasks.map(subtask => ({ ...subtask })),
   };
@@ -160,6 +175,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
       priority: draft.priority,
       dueDate: draft.dueDate,
       dueTime: draft.dueTime,
+      durationMinutes: draft.durationMinutes,
       tags: draft.tags,
       subtasks: draft.subtasks
         .map(subtask => ({ ...subtask, title: subtask.title.trim() }))
@@ -445,6 +461,45 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     >
                       <span className="flex-1">{option.label}</span>
                       {draft.dueTime === option.value && (
+                        <Check className="h-3 w-3 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Duration chip */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={togglePop("duration")}
+                aria-haspopup="menu"
+                aria-expanded={pop === "duration"}
+                className={CHIP_CLASS}
+              >
+                <Timer className="h-3.5 w-3.5 text-tertiary" />
+                <span className={draft.durationMinutes ? "text-foreground" : "text-tertiary"}>
+                  {draft.durationMinutes
+                    ? formatBlockDuration(draft.durationMinutes)
+                    : "Duration"}
+                </span>
+              </button>
+              {pop === "duration" && (
+                <div className={`${POPOVER_CLASS} w-[140px]`} role="menu" onClick={stop}>
+                  {DURATION_OPTIONS.map(option => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setDraft(d => ({ ...d, durationMinutes: option.value }));
+                        setPop(null);
+                      }}
+                      className={POPOVER_ROW_CLASS}
+                    >
+                      <span className="flex-1">{option.label}</span>
+                      {draft.durationMinutes === option.value && (
                         <Check className="h-3 w-3 text-primary" />
                       )}
                     </button>

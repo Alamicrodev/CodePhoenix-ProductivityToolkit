@@ -12,6 +12,8 @@ export interface Task {
   priority: "low" | "medium" | "high";
   dueDate: string | null;
   dueTime: string | null;
+  /** Estimated effort in minutes; null = no estimate (schedule falls back to priority). */
+  durationMinutes: number | null;
   subtasks: {
     id: string;
     title: string;
@@ -127,6 +129,7 @@ interface ApiTask {
   priority: "low" | "medium" | "high";
   due_date: string | null;
   due_time: string | null;
+  duration_minutes: number | null;
   tags: string[];
   quadrant: Task["quadrant"];
   subtasks: ApiSubtask[];
@@ -287,6 +290,7 @@ function mapTaskFromApi(task: ApiTask): Task {
     priority: task.priority,
     dueDate: task.due_date,
     dueTime: task.due_time,
+    durationMinutes: task.duration_minutes ?? null,
     tags: task.tags || [],
     quadrant: task.quadrant,
     subtasks: (task.subtasks || []).map(subtask => ({
@@ -369,6 +373,7 @@ function buildTaskCreatePayload(task: Omit<Task, "id">) {
     priority: task.priority,
     due_date: task.dueDate,
     due_time: task.dueTime,
+    duration_minutes: task.durationMinutes,
     tags: task.tags,
     quadrant: task.quadrant ?? null,
     subtasks: buildTaskSubtasksPayload(task.subtasks),
@@ -385,6 +390,7 @@ function buildTaskUpdatePayload(updates: Partial<Task>) {
   if ("priority" in updates) payload.priority = updates.priority;
   if ("dueDate" in updates) payload.due_date = updates.dueDate;
   if ("dueTime" in updates) payload.due_time = updates.dueTime;
+  if ("durationMinutes" in updates) payload.duration_minutes = updates.durationMinutes;
   if ("tags" in updates) payload.tags = updates.tags;
   if ("quadrant" in updates) payload.quadrant = updates.quadrant ?? null;
   if ("subtasks" in updates && updates.subtasks) payload.subtasks = buildTaskSubtasksPayload(updates.subtasks);
