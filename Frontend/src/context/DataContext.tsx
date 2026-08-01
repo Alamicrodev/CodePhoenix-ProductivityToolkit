@@ -247,6 +247,23 @@ function advanceFocusSessionOneSecond(session: FocusSession): FocusSession {
     };
   }
 
+  // A break with nothing after it is time the session promised for work. When
+  // too little is left to outlast one break, the closing focus block runs long
+  // instead — the same shape the setup preview draws, so a session never ends
+  // on a break.
+  const remainingSessionSeconds = totalSeconds - nextElapsedSeconds;
+  if (
+    session.phaseType === "focus" &&
+    remainingSessionSeconds <= session.breakLengthMinutes * MINUTE_IN_SECONDS
+  ) {
+    return {
+      ...session,
+      elapsedSeconds: nextElapsedSeconds,
+      phaseRemainingSeconds: remainingSessionSeconds,
+      updatedAt: now,
+    };
+  }
+
   const nextPhaseType: FocusSessionPhase = session.phaseType === "focus" ? "break" : "focus";
 
   return {

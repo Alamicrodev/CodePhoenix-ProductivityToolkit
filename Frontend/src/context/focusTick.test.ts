@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { FocusSession, tickFocusSession } from "./DataContext";
 
-// 2-minute session split into 1-minute focus / 1-minute break blocks keeps
-// the boundary math easy to follow: [0-60s focus][60-120s break] -> done.
+// 3-minute session split into 1-minute focus / 1-minute break blocks keeps the
+// boundary math easy to follow: [0-60s focus][60-120s break][120-180s focus].
+// Three minutes rather than two because a session never ends on a break — with
+// only two, the trailing break folds into the opening focus block.
 function makeSession(overrides: Partial<FocusSession> = {}): FocusSession {
   return {
     id: "f1",
     title: "Deep work",
-    totalDurationMinutes: 2,
+    totalDurationMinutes: 3,
     focusLengthMinutes: 1,
     breakLengthMinutes: 1,
     elapsedSeconds: 0,
@@ -51,11 +53,21 @@ describe("tickFocusSession", () => {
     expect(next.status).toBe("active");
   });
 
+  it("runs the closing focus block long rather than ending on a break", () => {
+    // 2 minutes at 1/1 would leave a 60s break with nothing after it, so the
+    // opening focus block absorbs it: one 2-minute block, no phase switch.
+    const next = tickFocusSession(makeSession({ totalDurationMinutes: 2 }), 60);
+    expect(next.phaseType).toBe("focus");
+    expect(next.phaseRemainingSeconds).toBe(60);
+    expect(next.completedFocusBlocks).toBe(0);
+    expect(next.status).toBe("active");
+  });
+
   it("completes the session when the delta reaches the total duration", () => {
-    const next = tickFocusSession(makeSession(), 120);
+    const next = tickFocusSession(makeSession(), 180);
     expect(next.status).toBe("completed");
     expect(next.completed).toBe(true);
-    expect(next.elapsedSeconds).toBe(120);
+    expect(next.elapsedSeconds).toBe(180);
     expect(next.phaseRemainingSeconds).toBe(0);
     expect(next.completionResult).toBe("successful");
     expect(next.endedAt).not.toBeNull();
@@ -64,6 +76,6 @@ describe("tickFocusSession", () => {
   it("clamps deltas that overshoot the total duration", () => {
     const next = tickFocusSession(makeSession(), 100_000);
     expect(next.status).toBe("completed");
-    expect(next.elapsedSeconds).toBe(120);
+    expect(next.elapsedSeconds).toBe(180);
   });
 });
