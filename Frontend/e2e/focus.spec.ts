@@ -6,21 +6,49 @@ test("focus session lifecycle: start, pause, resume, quit", async ({ page }) => 
   await registerFreshUser(page);
 
   await page.getByRole("link", { name: "Focus" }).click();
-  await page.getByRole("button", { name: "Start New Focus Session" }).click();
-  await expect(page.getByRole("heading", { name: "Create Focus Session" })).toBeVisible();
-  await page.getByRole("button", { name: "Start Session" }).click();
+  await expect(page.getByRole("heading", { name: "No active session" })).toBeVisible();
 
-  // active: timer panel is up, and a second session cannot be started
-  await expect(page.getByRole("heading", { name: "Focus period in progress" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start New Focus Session" })).toBeDisabled();
+  // Setup is one modal now; the defaults (2h at 50/10) are enough to start.
+  await page.getByRole("button", { name: "Start focus session" }).click();
+  await expect(page.getByRole("dialog", { name: "New focus session" })).toBeVisible();
+  await page.getByRole("button", { name: "Start session" }).click();
 
-  await page.getByRole("button", { name: "Pause Session" }).click();
-  // paused: resume appears in the panel (and in the history card — scope to first)
-  await page.getByRole("button", { name: "Resume Session" }).first().click();
-  await expect(page.getByRole("button", { name: "Pause Session" })).toBeVisible();
+  // Active: the phase label names the block and the empty state is gone.
+  await expect(page.getByText(/Focus · block 1 of/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No active session" })).toBeHidden();
 
-  await page.getByRole("button", { name: "Quit Session" }).click();
-  // quit: back to the empty state and a new session may start
-  await expect(page.getByRole("button", { name: "Create A Focus Session" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start New Focus Session" })).toBeEnabled();
+  await page.getByRole("button", { name: "Pause" }).click();
+  await expect(page.getByText("Paused — the plan holds its place")).toBeVisible();
+
+  await page.getByRole("button", { name: "Resume" }).click();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  await page.getByRole("button", { name: "End session" }).click();
+  await page.getByRole("menuitem", { name: "Quit session" }).click();
+
+  // Quit leaves a summary you can dismiss back to the empty state.
+  await expect(page.getByRole("heading", { name: "Session quit" })).toBeVisible();
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByRole("heading", { name: "No active session" })).toBeVisible();
+});
+
+test("attaching a task from the setup modal carries it into the session", async ({ page }) => {
+  await registerFreshUser(page);
+
+  await page.getByRole("link", { name: "Tasks" }).click();
+  await page.getByPlaceholder(/Add a task/i).fill("Write the launch note");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Write the launch note")).toBeVisible();
+
+  await page.getByRole("link", { name: "Focus" }).click();
+  await page.getByRole("button", { name: "Start focus session" }).click();
+
+  // Tick the task in the picker, then confirm it rides into the running session.
+  await page.getByRole("button", { name: /Write the launch note/ }).click();
+  await expect(page.getByText("1 task attached")).toBeVisible();
+  await page.getByRole("button", { name: "Start session" }).click();
+
+  await expect(page.getByText(/In this session · 0 of 1 done/)).toBeVisible();
+  await page.getByRole("checkbox", { name: "Complete Write the launch note" }).click();
+  await expect(page.getByText(/In this session · 1 of 1 done/)).toBeVisible();
 });

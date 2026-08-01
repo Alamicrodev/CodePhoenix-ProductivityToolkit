@@ -1,222 +1,49 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { Check, Pause, Play, Search, Timer, X } from "lucide-react";
+
 import DashboardLayout from "../components/DashboardLayout";
-import { PomodoroTimer } from "../components/PomodoroTimer";
-import { useData, FocusSession, Habit } from "../context/DataContext";
-import { formatDueDate } from "../lib/taskDates";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
+import { ModuleCommandPalette, PaletteCommand } from "../components/ModuleCommandPalette";
+import { FocusRail } from "../components/focus/FocusRail";
+import { FocusSetupModal } from "../components/focus/FocusSetupModal";
+import { PlanStrip } from "../components/focus/PlanStrip";
+import { CircleCheckbox } from "../components/tasks/CircleCheckbox";
+import { DueLabel } from "../components/tasks/DueLabel";
+import { Kbd } from "../components/tasks/Kbd";
+import { PriorityBars } from "../components/tasks/PriorityBars";
+import { FocusSession, Habit, useData } from "../context/DataContext";
 import {
-  CirclePause,
-  CirclePlay,
-  Clock3,
-  Coffee,
-  GripVertical,
-  History,
-  ListTodo,
-  Plus,
-  Target,
-  Timer,
-  Trash2,
-  Trophy,
-  XCircle,
-} from "lucide-react";
+  buildPlan,
+  formatClock,
+  formatMinutes,
+  formatTimerDigits,
+  locatePlanPosition,
+  sessionTitle,
+} from "../lib/focusPlan";
+import { CMD_LABEL } from "../lib/platform";
+import { startOfWeek } from "../lib/habitSchedule";
 
-type DragPayload = {
-  sourceType: "task" | "habit";
-  sourceId: string;
-};
-
-type DurationUnit = "hours" | "minutes";
-
-function formatSeconds(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function formatMinutes(totalMinutes: number) {
-  if (totalMinutes >= 60) {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-  }
-
-  return `${totalMinutes}m`;
-}
-
-function formatSessionTimestamp(value: string | null) {
-  if (!value) {
-    return "In progress";
-  }
-
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function getHabitCompletionState(habit: Habit, session: FocusSession) {
-  if (habit.frequency === "hourly") {
-    return (
-      habit.completedDates.some(
-        completedDate => new Date(completedDate).getTime() >= new Date(session.createdAt).getTime(),
-      ) ||
-      (habit.occurrences || []).some(
-        occurrence =>
-          occurrence.status === "completed" &&
-          new Date(occurrence.timestamp).getTime() >= new Date(session.createdAt).getTime(),
-      )
-    );
-  }
-
-  if (habit.frequency === "daily") {
-    const sessionDate = session.createdAt.split("T")[0];
-    return (
-      habit.completedDates.includes(sessionDate) ||
-      (habit.occurrences || []).some(
-        occurrence => occurrence.status === "completed" && occurrence.timestamp.startsWith(sessionDate),
-      )
-    );
-  }
-
-  const sessionStart = new Date(session.createdAt);
-  const weekStart = new Date(sessionStart);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
+/** Whether a habit's current period was already ticked off, in or out of the session. */
+function isHabitDoneForSession(habit: Habit, session: FocusSession) {
+  const since =
+    habit.frequency === "weekly"
+      ? startOfWeek(new Date(session.createdAt))
+      : habit.frequency === "daily"
+        ? new Date(session.createdAt.split("T")[0])
+        : new Date(session.createdAt);
 
   return (
-    habit.completedDates.some(date => new Date(date).getTime() >= weekStart.getTime()) ||
+    habit.completedDates.some(date => new Date(date).getTime() >= since.getTime()) ||
     (habit.occurrences || []).some(
       occurrence =>
-        occurrence.status === "completed" &&
-        new Date(occurrence.timestamp).getTime() >= weekStart.getTime(),
+        occurrence.status === "completed" && new Date(occurrence.timestamp).getTime() >= since.getTime(),
     )
   );
 }
 
-function isHabitAvailableNow(habit: Habit) {
-  const now = new Date();
-  const isDayActive = !habit.activeDays || habit.activeDays.length === 0 || habit.activeDays.includes(now.getDay());
-
-  if (!isDayActive) {
-    return false;
-  }
-
-  if (habit.frequency === "hourly") {
-    if (habit.activeHours) {
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const [startHour, startMinute] = habit.activeHours.start.split(":").map(Number);
-      const [endHour, endMinute] = habit.activeHours.end.split(":").map(Number);
-      const startMinutes = startHour * 60 + startMinute;
-      const endMinutes = endHour * 60 + endMinute;
-
-      if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
-        return false;
-      }
-    }
-
-    const lastCompletion = habit.completedDates.length > 0
-      ? new Date(habit.completedDates[habit.completedDates.length - 1])
-      : null;
-    const intervalMs = (habit.hourlyInterval || 1) * 60 * 60 * 1000;
-
-    return !lastCompletion || now.getTime() - lastCompletion.getTime() >= intervalMs;
-  }
-
-  if (habit.frequency === "daily") {
-    const today = now.toISOString().split("T")[0];
-    return !habit.completedDates.includes(today);
-  }
-
-  const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
-
-  return !habit.completedDates.some(date => new Date(date).getTime() >= weekStart.getTime());
-}
-
-function getSessionStatusLabel(session: FocusSession) {
-  if (session.status === "completed") {
-    return session.completionResult === "successful" ? "completed successful" : "completed unsuccessful";
-  }
-
-  return session.status;
-}
-
-function SessionHistoryCard({
-  session,
-  canResume,
-  isSelected,
-  onSelect,
-  onResume,
-}: {
-  session: FocusSession;
-  canResume: boolean;
-  isSelected: boolean;
-  onSelect: () => void;
-  onResume: () => void;
-}) {
-  const statusStyle =
-    session.status === "completed" && session.completionResult === "unsuccessful"
-      ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900"
-      : {
-          active: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900",
-          paused: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900",
-          completed: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
-          quit: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-900",
-        }[session.status];
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={event => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      className={`w-full rounded-xl border bg-card p-4 space-y-3 text-left ${isSelected ? "border-blue-500 shadow-sm" : "border-border"}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">{session.title}</h3>
-          <p className="text-xs text-muted-foreground">Started {formatSessionTimestamp(session.startedAt)}</p>
-        </div>
-        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusStyle}`}>
-          {getSessionStatusLabel(session)}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-        <div>Total: {formatMinutes(session.totalDurationMinutes)}</div>
-        <div>Focus blocks: {session.completedFocusBlocks}</div>
-        <div>Focus: {formatMinutes(session.focusLengthMinutes)}</div>
-        <div>Break: {formatMinutes(session.breakLengthMinutes)}</div>
-      </div>
-      <p className="text-xs text-muted-foreground">Ended {formatSessionTimestamp(session.endedAt)}</p>
-      {session.status === "paused" && (
-        <Button size="sm" variant="outline" className="w-full gap-2" onClick={event => {
-          event.stopPropagation();
-          onResume();
-        }} disabled={!canResume}>
-          <CirclePlay className="h-4 w-4" />
-          Resume Session
-        </Button>
-      )}
-    </div>
-  );
+function clockOf(timestamp: string) {
+  return formatClock(new Date(timestamp));
 }
 
 export default function FocusPage() {
@@ -231,528 +58,566 @@ export default function FocusPage() {
     quitFocusSession,
     markFocusSessionItemComplete,
   } = useData();
-  const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const [durationValue, setDurationValue] = useState("5");
-  const [durationUnit, setDurationUnit] = useState<DurationUnit>("hours");
-  const [focusLength, setFocusLength] = useState("30");
-  const [breakLength, setBreakLength] = useState("5");
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-  const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
-  const [selectedHistorySessionId, setSelectedHistorySessionId] = useState<string | null>(null);
-
-  const activeSession = useMemo(() => focusSessions.find(session => session.status === "active"), [focusSessions]);
-  const pausedSessions = useMemo(() => focusSessions.filter(session => session.status === "paused"), [focusSessions]);
-  const currentSession = activeSession ?? pausedSessions[0] ?? null;
-  const canStartNewSession = !activeSession;
-  const activeTasks = useMemo(() => tasks.filter(task => !task.completed), [tasks]);
-  const availableTaskPool = useMemo(() => activeTasks.filter(task => !selectedTaskIds.includes(task.id)), [activeTasks, selectedTaskIds]);
-  const availableHabitPool = useMemo(() => habits.filter(habit => !selectedHabitIds.includes(habit.id) && isHabitAvailableNow(habit)), [habits, selectedHabitIds]);
-  const totalDurationMinutes = useMemo(() => {
-    const numericValue = Number(durationValue) || 0;
-    return durationUnit === "hours" ? Math.round(numericValue * 60) : Math.round(numericValue);
-  }, [durationUnit, durationValue]);
-  const focusLengthMinutes = Math.max(Number(focusLength) || 0, 1);
-  const breakLengthMinutes = Math.max(Number(breakLength) || 0, 1);
-  const getTaskById = (taskId: string) => tasks.find(task => task.id === taskId);
-  const getHabitById = (habitId: string) => habits.find(habit => habit.id === habitId);
-  const currentPhaseLabel = currentSession?.phaseType === "break"
-    ? `${formatMinutes(currentSession.breakLengthMinutes)} break period`
-    : `${formatMinutes(currentSession?.focusLengthMinutes ?? 0)} focus period`;
-  const sessionProgress = currentSession ? (currentSession.elapsedSeconds / (currentSession.totalDurationMinutes * 60)) * 100 : 0;
-  const completedSessions = useMemo(() => [...focusSessions].sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime()), [focusSessions]);
-  const selectedHistorySession = useMemo(() => {
-    if (selectedHistorySessionId) {
-      return completedSessions.find(session => session.id === selectedHistorySessionId) ?? null;
-    }
-    return completedSessions[0] ?? null;
-  }, [completedSessions, selectedHistorySessionId]);
-
-  const isItemDoneOverall = (session: FocusSession, item: FocusSession["items"][number]) => {
-    if (item.completedInSessionAt) {
-      return true;
-    }
-    if (item.sourceType === "task") {
-      return Boolean(getTaskById(item.sourceId)?.completed);
-    }
-    const habit = getHabitById(item.sourceId);
-    return habit ? getHabitCompletionState(habit, session) : false;
-  };
-
-  const canEndCurrentSessionEarly = Boolean(
-    currentSession &&
-    currentSession.items.length > 0 &&
-    currentSession.items.every(item => isItemDoneOverall(currentSession, item)),
-  );
-
-  const resetSetupForm = () => {
-    setDurationValue("5");
-    setDurationUnit("hours");
-    setFocusLength("30");
-    setBreakLength("5");
-    setSelectedTaskIds([]);
-    setSelectedHabitIds([]);
-  };
-
-  const handleDragStart = (payload: DragPayload) => (event: React.DragEvent<HTMLDivElement>) => {
-    event.dataTransfer.setData("application/json", JSON.stringify(payload));
-    event.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDrop = (targetType: "task" | "habit") => (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const rawPayload = event.dataTransfer.getData("application/json");
-    if (!rawPayload) return;
-    const payload = JSON.parse(rawPayload) as DragPayload;
-    if (payload.sourceType !== targetType) return;
-    if (targetType === "task") {
-      setSelectedTaskIds(current => current.includes(payload.sourceId) ? current : [...current, payload.sourceId]);
-    } else {
-      setSelectedHabitIds(current => current.includes(payload.sourceId) ? current : [...current, payload.sourceId]);
-    }
-  };
-
-  // Arriving from the tasks page with a task to focus on: preselect it and
-  // open the setup form (unless a session is already running).
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isEndOpen, setIsEndOpen] = useState(false);
+  const [seedTaskIds, setSeedTaskIds] = useState<string[]>([]);
+  const [dismissedSummaryId, setDismissedSummaryId] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const current = useMemo(
+    () => focusSessions.find(session => session.status === "active" || session.status === "paused") ?? null,
+    [focusSessions],
+  );
+
+  // The most recently finished session, shown as a summary until dismissed.
+  const summary = useMemo(() => {
+    if (current) {
+      return null;
+    }
+    const finished = focusSessions
+      .filter(session => session.status === "completed" || session.status === "quit")
+      .sort((left, right) => new Date(right.endedAt ?? 0).getTime() - new Date(left.endedAt ?? 0).getTime())[0];
+    return finished && finished.id !== dismissedSummaryId ? finished : null;
+  }, [current, dismissedSummaryId, focusSessions]);
+
+  const plan = useMemo(
+    () =>
+      current
+        ? buildPlan(current.totalDurationMinutes, current.focusLengthMinutes, current.breakLengthMinutes)
+        : null,
+    [current],
+  );
+  const position = useMemo(
+    () => (current && plan ? locatePlanPosition(plan.segments, current.elapsedSeconds) : null),
+    [current, plan],
+  );
+
+  const itemsDone = current?.items.filter(item => item.completedInSessionAt).length ?? 0;
+
+  const weekFocused = useMemo(() => {
+    const weekStart = startOfWeek(new Date());
+    return focusSessions
+      .filter(session => new Date(session.startedAt) >= weekStart)
+      .reduce((sum, session) => sum + session.elapsedSeconds, 0);
+  }, [focusSessions]);
+
+  const weekSessions = useMemo(() => {
+    const weekStart = startOfWeek(new Date());
+    return focusSessions.filter(session => new Date(session.startedAt) >= weekStart).length;
+  }, [focusSessions]);
+
+  // Arriving from a task row or the task palette: carry the task into setup.
   useEffect(() => {
     const state = location.state as { preselectedTaskIds?: string[] } | null;
     const preselected = state?.preselectedTaskIds ?? [];
     if (preselected.length === 0) {
       return;
     }
-
-    if (canStartNewSession) {
-      setSelectedTaskIds(current => [
-        ...current,
-        ...preselected.filter(
-          id => !current.includes(id) && activeTasks.some(task => task.id === id),
-        ),
-      ]);
-      setIsSetupOpen(true);
+    if (current) {
+      toast.info("A focus session is already running. Finish it before starting another.");
     } else {
-      toast.info("A focus session is already active. Finish it before starting a new one.");
+      setSeedTaskIds(preselected);
+      setIsSetupOpen(true);
     }
-    // Consume the state so a refresh doesn't re-apply it.
     navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
-  const handleCreateSession = async () => {
-    if (!canStartNewSession || totalDurationMinutes <= 0) return;
-    const sessionId = await createFocusSession({
-      totalDurationMinutes,
-      focusLengthMinutes: Math.min(focusLengthMinutes, totalDurationMinutes),
-      breakLengthMinutes,
-      taskIds: selectedTaskIds,
-      habitIds: selectedHabitIds,
-    });
-    if (!sessionId) return;
-    resetSetupForm();
-    setIsSetupOpen(false);
+  // Close the end menu on an outside click, the way the task editor's popovers do.
+  useEffect(() => {
+    if (!isEndOpen) {
+      return;
+    }
+    const onPointerDown = (event: MouseEvent) => {
+      if (!endRef.current?.contains(event.target as Node)) {
+        setIsEndOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
+  }, [isEndOpen]);
+
+  const startSession = async (input: Parameters<typeof createFocusSession>[0]) => {
+    const id = await createFocusSession(input);
+    if (id) {
+      setIsSetupOpen(false);
+      setSeedTaskIds([]);
+      setDismissedSummaryId(null);
+    }
   };
+
+  const togglePause = () => {
+    if (!current) {
+      return;
+    }
+    if (current.status === "active") {
+      void pauseFocusSession(current.id);
+    } else {
+      void resumeFocusSession(current.id);
+    }
+  };
+
+  const toggleItem = (item: FocusSession["items"][number]) => {
+    if (!current || item.completedInSessionAt) {
+      return;
+    }
+    void markFocusSessionItemComplete(current.id, item.id);
+  };
+
+  // Page shortcuts. Suppressed while typing or while a layer owns the keyboard.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsPaletteOpen(open => !open);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey || isSetupOpen || isPaletteOpen) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target?.isContentEditable ?? false);
+      if (isTyping) {
+        return;
+      }
+
+      if (event.key === "Escape" && isEndOpen) {
+        event.preventDefault();
+        setIsEndOpen(false);
+        return;
+      }
+      if (event.key.toLowerCase() === "n" && !current) {
+        event.preventDefault();
+        setSeedTaskIds([]);
+        setIsSetupOpen(true);
+        return;
+      }
+      if (!current) {
+        return;
+      }
+      if (event.key === " ") {
+        event.preventDefault();
+        togglePause();
+        return;
+      }
+      if (event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        setIsEndOpen(open => !open);
+        return;
+      }
+      // 1–9 tick the nth attached item.
+      if (/^[1-9]$/.test(event.key)) {
+        const item = current.items[Number(event.key) - 1];
+        if (item) {
+          event.preventDefault();
+          toggleItem(item);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    if (!current) {
+      return [
+        {
+          label: "Start focus session",
+          icon: <Timer />,
+          shortcut: "N",
+          run: () => {
+            setSeedTaskIds([]);
+            setIsSetupOpen(true);
+          },
+        },
+      ];
+    }
+    return [
+      {
+        label: current.status === "active" ? "Pause session" : "Resume session",
+        icon: current.status === "active" ? <Pause /> : <Play />,
+        shortcut: "Space",
+        run: togglePause,
+      },
+      {
+        label: "Complete session now",
+        icon: <Check />,
+        run: () => void completeFocusSession(current.id),
+      },
+      {
+        label: "Quit session",
+        icon: <X />,
+        destructive: true,
+        run: () => void quitFocusSession(current.id),
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
+
+  const headerMeta = current
+    ? [
+        sessionTitle(current.totalDurationMinutes, current.focusLengthMinutes, current.breakLengthMinutes),
+        `started ${clockOf(current.startedAt)}`,
+        `ends ${formatClock(new Date(new Date(current.startedAt).getTime() + current.totalDurationMinutes * 60_000))}`,
+      ].join(" · ")
+    : [
+        new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        `${formatMinutes(weekFocused / 60)} focused this week`,
+        `${weekSessions} session${weekSessions === 1 ? "" : "s"}`,
+      ].join(" · ");
+
+  const phaseLabel = () => {
+    if (!current || !plan || !position) {
+      return "";
+    }
+    const total = plan.focusCount;
+    if (current.status === "paused") {
+      return `Paused · focus ${position.focusBlockNumber || position.focusBlocksDone} of ${total}`;
+    }
+    if (current.phaseType === "break") {
+      return `Break · next: focus ${Math.min(position.focusBlocksDone + 1, total)} of ${total}`;
+    }
+    return `Focus · block ${position.focusBlockNumber || 1} of ${total}`;
+  };
+
+  const phaseTone =
+    current?.status === "paused"
+      ? "text-priority-medium"
+      : current?.phaseType === "break"
+        ? "text-done"
+        : "text-primary";
+
+  const endsAt = current
+    ? new Date(new Date(current.startedAt).getTime() + current.totalDurationMinutes * 60_000)
+    : null;
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-semibold mb-2">Focus Sessions</h1>
-            <p className="text-muted-foreground max-w-3xl">
-              Build long-form focus sessions made of repeating focus and break periods, then track the tasks
-              and habit occurrences you want to complete inside each session.
-            </p>
-          </div>
-          <Button className="gap-2 self-start" onClick={() => setIsSetupOpen(current => !current)} disabled={!canStartNewSession}>
-            <Plus className="h-4 w-4" />
-            Start New Focus Session
-          </Button>
+      <div className="flex min-h-full flex-col">
+        {/* Header */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-12 sm:px-6 sm:py-0">
+          <h1 className="text-sm font-semibold">Focus</h1>
+          <span className="min-w-0 truncate text-xs text-tertiary">{headerMeta}</span>
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setIsPaletteOpen(true)}
+            className="hidden items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:flex"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search or command
+            <Kbd>{CMD_LABEL} K</Kbd>
+          </button>
         </div>
 
-        {!canStartNewSession && (
-          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
-            A focus session is already active. Pause or quit it before starting another one.
-          </div>
-        )}
+        <div className="flex flex-1 flex-col lg:flex-row">
+          <div className="min-w-0 flex-1">
+            {current && plan && position ? (
+              <div className="mx-auto w-full max-w-[660px] px-6 py-11">
+                <p
+                  className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${phaseTone}`}
+                  aria-live="polite"
+                >
+                  {phaseLabel()}
+                </p>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
-          <div className="space-y-6">
-            {currentSession ? (
-              <div className="rounded-2xl border border-border bg-card p-6 lg:p-8">
-                <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${currentSession.status === "active" ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`}>
-                        {currentSession.status}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{currentSession.title}</span>
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-semibold">
-                        {currentSession.status === "paused"
-                          ? "Focus session paused"
-                          : currentSession.phaseType === "focus"
-                          ? "Focus period in progress"
-                          : "Break period in progress"}
-                      </h2>
-                      <p className="text-muted-foreground">
-                        {currentPhaseLabel}. The timer below shows the current phase, while the session keeps
-                        track of the full {formatMinutes(currentSession.totalDurationMinutes)} plan.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                      <span>Total session: {formatMinutes(currentSession.totalDurationMinutes)}</span>
-                      <span>Elapsed: {formatSeconds(currentSession.elapsedSeconds)}</span>
-                      <span>Completed focus blocks: {currentSession.completedFocusBlocks}</span>
-                    </div>
-                  </div>
+                <div
+                  className={`mt-3 font-mono text-[52px] font-medium leading-none tabular-nums sm:text-[64px] ${
+                    current.status === "paused" ? "text-tertiary" : ""
+                  }`}
+                >
+                  {formatTimerDigits(current.phaseRemainingSeconds)}
+                </div>
 
-                  <div className="flex flex-col items-center gap-4">
-                    <PomodoroTimer timeLeft={currentSession.phaseRemainingSeconds} progress={Math.min(Math.max(sessionProgress, 0), 100)} />
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {currentSession.status === "active" ? (
-                        <Button className="gap-2" variant="outline" onClick={() => void pauseFocusSession(currentSession.id)}>
-                          <CirclePause className="h-4 w-4" />
-                          Pause Session
-                        </Button>
-                      ) : (
-                        <Button className="gap-2" onClick={() => void resumeFocusSession(currentSession.id)} disabled={!canStartNewSession}>
-                          <CirclePlay className="h-4 w-4" />
-                          Resume Session
-                        </Button>
-                      )}
-                      <Button className="gap-2" variant="destructive" onClick={() => void quitFocusSession(currentSession.id)}>
-                        <XCircle className="h-4 w-4" />
-                        Quit Session
-                      </Button>
-                      {canEndCurrentSessionEarly && (
-                        <Button className="gap-2" variant="secondary" onClick={() => void completeFocusSession(currentSession.id)}>
-                          <CirclePlay className="h-4 w-4" />
-                          End As Complete
-                        </Button>
-                      )}
-                    </div>
+                <p className="mt-3 text-xs text-tertiary">
+                  {current.status === "paused"
+                    ? "Paused — the plan holds its place"
+                    : `${
+                        current.phaseType === "focus"
+                          ? `Break in ${formatMinutes(current.phaseRemainingSeconds / 60)}`
+                          : `Focus again in ${formatMinutes(current.phaseRemainingSeconds / 60)}`
+                      } · session ends ${endsAt ? formatClock(endsAt) : ""}`}
+                </p>
+
+                {/* Whole-session progress, distinct from the phase clock above */}
+                <div className="mt-7 max-w-[560px]">
+                  <PlanStrip
+                    segments={plan.segments}
+                    variant="active"
+                    activeIndex={position.index}
+                    activeFraction={position.fraction}
+                  />
+                  <div className="mt-1.5 flex items-center justify-between font-mono text-[10.5px] text-tertiary">
+                    <span>{clockOf(current.startedAt)}</span>
+                    <span>
+                      {formatMinutes(current.elapsedSeconds / 60)} of{" "}
+                      {formatMinutes(current.totalDurationMinutes)}
+                    </span>
+                    <span>{endsAt ? formatClock(endsAt) : ""}</span>
                   </div>
                 </div>
 
-                <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                  <div className="rounded-xl border border-border bg-background/60 p-5">
-                    <div className="mb-4 flex items-center gap-2">
-                      <ListTodo className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <h3 className="font-semibold">Tasks In This Session</h3>
-                    </div>
-                    <div className="space-y-3">
-                      {currentSession.items.filter(item => item.sourceType === "task").length > 0 ? (
-                        currentSession.items.filter(item => item.sourceType === "task").map(item => {
-                          const task = getTaskById(item.sourceId);
-                          const isCompletedExternally = Boolean(task?.completed);
-                          const completedLabel = item.completedInSessionAt
-                            ? "Completed in focus session"
-                            : isCompletedExternally
-                            ? "Completed in task manager"
-                            : "Pending";
+                {/* Controls — exactly one loud button */}
+                <div className="mt-7 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={togglePause}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                  >
+                    {current.status === "active" ? (
+                      <Pause className="h-3.5 w-3.5" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
+                    {current.status === "active" ? "Pause" : "Resume"}
+                    <span className="font-mono text-[10px] opacity-70">space</span>
+                  </button>
 
-                          return (
-                            <div key={item.id} className="rounded-lg border border-border bg-card p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-medium">{task?.title ?? item.title}</p>
-                                  <p className="text-xs text-muted-foreground">{completedLabel}</p>
-                                </div>
-                                <Button size="sm" variant={item.completedInSessionAt || isCompletedExternally ? "secondary" : "default"} disabled={item.completedInSessionAt !== null || isCompletedExternally} onClick={() => markFocusSessionItemComplete(currentSession.id, item.id)}>
-                                  {item.completedInSessionAt || isCompletedExternally ? "Done" : "Mark done"}
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No tasks were assigned to this session.</p>
-                      )}
-                    </div>
+                  <div className="relative" ref={endRef}>
+                    <button
+                      type="button"
+                      aria-expanded={isEndOpen}
+                      onClick={() => setIsEndOpen(open => !open)}
+                      className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      End session
+                      <Kbd>E</Kbd>
+                    </button>
+                    {isEndOpen && (
+                      <div
+                        role="menu"
+                        className="absolute left-0 top-full z-20 mt-1.5 w-[230px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsEndOpen(false);
+                            void completeFocusSession(current.id);
+                          }}
+                          className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                        >
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-done" />
+                          <span>
+                            <span className="block text-[13px]">Complete now</span>
+                            <span className="block text-[11px] text-tertiary">
+                              {itemsDone} of {current.items.length} done
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsEndOpen(false);
+                            void quitFocusSession(current.id);
+                          }}
+                          className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-destructive/10"
+                        >
+                          <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                          <span>
+                            <span className="block text-[13px] text-destructive">Quit session</span>
+                            <span className="block text-[11px] text-tertiary">kept in history</span>
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
+                </div>
 
-                  <div className="rounded-xl border border-border bg-background/60 p-5">
-                    <div className="mb-4 flex items-center gap-2">
-                      <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                      <h3 className="font-semibold">Habit Occurrences In This Session</h3>
-                    </div>
-                    <div className="space-y-3">
-                      {currentSession.items.filter(item => item.sourceType === "habit").length > 0 ? (
-                        currentSession.items.filter(item => item.sourceType === "habit").map(item => {
-                          const habit = getHabitById(item.sourceId);
-                          const isCompletedExternally = habit ? getHabitCompletionState(habit, currentSession) : false;
-                          const completedLabel = item.completedInSessionAt
-                            ? "Completed in focus session"
-                            : isCompletedExternally
-                            ? "Completed in habit tracker"
-                            : "Pending";
+                {/* Attached items */}
+                {current.items.length > 0 && (
+                  <div className="mt-8 border-t border-border pt-4">
+                    <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
+                      In this session · {itemsDone} of {current.items.length} done
+                    </h2>
+                    {current.items.map((item, index) => {
+                      const task = tasks.find(entry => entry.id === item.sourceId);
+                      const habit = habits.find(entry => entry.id === item.sourceId);
+                      const doneElsewhere =
+                        !item.completedInSessionAt &&
+                        (item.sourceType === "task"
+                          ? Boolean(task?.completed)
+                          : habit
+                            ? isHabitDoneForSession(habit, current)
+                            : false);
+                      const done = Boolean(item.completedInSessionAt) || doneElsewhere;
 
-                          return (
-                            <div key={item.id} className="rounded-lg border border-border bg-card p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-medium">{habit?.title ?? item.title}</p>
-                                  <p className="text-xs text-muted-foreground">{completedLabel}</p>
-                                </div>
-                                <Button size="sm" variant={item.completedInSessionAt || isCompletedExternally ? "secondary" : "default"} disabled={item.completedInSessionAt !== null || isCompletedExternally} onClick={() => markFocusSessionItemComplete(currentSession.id, item.id)}>
-                                  {item.completedInSessionAt || isCompletedExternally ? "Done" : "Mark done"}
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No habit occurrences were assigned to this session.</p>
-                      )}
-                    </div>
+                      return (
+                        <div
+                          key={item.id}
+                          className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/50 ${
+                            done ? "opacity-60" : ""
+                          }`}
+                        >
+                          <CircleCheckbox
+                            checked={done}
+                            onToggle={() => toggleItem(item)}
+                            label={done ? `${item.title} is done` : `Complete ${item.title}`}
+                          />
+                          {item.sourceType === "task" ? (
+                            <PriorityBars priority={task?.priority ?? "medium"} />
+                          ) : (
+                            <span className="shrink-0 text-[13px] leading-none text-done" aria-hidden="true">
+                              ◎
+                            </span>
+                          )}
+                          <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                            <span
+                              className={`truncate text-sm font-medium ${
+                                done ? "text-muted-foreground line-through" : ""
+                              }`}
+                            >
+                              {task?.title ?? habit?.title ?? item.title}
+                            </span>
+                            {item.sourceType === "habit" && (
+                              <span className="hidden text-xs capitalize text-tertiary sm:inline">
+                                {habit?.frequency}
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-tertiary opacity-0 group-hover:opacity-100">
+                            {index < 9 ? index + 1 : ""}
+                          </span>
+                          {item.completedInSessionAt ? (
+                            <span className="shrink-0 whitespace-nowrap font-mono text-xs text-done">
+                              ✓ {clockOf(item.completedInSessionAt)}
+                            </span>
+                          ) : doneElsewhere ? (
+                            <span className="shrink-0 whitespace-nowrap text-[11.5px] text-tertiary">
+                              done in {item.sourceType === "task" ? "Tasks" : "Habits"}
+                            </span>
+                          ) : item.sourceType === "task" ? (
+                            <DueLabel dueDate={task?.dueDate ?? null} dueTime={task?.dueTime ?? null} />
+                          ) : (
+                            <span className="w-[76px] shrink-0" />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+            ) : summary ? (
+              <div className="mx-auto w-full max-w-[420px] px-6 pt-[120px] text-center">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-card">
+                  {summary.status === "completed" ? (
+                    <Check className="h-4 w-4 text-done" />
+                  ) : (
+                    <X className="h-4 w-4 text-tertiary" />
+                  )}
+                </div>
+                <h2 className="mt-3 text-[13.5px] font-semibold">
+                  {summary.status === "completed" ? "Session complete" : "Session quit"}
+                </h2>
+                <p className="mx-auto mt-1.5 max-w-[340px] text-[12.5px] leading-relaxed text-tertiary">
+                  {formatMinutes(summary.elapsedSeconds / 60)} focused ·{" "}
+                  {summary.items.filter(item => item.completedInSessionAt).length} of {summary.items.length}{" "}
+                  items done · saved to history
+                </p>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDismissedSummaryId(summary.id)}
+                    className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSeedTaskIds([]);
+                      setIsSetupOpen(true);
+                    }}
+                    className="rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                  >
+                    Start another
+                  </button>
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
-                  <Timer className="h-8 w-8" />
+              <div className="mx-auto w-full max-w-[420px] px-6 pt-[120px] text-center">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-card">
+                  <Timer className="h-4 w-4 text-tertiary" />
                 </div>
-                <h2 className="text-2xl font-semibold mb-2">No active focus session</h2>
-                <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                  Start a new session to plan a long focus window, split it into pomodoro-style focus and break
-                  periods, and assign the tasks and habit occurrences you want to work through.
+                <h2 className="mt-3 text-[13.5px] font-semibold">No active session</h2>
+                <p className="mx-auto mt-1.5 max-w-[340px] text-[12.5px] leading-relaxed text-tertiary">
+                  A session is a stretch of time split into focus and break periods, with the tasks and habits
+                  you want to finish inside it.
                 </p>
-                <Button className="gap-2" onClick={() => setIsSetupOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  Create A Focus Session
-                </Button>
-              </div>
-            )}
-
-            {isSetupOpen && (
-              <div className="rounded-2xl border border-border bg-card p-6 lg:p-8">
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <div>
-                    <h2 className="text-2xl font-semibold">Create Focus Session</h2>
-                    <p className="text-muted-foreground">
-                      Choose the overall session length, then define the focus and break periods that repeat inside it.
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => setIsSetupOpen(false)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3 mb-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="session-duration">Overall session length</Label>
-                    <Input id="session-duration" type="number" min="1" step={durationUnit === "hours" ? "0.5" : "5"} value={durationValue} onChange={event => setDurationValue(event.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="duration-unit">Unit</Label>
-                    <select id="duration-unit" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={durationUnit} onChange={event => setDurationUnit(event.target.value as DurationUnit)}>
-                      <option value="hours">Hours</option>
-                      <option value="minutes">Minutes</option>
-                    </select>
-                  </div>
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
-                    This session will run for <span className="font-semibold">{formatMinutes(totalDurationMinutes)}</span>.
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2 mb-8">
-                  <div className="space-y-2">
-                    <Label htmlFor="focus-length">Focus period length</Label>
-                    <Input id="focus-length" type="number" min="1" value={focusLength} onChange={event => setFocusLength(event.target.value)} />
-                    <p className="text-xs text-muted-foreground">Auto-populated to 30 minutes by default, but fully adjustable.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="break-length">Break period length</Label>
-                    <Input id="break-length" type="number" min="1" value={breakLength} onChange={event => setBreakLength(event.target.value)} />
-                    <p className="text-xs text-muted-foreground">Auto-populated to 5 minutes by default, and used between focus periods.</p>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <div className="space-y-6">
-                    <div className="rounded-xl border border-border bg-background/60 p-5">
-                      <div className="mb-4 flex items-center gap-2">
-                        <ListTodo className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        <h3 className="font-semibold">Available Tasks</h3>
-                      </div>
-                      <div className="space-y-3 max-h-80 overflow-auto pr-1">
-                        {availableTaskPool.map(task => (
-                          <div key={task.id} draggable onDragStart={handleDragStart({ sourceType: "task", sourceId: task.id })} className="flex cursor-grab items-start gap-3 rounded-lg border border-border bg-card p-4">
-                            <GripVertical className="mt-1 h-4 w-4 text-muted-foreground" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium">{task.title}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {task.priority} priority
-                                {task.dueDate ? ` • due ${formatDueDate(task.dueDate)}` : ""}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                        {availableTaskPool.length === 0 && <p className="text-sm text-muted-foreground">All active tasks are already in the session.</p>}
-                      </div>
-                    </div>
-
-                    <div onDragOver={event => event.preventDefault()} onDrop={handleDrop("task")} className="rounded-xl border border-dashed border-border bg-background/60 p-5">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Clock3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        <h3 className="font-semibold">Tasks Inside This Session</h3>
-                      </div>
-                      <div className="space-y-3 min-h-24">
-                        {selectedTaskIds.map(taskId => {
-                          const task = activeTasks.find(entry => entry.id === taskId);
-                          if (!task) return null;
-                          return (
-                            <div key={task.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                              <div>
-                                <p className="font-medium">{task.title}</p>
-                                <p className="text-xs text-muted-foreground">{task.priority} priority</p>
-                              </div>
-                              <Button size="sm" variant="ghost" onClick={() => setSelectedTaskIds(current => current.filter(id => id !== task.id))}>
-                                Remove
-                              </Button>
-                            </div>
-                          );
-                        })}
-                        {selectedTaskIds.length === 0 && <p className="text-sm text-muted-foreground">Drag tasks here to include them in the focus session.</p>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="rounded-xl border border-border bg-background/60 p-5">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                        <h3 className="font-semibold">Available Habit Occurrences</h3>
-                      </div>
-                      <div className="space-y-3 max-h-80 overflow-auto pr-1">
-                        {availableHabitPool.map(habit => (
-                          <div key={habit.id} draggable onDragStart={handleDragStart({ sourceType: "habit", sourceId: habit.id })} className="flex cursor-grab items-start gap-3 rounded-lg border border-border bg-card p-4">
-                            <GripVertical className="mt-1 h-4 w-4 text-muted-foreground" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium">{habit.title}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{habit.frequency} occurrence</p>
-                            </div>
-                          </div>
-                        ))}
-                        {availableHabitPool.length === 0 && <p className="text-sm text-muted-foreground">All habits are already assigned.</p>}
-                      </div>
-                    </div>
-
-                    <div onDragOver={event => event.preventDefault()} onDrop={handleDrop("habit")} className="rounded-xl border border-dashed border-border bg-background/60 p-5">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Coffee className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                        <h3 className="font-semibold">Habit Occurrences Inside This Session</h3>
-                      </div>
-                      <div className="space-y-3 min-h-24">
-                        {selectedHabitIds.map(habitId => {
-                          const habit = habits.find(entry => entry.id === habitId);
-                          if (!habit) return null;
-                          return (
-                            <div key={habit.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                              <div>
-                                <p className="font-medium">{habit.title}</p>
-                                <p className="text-xs text-muted-foreground capitalize">{habit.frequency} occurrence</p>
-                              </div>
-                              <Button size="sm" variant="ghost" onClick={() => setSelectedHabitIds(current => current.filter(id => id !== habit.id))}>
-                                Remove
-                              </Button>
-                            </div>
-                          );
-                        })}
-                        {selectedHabitIds.length === 0 && <p className="text-sm text-muted-foreground">Drag habit occurrences here to track them during the session.</p>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
-                  <div className="text-sm text-muted-foreground">
-                    You can start another session later if this one gets paused, but not while one is active.
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={resetSetupForm}>Reset Form</Button>
-                    <Button className="gap-2" onClick={handleCreateSession} disabled={!canStartNewSession || totalDurationMinutes <= 0}>
-                      <CirclePlay className="h-4 w-4" />
-                      Start Session
-                    </Button>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSeedTaskIds([]);
+                    setIsSetupOpen(true);
+                  }}
+                  className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Start focus session
+                  <span className="font-mono text-[10px] opacity-70">N</span>
+                </button>
               </div>
             )}
           </div>
 
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <History className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="font-semibold">Focus Session History</h2>
-              </div>
-              <div className="space-y-4">
-                {completedSessions.length > 0 ? (
-                  completedSessions.map(session => (
-                    <SessionHistoryCard
-                      key={session.id}
-                      session={session}
-                      canResume={!activeSession}
-                      isSelected={selectedHistorySession?.id === session.id}
-                      onSelect={() => setSelectedHistorySessionId(session.id)}
-                      onResume={() => void resumeFocusSession(session.id)}
-                    />
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No focus sessions yet.</p>
-                )}
-              </div>
-            </div>
-
-            {selectedHistorySession && (
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <div className="mb-4">
-                  <h2 className="font-semibold">Session Details</h2>
-                  <p className="text-sm text-muted-foreground capitalize">
-                    {getSessionStatusLabel(selectedHistorySession)}
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  {selectedHistorySession.items.length > 0 ? (
-                    selectedHistorySession.items.map(item => {
-                      const status = item.completedInSessionAt
-                        ? "Completed in session"
-                        : isItemDoneOverall(selectedHistorySession, item)
-                        ? "Completed outside session"
-                        : "Not completed";
-
-                      return (
-                        <div key={item.id} className="rounded-lg border border-border p-4">
-                          <p className="font-medium">{item.title}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{item.sourceType === "habit" ? "Habit occurrence" : "Task"}</p>
-                          <p className="mt-2 text-sm text-muted-foreground">{status}</p>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-muted-foreground">This session had no linked tasks or habit occurrences.</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-border bg-gradient-to-br from-emerald-50 to-blue-50 p-6 dark:from-emerald-950/20 dark:to-blue-950/20">
-              <div className="mb-3 flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                <h2 className="font-semibold">Session Rules</h2>
-              </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>One focus session can be active at a time.</li>
-                <li>Paused sessions stay visible and can be resumed later.</li>
-                <li>Tasks or habit occurrences completed here also sync back to their own modules.</li>
-                <li>Items completed elsewhere show up as done here without counting as an in-session completion.</li>
-              </ul>
-            </div>
-          </aside>
+          <FocusRail
+            sessions={focusSessions}
+            current={current}
+            blocksDone={position?.focusBlocksDone ?? 0}
+            blocksTotal={plan?.focusCount ?? 0}
+            itemsDone={itemsDone}
+          />
         </div>
+
+        {/* Shortcut footer */}
+        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-6">
+          {current ? (
+            <>
+              <span className="flex items-center gap-1.5">
+                <Kbd>space</Kbd> pause / resume
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Kbd>E</Kbd> end session
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Kbd>1–9</Kbd> tick an item
+              </span>
+            </>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <Kbd>N</Kbd> new session
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <Kbd>{CMD_LABEL} K</Kbd> commands
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>T</Kbd> theme
+          </span>
+        </div>
+
+        <FocusSetupModal
+          isOpen={isSetupOpen}
+          onClose={() => setIsSetupOpen(false)}
+          tasks={tasks}
+          habits={habits}
+          seedTaskIds={seedTaskIds}
+          onStart={input => void startSession(input)}
+        />
+
+        <ModuleCommandPalette
+          open={isPaletteOpen}
+          onOpenChange={setIsPaletteOpen}
+          contextHeading="Focus"
+          commands={paletteCommands}
+        />
       </div>
     </DashboardLayout>
   );

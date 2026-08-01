@@ -137,8 +137,11 @@ test("row action opens the focus setup with the task preselected", async ({ page
     .getByRole("button", { name: "Start focus session with: Deep work block" })
     .click();
 
-  // lands on the focus page with the setup form open and the task selected
-  await expect(page.getByRole("heading", { name: "Focus Sessions" })).toBeVisible();
-  await expect(page.getByText("Deep work block")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove" })).toBeVisible();
+  // lands on the focus page with the setup modal open and the task already ticked
+  await expect(page.getByRole("dialog", { name: "New focus session" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Deep work block/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByText("1 task attached")).toBeVisible();
 });
