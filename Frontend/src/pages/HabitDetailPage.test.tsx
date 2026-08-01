@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router";
+import { PaletteProvider } from "../context/PaletteContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockUseAuth, mockUseData } = vi.hoisted(() => ({
@@ -57,7 +58,12 @@ function renderDetailPage() {
     ],
     { initialEntries: ["/habits/h1"] },
   );
-  return render(<RouterProvider router={router} />);
+  // The shell owns ⌘K and the palette, so pages need the provider around them.
+  return render(
+    <PaletteProvider>
+      <RouterProvider router={router} />
+    </PaletteProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -92,16 +98,28 @@ describe("HabitDetailPage", () => {
     mockUseData.mockReturnValue(dataValue([]));
     renderDetailPage();
 
-    expect(screen.getByText("Habit not found")).toBeInTheDocument();
+    // One muted line, not an illustrated card.
+    expect(screen.getByText(/Habit not found/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to Habits" })).toBeInTheDocument();
   });
 
-  it("shows skeletons while the workspace is still loading", () => {
-    mockUseData.mockReturnValue(dataValue([], { isWorkspaceLoading: true }));
-    const { container } = renderDetailPage();
+  it("holds the skeleton back for 300ms, then shows it", async () => {
+    vi.useFakeTimers();
+    try {
+      mockUseData.mockReturnValue(dataValue([], { isWorkspaceLoading: true }));
+      const { container } = renderDetailPage();
 
-    expect(screen.queryByText("Habit not found")).not.toBeInTheDocument();
-    expect(container.querySelector('[data-slot="skeleton"], .animate-pulse')).toBeTruthy();
+      // "No skeletons under 300ms" — a fast load must never flash one.
+      expect(container.querySelector('[data-slot="skeleton"], .animate-pulse')).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(container.querySelector('[data-slot="skeleton"], .animate-pulse')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("deletes the habit and navigates back to the list", async () => {

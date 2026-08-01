@@ -37,12 +37,12 @@ export function HabitFrequencyCard({ habit }: HabitFrequencyCardProps) {
           <YAxis allowDecimals={false} className="text-xs" width={32} />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
             }}
           />
-          <Bar dataKey="completed" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="completed" fill="var(--primary)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

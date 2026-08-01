@@ -22,7 +22,7 @@ export function StatusBanner({ icon, children, action }: StatusBannerProps) {
         <button
           type="button"
           onClick={action.onClick}
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
         >
           {action.label}
         </button>

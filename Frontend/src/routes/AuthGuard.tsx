@@ -1,19 +1,20 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { useDelayedFlag } from "../lib/useDelayedFlag";
 
 // Route guard keeps the private pages hidden until a user exists.
 export function AuthGuard() {
   const { user, isLoading } = useAuth();   //useAuth gets auth context.
   const location = useLocation();          //where the user was actually trying to go.
+  const showSlowHint = useDelayedFlag(isLoading);
 
-  //if loading we show loading 
+  // This is the first paint on every private route, so it has to stay quiet.
+  // "No spinners under 300ms" — below that threshold we render nothing at all,
+  // and past it a single muted line rather than a spinning ring.
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        {showSlowHint && <p className="text-xs text-tertiary">Signing you in…</p>}
       </div>
     );
   }

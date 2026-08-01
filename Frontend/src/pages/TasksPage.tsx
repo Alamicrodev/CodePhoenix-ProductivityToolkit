@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { useData, Task } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { Button } from "../components/ui/button";
+import { Segmented } from "../components/ui/segmented";
 import { Plus, ChevronDown, ChevronRight, Calendar, List, Grid2X2, Search, Sparkles } from "lucide-react";
 import { TaskModal, TaskModalSeed } from "../components/TaskModal";
 import { TaskRow } from "../components/tasks/TaskRow";
 import { QuickAdd, QuickAddHandle } from "../components/tasks/QuickAdd";
 import { TaskCommandPalette } from "../components/tasks/TaskCommandPalette";
+import { useClaimPalette, usePalette } from "../context/PaletteContext";
 import { Kbd } from "../components/tasks/Kbd";
 import { EisenhowerMatrix } from "../components/EisenhowerMatrix";
 import { autoCategorizeTasks } from "../lib/autoCategorize";
@@ -85,7 +87,10 @@ export default function TasksPage() {
     "all",
     (v): v is string => typeof v === "string",
   );
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // The shell owns ⌘K, but Tasks renders its own palette because that one
+  // also searches tasks — so it claims the slot and reuses the shared state.
+  const { open: isPaletteOpen, setOpen: setIsPaletteOpen } = usePalette();
+  useClaimPalette();
   const quickAddRef = useRef<QuickAddHandle>(null);
 
   const allTags = useMemo(() => {
@@ -227,14 +232,6 @@ export default function TasksPage() {
   // Global shortcuts: ⌘K palette (works while typing), C quick-add, V view toggle.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        if (isModalOpen) {
-          return;
-        }
-        event.preventDefault();
-        setIsPaletteOpen(open => !open);
-        return;
-      }
       if (event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
@@ -267,8 +264,8 @@ export default function TasksPage() {
     <DashboardLayout>
       <div className="flex min-h-full flex-col">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-12 sm:px-6 sm:py-0">
-          <h1 className="text-sm font-semibold">Tasks</h1>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-[46px] sm:px-4 sm:py-0">
+          <h1 className="text-[13px] font-semibold">Tasks</h1>
           <span className="text-xs text-tertiary">
             {activeTasks.length} active · {completedTasks.length} done
           </span>
@@ -282,42 +279,24 @@ export default function TasksPage() {
             Search or command
             <Kbd>{CMD_LABEL} K</Kbd>
           </button>
-          <div className="flex items-center rounded-lg border border-border bg-muted p-0.5">
-            <button
-              type="button"
-              aria-pressed={viewMode === "list"}
-              onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
-                viewMode === "list"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-tertiary hover:text-foreground"
-              }`}
-            >
-              <List className="h-3.5 w-3.5" />
-              List
-            </button>
-            <button
-              type="button"
-              aria-pressed={viewMode === "matrix"}
-              onClick={() => setViewMode("matrix")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors ${
-                viewMode === "matrix"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-tertiary hover:text-foreground"
-              }`}
-            >
-              <Grid2X2 className="h-3.5 w-3.5" />
-              Matrix
-            </button>
-          </div>
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setIsModalOpen(true)}>
+          <Segmented<"list" | "matrix">
+            ariaLabel="Tasks view"
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "list", label: "List", icon: <List className="h-3.5 w-3.5" /> },
+              { value: "matrix", label: "Matrix", icon: <Grid2X2 className="h-3.5 w-3.5" /> },
+            ]}
+          />
+          {/* C focuses the quick-add; the modal is the ⌘↵ escalation from it. */}
+          <Button onClick={() => quickAddRef.current?.focus()} kbd="C">
             <Plus className="h-3.5 w-3.5" />
             New task
           </Button>
         </div>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 sm:px-4">
             <div className="flex items-center gap-1">
               {PRIORITY_CHIPS.map(chip => (
                 <button
@@ -325,14 +304,16 @@ export default function TasksPage() {
                   type="button"
                   aria-pressed={filterPriority === chip.value}
                   onClick={() => setFilterPriority(chip.value)}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  /* Filter pill: radius 20, padding 2px 9px, 11.5px, solid
+                     accent border when active, count at 55% opacity. */
+                  className={`rounded-full border px-[9px] py-0.5 text-[11.5px] ${
                     filterPriority === chip.value
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-primary bg-primary-soft text-primary"
                       : "border-border bg-card text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {chip.label}
-                  <span className="ml-1 opacity-60">{priorityCounts[chip.value]}</span>
+                  <span className="ml-1 opacity-[0.55]">{priorityCounts[chip.value]}</span>
                 </button>
               ))}
             </div>
@@ -400,7 +381,7 @@ export default function TasksPage() {
 
         {/* Content */}
         {viewMode === "list" ? (
-          <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-6">
+          <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-4">
             <QuickAdd ref={quickAddRef} onOpenFull={handleOpenFullEditor} />
 
             <h2 className="mb-1 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
@@ -421,24 +402,27 @@ export default function TasksPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-border bg-card py-12 text-center">
-                <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <Calendar className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <h3 className="mb-1 text-sm font-semibold">No active tasks found</h3>
-                <p className="mb-4 text-xs text-muted-foreground">{emptyStateMessage}</p>
-                <div className="flex items-center justify-center gap-2">
-                  {hasActiveFilters && (
-                    <Button variant="outline" size="sm" onClick={clearFilters}>
-                      Clear Filters
-                    </Button>
-                  )}
-                  <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-1.5">
-                    <Plus className="h-3.5 w-3.5" />
-                    Create Task
-                  </Button>
-                </div>
-              </div>
+              /* "Empty states are one line — a single muted sentence with the
+                 relevant shortcut. No illustrations, no onboarding cards." The
+                 quick-add is already on screen above, so there is nothing to
+                 add a second primary for. */
+              <p className="px-2 py-6 text-xs text-tertiary">
+                {hasActiveFilters ? (
+                  <>
+                    {emptyStateMessage}{" "}
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="underline underline-offset-2 hover:text-foreground"
+                    >
+                      Clear filters
+                    </button>
+                    .
+                  </>
+                ) : (
+                  <>Press C to add your first task.</>
+                )}
+              </p>
             )}
 
             {/* Completed section */}
@@ -475,7 +459,7 @@ export default function TasksPage() {
             )}
           </div>
         ) : (
-          <div className="flex-1 px-4 pb-10 pt-4 sm:px-6">
+          <div className="flex-1 px-4 pb-10 pt-4 sm:px-4">
             <EisenhowerMatrix
               activeTasks={activeTasks.filter(
                 task =>
@@ -489,7 +473,7 @@ export default function TasksPage() {
         )}
 
         {/* Shortcut footer */}
-        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:px-6">
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:px-4">
           <span className="flex items-center gap-1.5">
             <Kbd>C</Kbd> new task
           </span>

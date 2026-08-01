@@ -45,7 +45,7 @@ function RailTaskRow({ task, trailing, check }: { task: Task; trailing: ReactNod
         drag(node);
       }}
       title="Drag onto the timeline to schedule"
-      className={`flex cursor-grab items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50 active:cursor-grabbing ${
+      className={`flex cursor-grab items-center gap-2 rounded-md px-1 py-[5px] hover:bg-hover active:cursor-grabbing ${
         isDragging ? "opacity-40" : ""
       }`}
     >
@@ -77,7 +77,7 @@ export function ScheduleRail({
       <div className="grid grid-cols-2 gap-[7px]">
         {cells.map(cell => (
           <div key={cell.label} className="rounded-lg border border-border bg-muted px-2.5 py-2">
-            <div className="font-mono text-sm font-semibold">{cell.value}</div>
+            <div className="font-mono text-[13px] font-semibold">{cell.value}</div>
             <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-tertiary">
               {cell.label}
             </div>

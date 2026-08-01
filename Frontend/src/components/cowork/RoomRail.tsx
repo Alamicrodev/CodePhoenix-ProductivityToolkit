@@ -142,7 +142,7 @@ export function RoomRail({
           {sharedTasks.map(task => (
             <div
               key={task.id}
-              className="group flex items-center gap-2 rounded-md px-1 py-[5px] transition-colors hover:bg-accent/50"
+              className="group flex items-center gap-2 rounded-md px-1 py-[5px] transition-colors hover:bg-hover"
             >
               <CircleCheckbox
                 checked={task.completed}
@@ -182,7 +182,7 @@ export function RoomRail({
           onClick={() => onSharePanelChange(!isSharePanelOpen)}
           aria-expanded={isSharePanelOpen}
           disabled={shareableTasks.length === 0}
-          className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[11.5px] text-tertiary transition-colors hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+          className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[11.5px] text-tertiary transition-colors hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
         >
           <Plus className="h-3 w-3" />
           Share a task…
@@ -200,7 +200,7 @@ export function RoomRail({
                   onShare(task.id);
                   onSharePanelChange(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
               >
                 <span className="min-w-0 flex-1 truncate text-xs">{task.title}</span>
               </button>

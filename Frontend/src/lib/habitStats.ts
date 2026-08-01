@@ -29,7 +29,16 @@ export interface HabitDayStatus {
   dueSlots: number;
   completedSlots: number;
   toggleable: boolean;
+  /**
+   * Today's cell is outlined in the accent regardless of its status — the
+   * design system's trailing-week indicator marks "today" separately from
+   * done/missed, so it cannot be derived from `status` alone.
+   */
+  isToday: boolean;
 }
+
+/** A day status before buildDayStatuses stamps the isToday flag onto it. */
+type DayStatusCore = Omit<HabitDayStatus, "isToday">;
 
 export interface ScorePoint {
   date: Date;
@@ -114,7 +123,7 @@ function elapsedHourlySlots(slots: HabitHistorySlot[], now: Date) {
   return slots.filter(slot => slot.end <= now || slot.status === "completed" || slot.status === "skipped");
 }
 
-function dailyDayStatus(habit: Habit, day: Date, today: Date, now: Date, created: Date | null): HabitDayStatus {
+function dailyDayStatus(habit: Habit, day: Date, today: Date, now: Date, created: Date | null): DayStatusCore {
   const base = { date: day, key: localDateKey(day), dueSlots: 1, completedSlots: 0 };
 
   if (created && day < created) {
@@ -144,7 +153,7 @@ function dailyDayStatus(habit: Habit, day: Date, today: Date, now: Date, created
   return { ...base, status: "missed", toggleable: true };
 }
 
-function hourlyDayStatus(habit: Habit, day: Date, today: Date, now: Date, created: Date | null): HabitDayStatus {
+function hourlyDayStatus(habit: Habit, day: Date, today: Date, now: Date, created: Date | null): DayStatusCore {
   const base = { date: day, key: localDateKey(day) };
 
   if (created && day < created && endOfLocalDay(day) < created) {
@@ -195,7 +204,7 @@ function weeklyDayStatus(
   today: Date,
   now: Date,
   created: Date | null,
-): HabitDayStatus {
+): DayStatusCore {
   const base = { date: day, key: localDateKey(day), dueSlots: 1, completedSlots: 0 };
 
   if (created && day < created) {
@@ -241,13 +250,15 @@ export function buildDayStatuses(habit: Habit, now: Date, from: Date, to: Date):
   const lastDay = startOfLocalDay(to);
 
   for (let day = startOfLocalDay(from); day <= lastDay; day = addDays(day, 1)) {
-    if (habit.frequency === "hourly") {
-      statuses.push(hourlyDayStatus(habit, day, today, now, created));
-    } else if (habit.frequency === "weekly") {
-      statuses.push(weeklyDayStatus(habit, day, today, now, created));
-    } else {
-      statuses.push(dailyDayStatus(habit, day, today, now, created));
-    }
+    const status =
+      habit.frequency === "hourly"
+        ? hourlyDayStatus(habit, day, today, now, created)
+        : habit.frequency === "weekly"
+          ? weeklyDayStatus(habit, day, today, now, created)
+          : dailyDayStatus(habit, day, today, now, created);
+    // Stamped here rather than in each builder — only this function knows
+    // `today`, and all three builders share it.
+    statuses.push({ ...status, isToday: day.getTime() === today.getTime() });
   }
 
   return statuses;

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Flame, MoreVertical, Pencil, Target, Trash2 } from "lucide-react";
 import { useData } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
+import { ViewHeader } from "../components/shell/ViewHeader";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { HabitModal } from "../components/HabitModal";
@@ -13,6 +14,7 @@ import { HabitHistoryChart } from "../components/HabitHistoryChart";
 import { HabitStreaksCard } from "../components/HabitStreaksCard";
 import { HabitFrequencyCard } from "../components/HabitFrequencyCard";
 import { getCurrentScore } from "../lib/habitStats";
+import { useDelayedFlag } from "../lib/useDelayedFlag";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,20 +40,24 @@ export default function HabitDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const habit = habits.find(item => item.id === habitId);
+  const showSkeleton = useDelayedFlag(isWorkspaceLoading);
   const now = new Date(currentTime);
   const score = useMemo(() => (habit ? getCurrentScore(habit, now) : 0), [habit, currentTime]);
 
   if (!habit && isWorkspaceLoading) {
     return (
       <DashboardLayout>
-        <div className="p-8 space-y-6">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-32 w-full" />
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-64 w-full" />
+        {/* Nothing renders for the first 300ms — "no skeletons under 300ms". */}
+        {showSkeleton && (
+          <div className="mx-auto w-full max-w-[840px] space-y-3 px-4 pt-4">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-20 w-full" />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Skeleton className="h-56 w-full" />
+              <Skeleton className="h-56 w-full" />
+            </div>
           </div>
-        </div>
+        )}
       </DashboardLayout>
     );
   }
@@ -59,19 +65,16 @@ export default function HabitDetailPage() {
   if (!habit) {
     return (
       <DashboardLayout>
-        <div className="p-8">
-          <div className="mx-auto max-w-md rounded-xl border border-border bg-card p-8 text-center">
-            <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Target className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h2 className="mb-2 font-semibold">Habit not found</h2>
-            <p className="mb-6 text-muted-foreground">
-              This habit may have been deleted or the link is incorrect.
-            </p>
-            <Button asChild>
-              <Link to="/habits">Back to Habits</Link>
-            </Button>
-          </div>
+        <ViewHeader title="Habit" />
+        {/* Empty states are one muted line — no illustration, no card. */}
+        <div className="mx-auto w-full max-w-[840px] px-4 pt-4">
+          <p className="px-2 py-6 text-xs text-tertiary">
+            Habit not found — it may have been deleted.{" "}
+            <Link to="/habits" className="underline underline-offset-2 hover:text-foreground">
+              Back to Habits
+            </Link>
+            .
+          </p>
         </div>
       </DashboardLayout>
     );
@@ -81,28 +84,27 @@ export default function HabitDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Button variant="ghost" size="icon" asChild className="mt-1 shrink-0">
-              <Link to="/habits" aria-label="Back to habits">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-semibold">{habit.title}</h1>
-                <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-xs font-medium capitalize text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-400">
-                  {habit.frequency}
-                  {habit.frequency === "hourly" && habit.hourlyInterval && habit.hourlyInterval > 1 && (
-                    <span className="ml-1">({habit.hourlyInterval}h)</span>
-                  )}
-                </span>
-              </div>
-              {habit.description && <p className="mt-1 text-muted-foreground">{habit.description}</p>}
-            </div>
-          </div>
-
+      <ViewHeader
+        leading={
+          <Link
+            to="/habits"
+            aria-label="Back to habits"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-tertiary hover:bg-hover hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+          </Link>
+        }
+        title={habit.title}
+        meta={
+          <>
+            {habit.frequency}
+            {habit.frequency === "hourly" && habit.hourlyInterval && habit.hourlyInterval > 1
+              ? ` (${habit.hourlyInterval}h)`
+              : ""}
+            {habit.description ? ` · ${habit.description}` : ""}
+          </>
+        }
+        actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" disabled={isSyncing}>
@@ -115,7 +117,7 @@ export default function HabitDetailPage() {
                 Edit Habit
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                className="text-destructive focus:text-destructive"
                 onClick={() => setIsDeleteOpen(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -123,30 +125,29 @@ export default function HabitDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        {/* Overview strip */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="text-xs font-medium text-muted-foreground">Habit Strength</div>
-            <div className="mt-1 text-2xl font-semibold">{Math.round(score * 100)}%</div>
+        }
+      />
+      <div className="mx-auto w-full max-w-[840px] px-4 pb-10 pt-4">
+        {/* Stat strip: flat bordered cards, 18px/600 number, 11px label. */}
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-border px-2.5 py-2">
+            <div className="text-[11px] text-tertiary">Habit Strength</div>
+            <div className="mt-0.5 text-[18px] font-semibold">{Math.round(score * 100)}%</div>
           </div>
-          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950/30">
-            <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-              <Flame className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+          <div className="rounded-lg border border-border px-2.5 py-2">
+            <div className="flex items-center gap-1 text-[11px] text-tertiary">
+              <Flame className="h-3 w-3" />
               Current Streak
             </div>
-            <div className="mt-1 text-2xl font-semibold text-orange-600 dark:text-orange-400">
-              {habit.streak}
-            </div>
+            <div className="mt-0.5 text-[18px] font-semibold">{habit.streak}</div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="text-xs font-medium text-muted-foreground">Total Completions</div>
-            <div className="mt-1 text-2xl font-semibold">{totalCompletions}</div>
+          <div className="rounded-lg border border-border px-2.5 py-2">
+            <div className="text-[11px] text-tertiary">Total Completions</div>
+            <div className="mt-0.5 text-[18px] font-semibold">{totalCompletions}</div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           <div className="lg:col-span-2">
             <HabitCalendarHeatmap habit={habit} />
           </div>

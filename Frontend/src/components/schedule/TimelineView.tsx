@@ -109,7 +109,7 @@ function UntimedRow({
           : undefined
       }
       title="Drag onto the timeline to set a time"
-      className={`flex cursor-grab items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/50 active:cursor-grabbing ${
+      className={`flex cursor-grab items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover active:cursor-grabbing ${
         block.done ? "opacity-55" : ""
       } ${isDragging ? "opacity-40" : ""}`}
     >

@@ -53,7 +53,7 @@ export function HabitCalendarHeatmap({ habit }: HabitCalendarHeatmapProps) {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="w-36 text-center text-sm font-medium">{monthLabel}</span>
+          <span className="w-36 text-center text-xs font-medium">{monthLabel}</span>
           <Button
             variant="outline"
             size="icon"
@@ -100,15 +100,15 @@ export function HabitCalendarHeatmap({ habit }: HabitCalendarHeatmapProps) {
         </div>
         <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-sm bg-green-500" />
+            <div className="h-3 w-3 rounded-sm bg-done" />
             <span>Completed</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-sm bg-yellow-500" />
+            <div className="h-3 w-3 rounded-sm bg-priority-medium" />
             <span>Skipped</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-sm bg-red-100 dark:bg-red-950" />
+            <div className="h-3 w-3 rounded-sm bg-priority-high/15" />
             <span>Missed</span>
           </div>
         </div>

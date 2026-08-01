@@ -50,7 +50,7 @@ export function AgendaView({
                 <div
                   key={block.id}
                   onClick={block.kind === "task" ? () => onEditTask(block) : undefined}
-                  className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-opacity hover:bg-accent/50 ${
+                  className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-opacity hover:bg-hover ${
                     block.done ? "opacity-55" : ""
                   } ${block.kind === "task" ? "cursor-pointer" : ""}`}
                 >

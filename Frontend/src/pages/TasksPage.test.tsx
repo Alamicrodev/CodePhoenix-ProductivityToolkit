@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router";
+import { PaletteProvider } from "../context/PaletteContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockUseAuth, mockUseData } = vi.hoisted(() => ({
@@ -56,7 +57,12 @@ function renderTasksPage() {
     ],
     { initialEntries: ["/tasks"] },
   );
-  return render(<RouterProvider router={router} />);
+  // The shell owns ⌘K and the palette, so pages need the provider around them.
+  return render(
+    <PaletteProvider>
+      <RouterProvider router={router} />
+    </PaletteProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -83,7 +89,9 @@ describe("TasksPage", () => {
     mockUseData.mockReturnValue(dataValue([]));
     renderTasksPage();
     expect(screen.getByText("0 active · 0 done")).toBeInTheDocument();
-    expect(screen.getByText("No active tasks found")).toBeInTheDocument();
+    // Empty states are one muted line naming the shortcut — no card, no icon,
+    // no second primary button.
+    expect(screen.getByText("Press C to add your first task.")).toBeInTheDocument();
   });
 
   it("lists active tasks with their count", () => {
@@ -310,15 +318,15 @@ describe("TasksPage", () => {
     expect(screen.queryByLabelText("Quick add task")).not.toBeInTheDocument();
   });
 
-  it("filters by priority chips and offers Clear Filters in the empty state", async () => {
+  it("filters by priority chips and offers Clear filters in the empty state", async () => {
     const user = userEvent.setup();
     mockUseData.mockReturnValue(dataValue([{ ...BASE_TASK, priority: "medium" as const }]));
     renderTasksPage();
 
     await user.click(screen.getByRole("button", { name: /High/ }));
-    expect(screen.getByText("No tasks match the high priority filter")).toBeInTheDocument();
+    expect(screen.getByText(/No tasks match the high priority filter/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Clear Filters" }));
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByText("Write report")).toBeInTheDocument();
   });
 });

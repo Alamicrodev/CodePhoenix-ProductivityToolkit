@@ -25,7 +25,7 @@ export function HabitStreaksCard({ habit }: HabitStreaksCardProps) {
     <div className="rounded-xl border border-border bg-card p-6">
       <h3 className="mb-4 font-semibold">Best Streaks</h3>
       {streaks.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
+        <p className="py-8 text-center text-xs text-muted-foreground">
           Complete this habit to start a streak.
         </p>
       ) : (
@@ -42,7 +42,7 @@ export function HabitStreaksCard({ habit }: HabitStreaksCardProps) {
                 </span>
                 <div className="flex-1">
                   <div
-                    className="flex h-6 min-w-8 items-center justify-center rounded-md bg-orange-500 px-2 text-xs font-semibold text-white dark:bg-orange-600"
+                    className="flex h-6 min-w-8 items-center justify-center rounded-md bg-done px-2 text-xs font-semibold text-white"
                     style={{ width: `${Math.max(15, (streak.length / maxLength) * 100)}%` }}
                   >
                     {streak.length} {unit}

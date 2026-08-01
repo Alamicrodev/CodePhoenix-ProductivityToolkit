@@ -18,36 +18,25 @@ interface HabitScoreChartProps {
   habit: Habit;
 }
 
-function ScoreRing({ score }: { score: number }) {
-  const radius = 26;
-  const circumference = 2 * Math.PI * radius;
-  const progress = circumference * score;
-
+/**
+ * Strength reads as a number plus a 3px accent bar. The circular progress ring
+ * that used to live here is deleted by name — INSTRUCTIONS-modules.md:15
+ * "Remove: … circular progress rings" — and §3 Focus states the same rule for
+ * the timer: a bar, "no rings or circles".
+ */
+function ScoreMeter({ score }: { score: number }) {
   return (
-    <div className="relative h-16 w-16">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle
-          cx="32"
-          cy="32"
-          r={radius}
-          fill="none"
-          strokeWidth="6"
-          className="stroke-gray-200 dark:stroke-gray-700"
-        />
-        <circle
-          cx="32"
-          cy="32"
-          r={radius}
-          fill="none"
-          strokeWidth="6"
-          strokeLinecap="round"
-          stroke="#22c55e"
-          strokeDasharray={`${progress} ${circumference - progress}`}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold">
+    <div className="flex items-center gap-2.5">
+      <span className="font-mono text-[13.5px] font-semibold tabular-nums">
         {Math.round(score * 100)}%
       </span>
+      <div className="h-[3px] w-24 overflow-hidden rounded-sm bg-border">
+        <div
+          className="h-full bg-primary"
+          style={{ width: `${Math.round(score * 100)}%` }}
+          aria-hidden="true"
+        />
+      </div>
     </div>
   );
 }
@@ -73,7 +62,7 @@ export function HabitScoreChart({ habit }: HabitScoreChartProps) {
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-semibold">Habit Strength</h3>
-        <ScoreRing score={score} />
+        <ScoreMeter score={score} />
       </div>
       {chartData.length > 1 ? (
         <ResponsiveContainer width="100%" height={200}>
@@ -83,8 +72,8 @@ export function HabitScoreChart({ habit }: HabitScoreChartProps) {
             <YAxis domain={[0, 100]} className="text-xs" width={32} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: "8px",
               }}
               formatter={(value: number) => [`${value}%`, "Strength"]}
@@ -92,14 +81,14 @@ export function HabitScoreChart({ habit }: HabitScoreChartProps) {
             <Area
               type="monotone"
               dataKey="score"
-              stroke="#22c55e"
-              fill="#22c55e"
+              stroke="var(--primary)"
+              fill="var(--primary)"
               fillOpacity={0.3}
             />
           </AreaChart>
         </ResponsiveContainer>
       ) : (
-        <p className="py-8 text-center text-sm text-muted-foreground">
+        <p className="py-8 text-center text-[13px] text-muted-foreground">
           Complete this habit a few times to see its strength develop.
         </p>
       )}

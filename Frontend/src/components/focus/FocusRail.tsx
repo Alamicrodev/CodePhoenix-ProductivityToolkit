@@ -26,7 +26,7 @@ function StatTiles({ cells }: { cells: Array<{ label: string; value: string }> }
     <div className="grid grid-cols-2 gap-[7px]">
       {cells.map(cell => (
         <div key={cell.label} className="rounded-lg border border-border bg-muted px-2.5 py-2">
-          <div className="font-mono text-sm font-semibold">{cell.value}</div>
+          <div className="font-mono text-[13.5px] font-semibold tabular-nums">{cell.value}</div>
           <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-tertiary">
             {cell.label}
           </div>
@@ -126,7 +126,7 @@ export function FocusRail({ sessions, current, blocksDone, blocksTotal, itemsDon
               return (
                 <div
                   key={session.id}
-                  className="flex items-center gap-2 rounded-md px-1 py-[5px] hover:bg-accent/50"
+                  className="flex items-center gap-2 rounded-md px-1 py-[5px] hover:bg-hover"
                   title={`${session.title} — ${status.label}`}
                 >
                   <span className={`shrink-0 text-[11px] leading-none ${status.tone}`} aria-hidden="true">

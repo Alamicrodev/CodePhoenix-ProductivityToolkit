@@ -39,7 +39,7 @@ function MatrixRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
         drag(node);
       }}
       onClick={onEdit}
-      className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-accent/50 ${
+      className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-hover ${
         isDragging ? "opacity-40" : ""
       }`}
     >
@@ -76,7 +76,9 @@ function InlineQuadrantAdd({ quadrant, name }: { quadrant: Quadrant; name: strin
       priority: parsed.priority,
       dueDate: parsed.dueDate,
       dueTime: null,
-      tags: [],
+      // parseQuickAdd strips #tags out of the title, so hard-coding [] here
+      // silently threw them away: "Renew domain #ops" saved with no tag.
+      tags: parsed.tags,
       subtasks: [],
       quadrant,
     });
@@ -89,7 +91,7 @@ function InlineQuadrantAdd({ quadrant, name }: { quadrant: Quadrant; name: strin
       <button
         type="button"
         onClick={() => setIsAdding(true)}
-        className="flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-[11.5px] text-tertiary transition-colors hover:bg-accent/50 hover:text-foreground"
+        className="flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-[11.5px] text-tertiary transition-colors hover:bg-hover hover:text-foreground"
       >
         <Plus className="h-3 w-3" />
         Add to {name}

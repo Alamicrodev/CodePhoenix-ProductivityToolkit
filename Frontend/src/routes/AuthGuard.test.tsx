@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,11 +23,26 @@ function renderGuard() {
 }
 
 describe("AuthGuard", () => {
-  it("shows the loading state while the session restores", () => {
-    mockUseAuth.mockReturnValue({ user: null, isLoading: true });
-    renderGuard();
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
-    expect(screen.queryByText("PRIVATE CONTENT")).not.toBeInTheDocument();
+  it("stays silent for 300ms while the session restores, then explains", async () => {
+    vi.useFakeTimers();
+    try {
+      mockUseAuth.mockReturnValue({ user: null, isLoading: true });
+      renderGuard();
+
+      // This is the first paint on every private route: "No spinners under
+      // 300ms", so a fast restore shows nothing at all.
+      expect(screen.queryByText("Signing you in…")).not.toBeInTheDocument();
+      expect(screen.queryByText("PRIVATE CONTENT")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(screen.getByText("Signing you in…")).toBeInTheDocument();
+      expect(screen.queryByText("PRIVATE CONTENT")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("redirects to /login when there is no user", async () => {

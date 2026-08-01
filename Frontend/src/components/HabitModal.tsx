@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Checkbox } from "./ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { splitClockTime12, toClockTime24 } from "../lib/timeFormat";
 
@@ -284,7 +283,7 @@ export function HabitModal({ isOpen, onClose, habit }: HabitModalProps) {
                     }`}
                     onClick={() => toggleDay(day.value)}
                   >
-                    <span className="text-sm font-medium">{day.label}</span>
+                    <span className="text-xs font-medium">{day.label}</span>
                   </div>
                 ))}
               </div>

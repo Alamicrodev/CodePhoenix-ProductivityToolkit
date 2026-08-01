@@ -6,6 +6,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "Frontend"],
       "port": 5173
+    },
+    {
+      "// note": "Host dev server on 5174 — the codephoenix-frontend docker container already holds 5173 and carries its own node_modules, so host-side dependency changes are invisible there.",
+      "name": "frontend-host",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "Frontend", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
     }
   ]
 }

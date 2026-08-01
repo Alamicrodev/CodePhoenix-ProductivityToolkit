@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { Check, Copy, Plus, Search, User, Users } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
-import { ModuleCommandPalette, PaletteCommand } from "../components/ModuleCommandPalette";
+import type { PaletteCommand } from "../components/ModuleCommandPalette";
+import { usePalette, useRegisterPaletteCommands } from "../context/PaletteContext";
 import { Kbd } from "../components/tasks/Kbd";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../lib/api";
@@ -54,7 +55,9 @@ export default function CoworkPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [confirmEndSlug, setConfirmEndSlug] = useState<string | null>(null);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // ⌘K and the palette live in the shell; this page only needs to know the
+  // palette is open so its own single-letter keys stay suppressed under it.
+  const { open: isPaletteOpen, setOpen: setIsPaletteOpen } = usePalette();
   // A room being named. It exists on screen before it exists on the server —
   // committing the name is what creates it.
   const [draftName, setDraftName] = useState<string | null>(null);
@@ -93,10 +96,10 @@ export default function CoworkPage() {
     }
   }, []);
 
-  const startDraft = () => {
+  const startDraft = useCallback(() => {
     setDraftName("");
     window.setTimeout(() => draftRef.current?.focus(), 0);
-  };
+  }, []);
 
   const commitDraft = async () => {
     if (draftName === null || isCommittingRef.current || !accessToken) {
@@ -134,11 +137,6 @@ export default function CoworkPage() {
   // N opens a new room for naming; ⌘K opens the palette.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setIsPaletteOpen(open => !open);
-        return;
-      }
       if (event.metaKey || event.ctrlKey || event.altKey || isPaletteOpen) {
         return;
       }
@@ -162,21 +160,23 @@ export default function CoworkPage() {
   const liveCount = rooms.filter(room => room.participant_count > 0).length;
   const showEmptyState = !isLoading && rooms.length === 0 && draftName === null;
 
-  const paletteCommands: PaletteCommand[] = [
+  const paletteCommands: PaletteCommand[] = useMemo(() => [
     { label: "New room", icon: <Plus />, shortcut: "N", run: startDraft },
     ...rooms.map(room => ({
       label: `Copy link — ${room.title}`,
       icon: <Copy />,
       run: () => void copyLink(room.slug),
     })),
-  ];
+  ], [rooms, startDraft, copyLink]);
+
+  useRegisterPaletteCommands("Cowork", paletteCommands);
 
   return (
     <DashboardLayout>
       <div className="flex min-h-full flex-col">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-12 sm:px-6 sm:py-0">
-          <h1 className="text-sm font-semibold">Cowork</h1>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-[46px] sm:px-4 sm:py-0">
+          <h1 className="text-[13px] font-semibold">Cowork</h1>
           <span className="min-w-0 truncate text-xs text-tertiary">
             {rooms.length} room{rooms.length === 1 ? "" : "s"}
             {liveCount > 0 ? ` · ${liveCount} live` : ""} · links expire after 24h
@@ -200,12 +200,12 @@ export default function CoworkPage() {
             >
               <Plus className="h-3.5 w-3.5" />
               New room
-              <span className="font-mono text-[10px] opacity-70">N</span>
+              <Kbd tone="onPrimary">N</Kbd>
             </button>
           )}
         </div>
 
-        <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-6">
+        <div className="mx-auto w-full max-w-[840px] flex-1 px-4 pb-10 pt-4 sm:px-4">
           {isLoading ? (
             <p className="px-2 py-6 text-xs text-tertiary">Loading rooms…</p>
           ) : showEmptyState ? (
@@ -225,7 +225,7 @@ export default function CoworkPage() {
               >
                 <Plus className="h-3.5 w-3.5" />
                 New room
-                <span className="font-mono text-[10px] opacity-70">N</span>
+                <Kbd tone="onPrimary">N</Kbd>
               </button>
             </div>
           ) : (
@@ -268,7 +268,7 @@ export default function CoworkPage() {
                   return (
                     <div
                       key={room.id}
-                      className="group flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-accent/50"
+                      className="group flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-hover"
                     >
                       <Presence count={room.participant_count} />
 
@@ -300,7 +300,7 @@ export default function CoworkPage() {
                         onClick={() => void copyLink(room.slug)}
                         aria-label={`Copy link to ${room.title}`}
                         title="Copy share link"
-                        className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-accent hover:text-foreground"
+                        className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-hover hover:text-foreground"
                       >
                         {copiedSlug === room.slug ? (
                           <Check className="h-3.5 w-3.5 text-done" />
@@ -338,7 +338,7 @@ export default function CoworkPage() {
                               <button
                                 type="button"
                                 onClick={() => setConfirmEndSlug(null)}
-                                className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
                               >
                                 Cancel
                               </button>
@@ -362,7 +362,7 @@ export default function CoworkPage() {
         </div>
 
         {/* Shortcut footer */}
-        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-6">
+        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-4">
           <span className="flex items-center gap-1.5">
             <Kbd>N</Kbd> new room
           </span>
@@ -373,13 +373,6 @@ export default function CoworkPage() {
             <Kbd>T</Kbd> theme
           </span>
         </div>
-
-        <ModuleCommandPalette
-          open={isPaletteOpen}
-          onOpenChange={setIsPaletteOpen}
-          contextHeading="Cowork"
-          commands={paletteCommands}
-        />
       </div>
     </DashboardLayout>
   );

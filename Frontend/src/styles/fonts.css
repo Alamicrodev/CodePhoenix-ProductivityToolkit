@@ -1,0 +1,19 @@
+/* Geist + Geist Mono — the two typefaces the design system specifies
+   (Style Guide section 1: Typography — Geist + Geist Mono).
+
+   Self-hosted via @fontsource rather than the Google Fonts link the
+   prototypes use, so the app makes no external font request and works
+   offline. Both are variable fonts spanning weight 100–900, which covers the
+   whole type scale (400 / 500 / 600).
+
+   NOTE: the families are bound to Tailwind font-sans / font-mono in the
+   @theme inline block of theme.css. Loading a face here is not enough on its
+   own — without that binding Tailwind keeps its ui-sans-serif default and the
+   fonts download but are never applied.
+
+   NOTE: keep apostrophes and double quotes out of comments in this file. The
+   Tailwind v4 CSS parser reads them as string delimiters and fails the build
+   with an Unterminated string error. */
+
+@import '@fontsource-variable/geist/index.css';
+@import '@fontsource-variable/geist-mono/index.css';

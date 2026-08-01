@@ -63,7 +63,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
   return (
     <div className={isMuted ? "opacity-60" : ""}>
       <div
-        className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/50 transition-colors cursor-pointer ${
+        className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover transition-colors cursor-pointer ${
           task.completed ? "opacity-60 hover:opacity-90" : ""
         }`}
         onClick={onEdit}
@@ -76,7 +76,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
         <PriorityBars priority={task.priority} />
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
           <span
-            className={`truncate text-sm font-medium ${
+            className={`truncate text-[13px] font-medium ${
               task.completed ? "line-through text-muted-foreground" : ""
             }`}
           >
@@ -103,7 +103,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
               event.stopPropagation();
               setExpanded(current => !current);
             }}
-            className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 font-mono text-[11px] text-tertiary hover:bg-accent hover:text-foreground transition-colors"
+            className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 font-mono text-[11px] text-tertiary hover:bg-hover hover:text-foreground transition-colors"
           >
             <ChevronRight
               className={`h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -129,7 +129,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
               event.stopPropagation();
               navigate("/focus", { state: { preselectedTaskIds: [task.id] } });
             }}
-            className="shrink-0 rounded p-1 text-tertiary opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+            className="shrink-0 rounded p-1 text-tertiary opacity-0 transition-opacity hover:bg-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
           >
             <Timer className="h-3.5 w-3.5" />
           </button>
@@ -141,7 +141,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
             event.stopPropagation();
             onEdit();
           }}
-          className="shrink-0 rounded p-1 text-tertiary opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded p-1 text-tertiary opacity-0 transition-opacity hover:bg-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -155,7 +155,7 @@ export function TaskRow({ task, onEdit, isMuted, matchedSubtasks, sortBy = "dueD
             return (
               <div
                 key={subtask.id}
-                className={`flex items-center gap-2.5 rounded-md py-1 pl-[34px] pr-2 hover:bg-accent/50 transition-colors ${
+                className={`flex items-center gap-2.5 rounded-md py-1 pl-[34px] pr-2 hover:bg-hover transition-colors ${
                   greyedOut ? "opacity-40" : ""
                 } ${isMuted && matchedSubtasks.includes(subtask.id) ? "opacity-100" : ""}`}
               >

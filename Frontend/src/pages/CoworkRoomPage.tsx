@@ -16,7 +16,8 @@ import {
 
 import CoworkVideoTile from "../components/CoworkVideoTile";
 import DashboardLayout from "../components/DashboardLayout";
-import { ModuleCommandPalette, PaletteCommand } from "../components/ModuleCommandPalette";
+import type { PaletteCommand } from "../components/ModuleCommandPalette";
+import { usePalette, useRegisterPaletteCommands } from "../context/PaletteContext";
 import { BannerSpinner, StatusBanner } from "../components/cowork/StatusBanner";
 import { RoomRail } from "../components/cowork/RoomRail";
 import { Kbd } from "../components/tasks/Kbd";
@@ -64,7 +65,10 @@ export default function CoworkRoomPage() {
   const [showColdStartHint, setShowColdStartHint] = useState(false);
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
   const [sharedTaskIds, setSharedTaskIds] = useState<string[]>([]);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // ⌘K and the palette itself now live in the shell; this page only needs to
+  // know whether the palette is open so its own keys stay suppressed under it.
+  const { open: isPaletteOpen } = usePalette();
+  const [isConfirmingEnd, setIsConfirmingEnd] = useState(false);
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const joinedAtRef = useRef(Date.now());
 
@@ -217,11 +221,6 @@ export default function CoworkRoomPage() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setIsPaletteOpen(open => !open);
-        return;
-      }
       if (event.metaKey || event.ctrlKey || event.altKey || isPaletteOpen) {
         return;
       }
@@ -229,8 +228,14 @@ export default function CoworkRoomPage() {
       const isTyping =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
         (target?.isContentEditable ?? false);
       if (isTyping) {
+        return;
+      }
+      if (event.key === "Escape" && isConfirmingEnd) {
+        event.preventDefault();
+        setIsConfirmingEnd(false);
         return;
       }
       if (event.key === "Escape" && isSharePanelOpen) {
@@ -261,7 +266,7 @@ export default function CoworkRoomPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  const paletteCommands: PaletteCommand[] = [
+  const paletteCommands: PaletteCommand[] = useMemo(() => [
     {
       label: mesh.isMicOn ? "Mute microphone" : "Unmute microphone",
       icon: mesh.isMicOn ? <MicOff /> : <Mic />,
@@ -276,10 +281,21 @@ export default function CoworkRoomPage() {
     },
     { label: "Copy room link", icon: <Link2 />, run: () => void copyLink() },
     { label: "Leave room", icon: <LogOut />, shortcut: "L", run: () => navigate("/cowork") },
+    // Opens the same confirm popover the header uses rather than destroying
+    // the room outright — one Enter in the palette used to disconnect everyone.
     ...(isHost
-      ? [{ label: "End room for everyone", icon: <Users />, destructive: true, run: () => void handleEndRoom() }]
+      ? [
+          {
+            label: "End room for everyone",
+            icon: <Users />,
+            destructive: true,
+            run: () => setIsConfirmingEnd(true),
+          },
+        ]
       : []),
-  ];
+  ], [mesh, isHost, copyLink, navigate]);
+
+  useRegisterPaletteCommands("Room", paletteCommands);
 
   // --- render ---------------------------------------------------------------
 
@@ -340,15 +356,15 @@ export default function CoworkRoomPage() {
     <DashboardLayout>
       <div className="flex min-h-full flex-col">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-2 py-2 sm:h-12 sm:px-3 sm:py-0">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-2 py-2 sm:h-[46px] sm:px-3 sm:py-0">
           <Link
             to="/cowork"
             aria-label="Back to Cowork"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-hover hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
           </Link>
-          <h1 className="text-sm font-semibold">{room?.title}</h1>
+          <h1 className="text-[13px] font-semibold">{room?.title}</h1>
           <span className="min-w-0 truncate text-xs text-tertiary">
             {isHost ? "Hosted by you" : `Hosted by ${room?.host_name}`} · {here} of{" "}
             {connection.maxParticipants}
@@ -358,19 +374,54 @@ export default function CoworkRoomPage() {
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
           >
             <Link2 className="h-3.5 w-3.5" />
             Copy link
           </button>
           {isHost ? (
-            <button
-              type="button"
-              onClick={() => void handleEndRoom()}
-              className="rounded-md border border-border bg-card px-2.5 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
-            >
-              End room
-            </button>
+            /* Ending a room disconnects everyone and permanently invalidates
+               the link. The guide requires destructive actions to confirm, and
+               the Cowork handoff specifies an anchored confirm popover — the
+               lobby already does this; the room header used to fire on a
+               single click with no undo. */
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingEnd(current => !current)}
+                aria-expanded={isConfirmingEnd}
+                className="rounded-md border border-border bg-card px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
+              >
+                End room
+              </button>
+              {isConfirmingEnd && (
+                <div
+                  role="dialog"
+                  aria-label="End this room?"
+                  className="absolute right-0 top-full z-30 mt-1.5 w-[220px] rounded-lg border border-border bg-popover p-3 shadow-panel"
+                >
+                  <p className="text-[12.5px] leading-relaxed">
+                    End this room? Everyone is disconnected and the link stops working.
+                  </p>
+                  <div className="mt-2.5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmingEnd(false)}
+                      className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-hover hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleEndRoom()}
+                      className="rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90"
+                    >
+                      End room
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <Link
               to="/cowork"
@@ -453,7 +504,7 @@ export default function CoworkRoomPage() {
                   <button
                     type="button"
                     onClick={() => void copyLink()}
-                    className="flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
                   >
                     <Copy className="h-3 w-3" />
                     Copy
@@ -534,7 +585,7 @@ export default function CoworkRoomPage() {
         </div>
 
         {/* Shortcut footer */}
-        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-6">
+        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-4">
           <span className="flex items-center gap-1.5">
             <Kbd>M</Kbd> mic
           </span>
@@ -552,12 +603,6 @@ export default function CoworkRoomPage() {
           </span>
         </div>
 
-        <ModuleCommandPalette
-          open={isPaletteOpen}
-          onOpenChange={setIsPaletteOpen}
-          contextHeading="Room"
-          commands={paletteCommands}
-        />
       </div>
     </DashboardLayout>
   );

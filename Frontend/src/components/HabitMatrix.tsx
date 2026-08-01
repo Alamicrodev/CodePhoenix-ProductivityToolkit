@@ -29,7 +29,7 @@ function HabitMatrixRow({ habit, days }: { habit: Habit; days: Date[] }) {
       <div className="sticky left-0 z-10 flex min-w-40 flex-1 flex-col bg-card pr-2">
         <Link
           to={`/habits/${habit.id}`}
-          className="truncate text-sm font-medium hover:underline"
+          className="truncate text-[13px] font-medium hover:underline"
           title={habit.title}
         >
           {habit.title}

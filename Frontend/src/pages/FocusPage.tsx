@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Check, Pause, Play, Search, Timer, X } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
-import { ModuleCommandPalette, PaletteCommand } from "../components/ModuleCommandPalette";
+import type { PaletteCommand } from "../components/ModuleCommandPalette";
+import { usePalette, useRegisterPaletteCommands } from "../context/PaletteContext";
 import { FocusRail } from "../components/focus/FocusRail";
 import { FocusSetupModal } from "../components/focus/FocusSetupModal";
 import { PlanStrip } from "../components/focus/PlanStrip";
@@ -62,7 +63,9 @@ export default function FocusPage() {
   const navigate = useNavigate();
 
   const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // ⌘K and the palette live in the shell; this page only tracks whether it
+  // is open so Space / E / N / 1-9 stay suppressed underneath it.
+  const { open: isPaletteOpen, setOpen: setIsPaletteOpen } = usePalette();
   const [isEndOpen, setIsEndOpen] = useState(false);
   const [seedTaskIds, setSeedTaskIds] = useState<string[]>([]);
   const [dismissedSummaryId, setDismissedSummaryId] = useState<string | null>(null);
@@ -171,11 +174,6 @@ export default function FocusPage() {
   // Page shortcuts. Suppressed while typing or while a layer owns the keyboard.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setIsPaletteOpen(open => !open);
-        return;
-      }
       if (event.metaKey || event.ctrlKey || event.altKey || isSetupOpen || isPaletteOpen) {
         return;
       }
@@ -261,6 +259,8 @@ export default function FocusPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
+  useRegisterPaletteCommands("Focus", paletteCommands);
+
   const headerMeta = current
     ? [
         sessionTitle(current.totalDurationMinutes, current.focusLengthMinutes, current.breakLengthMinutes),
@@ -302,8 +302,8 @@ export default function FocusPage() {
     <DashboardLayout>
       <div className="flex min-h-full flex-col">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-12 sm:px-6 sm:py-0">
-          <h1 className="text-sm font-semibold">Focus</h1>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 sm:h-[46px] sm:px-4 sm:py-0">
+          <h1 className="text-[13px] font-semibold">Focus</h1>
           <span className="min-w-0 truncate text-xs text-tertiary">{headerMeta}</span>
           <span className="flex-1" />
           <button
@@ -377,7 +377,7 @@ export default function FocusPage() {
                       <Play className="h-3.5 w-3.5" />
                     )}
                     {current.status === "active" ? "Pause" : "Resume"}
-                    <span className="font-mono text-[10px] opacity-70">space</span>
+                    <Kbd tone="onPrimary">space</Kbd>
                   </button>
 
                   <div className="relative" ref={endRef}>
@@ -402,7 +402,7 @@ export default function FocusPage() {
                             setIsEndOpen(false);
                             void completeFocusSession(current.id);
                           }}
-                          className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                          className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
                         >
                           <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-done" />
                           <span>
@@ -453,7 +453,7 @@ export default function FocusPage() {
                       return (
                         <div
                           key={item.id}
-                          className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/50 ${
+                          className={`group flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-hover ${
                             done ? "opacity-60" : ""
                           }`}
                         >
@@ -471,7 +471,7 @@ export default function FocusPage() {
                           )}
                           <span className="flex min-w-0 flex-1 items-baseline gap-2">
                             <span
-                              className={`truncate text-sm font-medium ${
+                              className={`truncate text-[13px] font-medium ${
                                 done ? "text-muted-foreground line-through" : ""
                               }`}
                             >
@@ -526,7 +526,7 @@ export default function FocusPage() {
                   <button
                     type="button"
                     onClick={() => setDismissedSummaryId(summary.id)}
-                    className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
                   >
                     Dismiss
                   </button>
@@ -561,7 +561,7 @@ export default function FocusPage() {
                   className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
                 >
                   Start focus session
-                  <span className="font-mono text-[10px] opacity-70">N</span>
+                  <Kbd tone="onPrimary">N</Kbd>
                 </button>
               </div>
             )}
@@ -577,7 +577,7 @@ export default function FocusPage() {
         </div>
 
         {/* Shortcut footer */}
-        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-6">
+        <div className="mt-auto hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-1.5 text-[11px] text-tertiary sm:flex sm:px-4">
           {current ? (
             <>
               <span className="flex items-center gap-1.5">
@@ -610,13 +610,6 @@ export default function FocusPage() {
           habits={habits}
           seedTaskIds={seedTaskIds}
           onStart={input => void startSession(input)}
-        />
-
-        <ModuleCommandPalette
-          open={isPaletteOpen}
-          onOpenChange={setIsPaletteOpen}
-          contextHeading="Focus"
-          commands={paletteCommands}
         />
       </div>
     </DashboardLayout>

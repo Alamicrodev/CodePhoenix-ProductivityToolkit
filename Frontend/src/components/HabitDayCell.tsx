@@ -17,30 +17,38 @@ interface HabitDayCellProps {
   className?: string;
 }
 
+/**
+ * Every state resolves through a design token, so the cell tracks the theme
+ * automatically and no `dark:` twin is needed — "Never introduce new hues"
+ * and "Green = done/live, red–amber–gray = priority and urgency".
+ *
+ * Today carries an accent outline on top of whatever state it is in, which is
+ * the one thing `status` alone cannot express.
+ */
 function statusClasses(day: HabitDayStatus, busy: boolean): string {
-  const base =
-    "flex items-center justify-center rounded-md text-xs font-medium transition-colors shrink-0";
+  const base = "flex items-center justify-center rounded-md text-xs font-medium shrink-0";
+  const today = day.isToday ? " ring-1 ring-inset ring-primary" : "";
 
   if (busy) {
-    return `${base} bg-gray-200 dark:bg-gray-700`;
+    return `${base}${today} bg-muted`;
   }
 
   switch (day.status) {
     case "completed":
-      return `${base} bg-green-500 dark:bg-green-600 text-white hover:bg-green-600 dark:hover:bg-green-500`;
+      return `${base}${today} bg-done text-white hover:bg-done/90`;
     case "partial":
-      return `${base} bg-green-500/40 dark:bg-green-600/40 text-green-800 dark:text-green-200 hover:bg-green-500/60`;
+      return `${base}${today} bg-done/40 text-foreground hover:bg-done/60`;
     case "skipped":
-      return `${base} bg-yellow-500 dark:bg-yellow-600 text-white hover:bg-yellow-600 dark:hover:bg-yellow-500`;
+      return `${base}${today} bg-priority-medium text-white hover:bg-priority-medium/90`;
     case "missed":
-      return `${base} bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/60`;
+      return `${base}${today} bg-priority-high/15 text-priority-high hover:bg-priority-high/25`;
     case "pending":
       return day.toggleable
-        ? `${base} bg-gray-200 dark:bg-gray-700 text-muted-foreground hover:bg-gray-300 dark:hover:bg-gray-600`
-        : `${base} bg-gray-100 dark:bg-gray-800 opacity-40`;
+        ? `${base}${today} bg-muted text-muted-foreground hover:bg-hover`
+        : `${base}${today} bg-muted opacity-40`;
     default:
       // inactive / before-start
-      return `${base} bg-gray-100 dark:bg-gray-800 opacity-30`;
+      return `${base}${today} bg-muted opacity-30`;
   }
 }
 
@@ -84,13 +92,13 @@ function HourlySlotList({ habit, day, toggle }: { habit: Habit; day: HabitDaySta
         const slotBusy = toggle.busyKey === slot.start.toISOString();
         return (
           <div key={slot.start.toISOString()} className="flex items-center justify-between gap-2">
-            <span className="text-sm">{slot.label}</span>
+            <span className="text-xs">{slot.label}</span>
             <Button
-              variant={slot.status === "completed" ? "default" : "outline"}
+              variant={slot.status === "completed" ? "primary" : "secondary"}
               size="sm"
               className={
                 slot.status === "completed"
-                  ? "h-7 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+                  ? "h-7 bg-done text-white hover:bg-done/90"
                   : "h-7"
               }
               disabled={toggle.busyKey !== null && !slotBusy}

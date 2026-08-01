@@ -117,11 +117,11 @@ function newSubtask(title: string): Subtask {
 }
 
 const CHIP_CLASS =
-  "flex items-center gap-[7px] rounded-md border border-border bg-card px-2.5 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+  "flex items-center gap-[7px] rounded-md border border-border bg-card px-2.5 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground";
 const POPOVER_CLASS =
   "absolute left-0 top-[calc(100%+5px)] z-10 rounded-lg border border-border bg-popover p-1 shadow-lg";
 const POPOVER_ROW_CLASS =
-  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent";
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-hover";
 
 export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
   const { addTask, updateTask, deleteTask, isSyncing } = useData();
@@ -318,7 +318,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
           event.stopPropagation();
           setPop(null);
         }}
-        className="flex max-h-[82vh] w-[620px] max-w-[calc(100vw-32px)] flex-col overflow-y-auto rounded-xl border border-border bg-card shadow-xl"
+        className="flex max-h-[82vh] w-[620px] max-w-[calc(100vw-32px)] flex-col overflow-y-auto rounded-2xl border border-border bg-card shadow-xl"
       >
         {/* Header strip */}
         <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
@@ -533,7 +533,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 onClick={togglePop("tag")}
                 aria-haspopup="true"
                 aria-expanded={pop === "tag"}
-                className="rounded-full border border-border px-2.5 py-[2px] text-[11px] text-tertiary transition-colors hover:bg-accent hover:text-foreground"
+                className="rounded-full border border-border px-2.5 py-[2px] text-[11px] text-tertiary transition-colors hover:bg-hover hover:text-foreground"
               >
                 + Tag
               </button>
@@ -615,7 +615,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     subtasks: d.subtasks.filter(st => st.id !== subtask.id),
                   }))
                 }
-                className="rounded p-1 text-tertiary transition-colors hover:bg-accent hover:text-priority-high"
+                className="rounded p-1 text-tertiary transition-colors hover:bg-hover hover:text-priority-high"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -623,7 +623,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
           ))}
           <div className="flex items-center gap-2.5 pt-[3px]">
             <span
-              className="w-[13px] shrink-0 text-center text-sm leading-none text-primary"
+              className="w-[13px] shrink-0 text-center text-xs leading-none text-primary"
               aria-hidden="true"
             >
               +
@@ -651,7 +651,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
               type="button"
               onClick={() => void handleDelete()}
               disabled={isSyncing}
-              className="rounded-md px-2 py-1 text-xs text-tertiary transition-colors hover:bg-accent hover:text-priority-high disabled:opacity-50"
+              className="rounded-md px-2 py-1 text-xs text-tertiary transition-colors hover:bg-hover hover:text-priority-high disabled:opacity-50"
             >
               Delete task
             </button>
@@ -661,7 +661,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
             type="button"
             onClick={onClose}
             disabled={isSyncing}
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:opacity-50"
           >
             Cancel
           </button>

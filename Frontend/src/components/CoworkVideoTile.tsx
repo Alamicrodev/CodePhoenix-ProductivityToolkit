@@ -130,7 +130,7 @@ export function CoworkVideoTile({
         >
           <div
             style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-xs font-semibold text-white"
           >
             {initialsOf(displayName)}
           </div>

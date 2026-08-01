@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { useTheme } from "next-themes";
 import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
+import { usePalette } from "../context/PaletteContext";
+import { ModuleCommandPalette } from "./ModuleCommandPalette";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { Kbd } from "./tasks/Kbd";
@@ -61,6 +63,13 @@ export default function DashboardLayout({ children }: LayoutProps) {
   const { logout, user } = useAuth();
   const { tasks, habits, focusSessions } = useData();
   const { resolvedTheme, setTheme } = useTheme();
+  const {
+    open: isPaletteOpen,
+    setOpen: setPaletteOpen,
+    heading: paletteHeading,
+    commands: paletteCommands,
+    claimed: isPaletteClaimed,
+  } = usePalette();
 
   const counts = useMemo(() => {
     const todayKey = formatDateKeyLocal(new Date());
@@ -76,15 +85,24 @@ export default function DashboardLayout({ children }: LayoutProps) {
   const runningFocus = focusSessions.find(session => session.status === "active") ?? null;
   const isInRoom = location.pathname.startsWith("/cowork/");
 
-  // T toggles the theme app-wide, matching the chip on the sidebar button.
+  // The shell owns the two global keys the guide requires of every view:
+  // ⌘K (commands) and T (theme). Module keys stay on their pages.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // ⌘K is checked BEFORE the typing guard on purpose — the palette has to
+      // open from inside a quick-add field too.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(!isPaletteOpen);
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.key.toLowerCase() !== "t") return;
       const target = event.target as HTMLElement | null;
       const isTyping =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
         (target?.isContentEditable ?? false);
       if (isTyping || document.querySelector('[role="dialog"]')) return;
       event.preventDefault();
@@ -92,7 +110,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [resolvedTheme, setTheme]);
+  }, [resolvedTheme, setTheme, isPaletteOpen, setPaletteOpen]);
 
   const handleLogout = () => {
     logout();
@@ -110,7 +128,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
         aria-label="Open profile"
         aria-current={isProfileActive ? "page" : undefined}
         className={`flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors ${
-          isProfileActive ? "bg-primary/10" : "hover:bg-accent"
+          isProfileActive ? "bg-primary/10" : "hover:bg-hover"
         }`}
       >
         <span
@@ -161,7 +179,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
                 className={`flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] transition-colors ${
                   isActive
                     ? "bg-primary/10 font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    : "text-muted-foreground hover:bg-hover hover:text-foreground"
                 }`}
               >
                 <Icon
@@ -206,7 +224,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
           <button
             type="button"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="flex items-center justify-between rounded-md border border-border bg-card px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex items-center justify-between rounded-md border border-border bg-card px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
           >
             <span>{resolvedTheme === "dark" ? "◐ Dark" : "◑ Light"}</span>
             <Kbd>T</Kbd>
@@ -215,7 +233,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
           >
             <LogOut className="h-[15px] w-[15px] shrink-0 opacity-80" />
             <span>Log out</span>
@@ -262,6 +280,18 @@ export default function DashboardLayout({ children }: LayoutProps) {
         </div>
         {children}
       </main>
+
+      {/* One palette for every authenticated route. Pages contribute their own
+          commands through useRegisterPaletteCommands; a page that needs a
+          richer palette (Tasks searches tasks) claims it and renders its own. */}
+      {!isPaletteClaimed && (
+        <ModuleCommandPalette
+          open={isPaletteOpen}
+          onOpenChange={setPaletteOpen}
+          contextHeading={paletteHeading}
+          commands={paletteCommands}
+        />
+      )}
     </div>
   );
 }

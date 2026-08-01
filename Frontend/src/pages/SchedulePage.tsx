@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "sonner";
+import { CalendarDays, LayoutList, Plus } from "lucide-react";
 import { Task, useData } from "../context/DataContext";
 import DashboardLayout from "../components/DashboardLayout";
 import { TaskModal, TaskModalSeed } from "../components/TaskModal";
 import { Kbd } from "../components/tasks/Kbd";
+import { QuickAdd, QuickAddHandle } from "../components/tasks/QuickAdd";
+import { Button } from "../components/ui/button";
+import { Segmented } from "../components/ui/segmented";
+import { useRegisterPaletteCommands } from "../context/PaletteContext";
+import type { PaletteCommand } from "../components/ModuleCommandPalette";
+import type { ParsedQuickAdd } from "../lib/quickAdd";
 import { useCompleteTask } from "../components/tasks/useCompleteTask";
 import { AgendaView } from "../components/schedule/AgendaView";
 import { ScheduleRail } from "../components/schedule/ScheduleRail";
@@ -26,6 +33,7 @@ import {
 } from "../lib/schedulePlan";
 import { compareByDueDate, formatDueLabel } from "../lib/taskDates";
 import { formatClockTime12, formatDateKeyLocal, startOfLocalDay } from "../lib/timeFormat";
+import { CMD_LABEL } from "../lib/platform";
 
 type ScheduleView = "timeline" | "agenda";
 const isScheduleView = (v: unknown): v is ScheduleView => v === "timeline" || v === "agenda";
@@ -47,6 +55,7 @@ export default function SchedulePage() {
     "timeline",
     isScheduleView,
   );
+  const quickAddRef = useRef<QuickAddHandle>(null);
   const [now, setNow] = useState(() => new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
@@ -175,11 +184,36 @@ export default function SchedulePage() {
     [taskById, updateTask],
   );
 
+  // N focuses the inline quick-add rather than opening a modal — creation is
+  // never a modal; the editor is the ⌘↵ escalation from the field.
   const handleNewTask = useCallback(() => {
-    setEditingTask(undefined);
-    setModalSeed({ dueDate: viewedKey });
-    setIsModalOpen(true);
-  }, [viewedKey]);
+    quickAddRef.current?.focus();
+  }, []);
+
+  const handleQuickAddEscalate = useCallback(
+    (parsed: ParsedQuickAdd) => {
+      setEditingTask(undefined);
+      setModalSeed({ ...parsed, dueDate: parsed.dueDate ?? viewedKey });
+      setIsModalOpen(true);
+    },
+    [viewedKey],
+  );
+
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () => [
+      { label: "New task", icon: <Plus />, shortcut: "N", run: handleNewTask },
+      {
+        label: view === "timeline" ? "Switch to agenda" : "Switch to timeline",
+        icon: <LayoutList />,
+        shortcut: "V",
+        run: () => setView(v => (v === "timeline" ? "agenda" : "timeline")),
+      },
+      { label: "Go to today", icon: <CalendarDays />, run: () => setDayIndex(todayIndex) },
+    ],
+    [handleNewTask, view, setView, todayIndex],
+  );
+
+  useRegisterPaletteCommands("Schedule", paletteCommands);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -287,34 +321,24 @@ export default function SchedulePage() {
         <div className="flex flex-col md:h-dvh">
         {/* Page header */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-2 sm:h-[46px] sm:flex-nowrap sm:py-0">
-          <h1 className="shrink-0 text-sm font-semibold">Today</h1>
+          <h1 className="shrink-0 text-[13px] font-semibold">Today</h1>
           <span className="min-w-0 flex-1 truncate text-xs text-tertiary">{summary}</span>
-          <div className="flex shrink-0 rounded-[7px] border border-border bg-muted p-0.5">
-            <button
-              type="button"
-              aria-pressed={view === "timeline"}
-              onClick={() => setView("timeline")}
-              className={segmentClass(view === "timeline")}
-            >
-              Timeline
-            </button>
-            <button
-              type="button"
-              aria-pressed={view === "agenda"}
-              onClick={() => setView("agenda")}
-              className={segmentClass(view === "agenda")}
-            >
-              Agenda
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={handleNewTask}
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-2.5 py-[5px] text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            New task
-            <kbd className="rounded bg-white/20 px-1 py-px font-mono text-[10px] leading-4">N</kbd>
-          </button>
+          <Segmented<ScheduleView>
+            ariaLabel="Schedule view"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "timeline", label: "Timeline" },
+              { value: "agenda", label: "Agenda" },
+            ]}
+          />
+          {/* One primary per view: the empty state carries its own, so the
+              header yields when the day is empty. */}
+          {viewedCount > 0 && (
+            <Button className="shrink-0" onClick={handleNewTask} kbd="N">
+              New task
+            </Button>
+          )}
         </div>
 
         {/* Week strip */}
@@ -330,6 +354,17 @@ export default function SchedulePage() {
         {/* Content: day view + right rail */}
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-y-auto">
+            {/* Every module gets an always-visible quick-add at the top of its
+                list. Seeded with the viewed day, so typing here schedules for
+                the day you are looking at. */}
+            <div className="px-4 pt-3">
+              <QuickAdd
+                ref={quickAddRef}
+                onOpenFull={handleQuickAddEscalate}
+                defaultDueDate={viewedKey}
+                placeholder={`Add to ${isToday ? "today" : formatDayTitle(viewedDate)}…  try "draft brief 10am !high"`}
+              />
+            </div>
             {viewedCount === 0 ? (
               <div className="flex flex-col items-center gap-2 px-6 pt-[120px] text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-card text-base text-tertiary">
@@ -342,13 +377,9 @@ export default function SchedulePage() {
                   Tasks due this day and habits active on it appear here. Add a due time to place
                   a task on the timeline.
                 </p>
-                <button
-                  type="button"
-                  onClick={handleNewTask}
-                  className="mt-2 flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                >
+                <Button className="mt-2" onClick={handleNewTask} kbd="N">
                   New task
-                </button>
+                </Button>
               </div>
             ) : view === "timeline" ? (
               <TimelineView
@@ -394,6 +425,9 @@ export default function SchedulePage() {
           </span>
           <span className="flex items-center gap-1.5">
             <Kbd>←→</Kbd> change day
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>{CMD_LABEL} K</Kbd> commands
           </span>
           <span className="flex items-center gap-1.5">
             <Kbd>T</Kbd> theme

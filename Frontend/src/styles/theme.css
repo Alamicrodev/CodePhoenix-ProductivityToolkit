@@ -1,50 +1,83 @@
 /* tells tailwint when to look at dark: varient classes */
-@custom-variant dark (&:is(.dark *));   
+@custom-variant dark (&:is(.dark *));
 /* here specifically when the element is in a parent with .dark class */
 /* Which theme provider puts on the html tag */
 /* otherwise by default tailwind only looks at the OS to figure out when to use dark: classes */
 
 
-/* creating default theme variables */
+/* Design-system tokens.
+   Values come from design_handoff_flowmanager_redesign/Style Guide.dc.html §1.
+   The guides names map onto the codebases shadcn-derived names as follows —
+   this table is the single place the two vocabularies are reconciled:
+
+     guide --bg      -> --background      guide --text   -> --foreground
+     guide --panel   -> --card            guide --text2  -> --muted-foreground
+     guide --panel2  -> --muted           guide --text3  -> --tertiary
+     guide --accent  -> --primary         guide --hi/med/low/done -> --priority-x / --done
+
+   NOTE the name collision: the guide --accent is the brand indigo, but
+   --accent here is a NEUTRAL surface. The brand role is carried by --primary.
+   Use --primary for brand, --hover for hover washes, --accent for neutral fills.
+
+   Two parser hazards to avoid in comments in this file: an apostrophe or
+   double quote reads as a string delimiter, and a literal star-slash closes
+   the comment early. Both fail the build with an Unterminated string error. */
 :root {
   --font-size: 16px;
   --background: #fafafa;
-  --foreground: oklch(0.145 0 0);
+  --foreground: #1b1c20;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #2563eb;
+  --card-foreground: #1b1c20;
+  --popover: #ffffff;
+  --popover-foreground: #1b1c20;
+  --primary: #5e6ad2;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #e5e7eb;
-  --accent-foreground: #030213;
-  --destructive: #dc2626;
+  /* guide --accent-soft: the 10% brand wash behind active chips and nav rows */
+  --primary-soft: rgba(94, 106, 210, 0.1);
+  --secondary: #f4f4f6;
+  --secondary-foreground: #1b1c20;
+  --muted: #f4f4f6;
+  --muted-foreground: #6b6f76;
+  --accent: #f4f4f6;
+  --accent-foreground: #1b1c20;
+  /* Destructive shares the guides high-priority hue rather than introducing
+     a new red — Never introduce new hues (§1 Foundations). */
+  --destructive: #de5c4a;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.08);
-  --input: transparent;
-  --input-background: #f9fafb;
-  --switch-background: #d1d5db;
+  --border: #e5e5ea;
+  /* guide --border2: the lighter hairline used for dividers INSIDE a panel,
+     as opposed to --border which draws the panels outer edge */
+  --border2: #ececf0;
+  --input: #e5e5ea;
+  --input-background: #ffffff;
+  --switch-background: #e5e5ea;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #3b82f6;
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.75rem;
+  --ring: #5e6ad2;
+  /* Hover wash. Translucent so it composites correctly over --background,
+     --card and --muted alike — an opaque fill cannot. */
+  --hover: rgba(0, 0, 0, 0.035);
+  --kbd-bg: #f1f1f4;
+  --kbd-border: #dcdce2;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --scrim: rgba(0, 0, 0, 0.35);
+  /* Charts are monochrome accent (§3 Dashboard) — these are the brand
+     indigo with lightness shifted, never a second hue. */
+  --chart-1: #5e6ad2;
+  --chart-2: #7681da;
+  --chart-3: #8e97e2;
+  --chart-4: #a6ade9;
+  --chart-5: #bec3f1;
+  /* 6px — the guides row/button radius, and the base the rest derive from */
+  --radius: 0.375rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #2563eb;
+  --sidebar-foreground: #1b1c20;
+  --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f9fafb;
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #3b82f6;
+  --sidebar-accent: #f4f4f6;
+  --sidebar-accent-foreground: #1b1c20;
+  --sidebar-border: #e5e5ea;
+  --sidebar-ring: #5e6ad2;
   /* Task semantics (dense tasks UI): tertiary text, priority levels, done-state */
   --tertiary: #9a9ca3;
   --priority-high: #de5c4a;
@@ -56,40 +89,49 @@
 /* creating dark theme variables */
 /* this will essentially override the :root variables when .dark is added to html element */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #f5f5f5;
-  --card: #171717;
-  --card-foreground: #f5f5f5;
-  --popover: #171717;
-  --popover-foreground: #f5f5f5;
-  --primary: #3b82f6;
+  --background: #0e0f13;
+  --foreground: #eceef2;
+  --card: #15161b;
+  --card-foreground: #eceef2;
+  --popover: #15161b;
+  --popover-foreground: #eceef2;
+  --primary: #7c88e0;
   --primary-foreground: #ffffff;
-  --secondary: #262626;
-  --secondary-foreground: #f5f5f5;
-  --muted: #262626;
-  --muted-foreground: #a3a3a3;
-  --accent: #262626;
-  --accent-foreground: #f5f5f5;
-  --destructive: #ef4444;
+  --primary-soft: rgba(124, 136, 224, 0.13);
+  --secondary: #1b1c22;
+  --secondary-foreground: #eceef2;
+  --muted: #1b1c22;
+  --muted-foreground: #9a9ca6;
+  --accent: #1b1c22;
+  --accent-foreground: #eceef2;
+  --destructive: #e5695a;
   --destructive-foreground: #ffffff;
-  --border: #262626;
-  --input: #262626;
-  --ring: #3b82f6;
+  --border: #26272e;
+  --border2: #202128;
+  --input: #26272e;
+  --input-background: #15161b;
+  --switch-background: #26272e;
+  --ring: #7c88e0;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #171717;
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #3b82f6;
+  --hover: rgba(255, 255, 255, 0.045);
+  --kbd-bg: #1f2027;
+  --kbd-border: #2d2e36;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --chart-1: #7c88e0;
+  --chart-2: #6e7ad6;
+  --chart-3: #616dcb;
+  --chart-4: #5460c1;
+  --chart-5: #4753b6;
+  --sidebar: #15161b;
+  --sidebar-foreground: #eceef2;
+  --sidebar-primary: #7c88e0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #262626;
-  --sidebar-accent-foreground: #f5f5f5;
-  --sidebar-border: #262626;
-  --sidebar-ring: #3b82f6;
+  --sidebar-accent: #1b1c22;
+  --sidebar-accent-foreground: #eceef2;
+  --sidebar-border: #26272e;
+  --sidebar-ring: #7c88e0;
   --tertiary: #62646d;
   --priority-high: #e5695a;
   --priority-medium: #d9a44c;
@@ -110,6 +152,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -119,6 +162,11 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border2: var(--border2);
+  --color-hover: var(--hover);
+  --color-kbd-bg: var(--kbd-bg);
+  --color-kbd-border: var(--kbd-border);
+  --color-scrim: var(--scrim);
   --color-input: var(--input);
   --color-input-background: var(--input-background);
   --color-switch-background: var(--switch-background);
@@ -128,10 +176,25 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+
+  /* The guides radius vocabulary, mapped onto Tailwinds size names so the
+     utility you reach for paints the value the guide asks for:
+       rounded-sm   4px  tags, kbd chips
+       rounded-md   6px  rows, buttons, menu items
+       rounded-lg   8px  inputs, popovers, panels-in-panels
+       rounded-xl  10px  panels
+       rounded-2xl 12px  overlays, modals
+       rounded-full      pills
+     These are set explicitly rather than derived with calc() from --radius,
+     because the derived ramp cannot express 4/6/8/10/12 in one sequence. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+
+  --shadow-panel: var(--shadow);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -145,6 +208,12 @@
   --color-priority-medium: var(--priority-medium);
   --color-priority-low: var(--priority-low);
   --color-done: var(--done);
+
+  /* Binds the @font-face families loaded in fonts.css to font-sans/font-mono.
+     Without this Tailwind keeps its ui-sans-serif / ui-monospace defaults and
+     the fonts load but are never used. */
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 
@@ -155,12 +224,26 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    /* The design system permits exactly two animations. This is one of them:
+       Only theme switch (0.2s bg) and overlay fade (0.12s) may animate. */
+    transition: background-color 0.2s;
+    /* The designs base text size. Tailwinds rem-based utilities still
+       compute off the 16px root, so text-xs stays 12px — this only sets the
+       size of text that carries no utility class. */
+    font-size: 13px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body {
+      transition: none;
+    }
   }
 
   /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  * Default typography for bare HTML elements, aligned to the 7-step type
+  * scale so unclassed markup lands on the scale instead of Tailwinds
+  * 16-24px defaults. Utility classes still override these.
   */
 
   html {
@@ -168,44 +251,58 @@
   }
 
   h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
   }
 
   h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
+    font-size: 13px;
+    font-weight: 600;
     line-height: 1.5;
   }
 
   h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.5;
   }
 
   label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
+    font-size: 12px;
+    font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
 
   button {
-    font-size: var(--text-base);
+    font-size: 12px;
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
   }
 
   input {
-    font-size: var(--text-base);
+    font-size: 12px;
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+
+  /* Lucide renders at stroke-width 2; the guide specifies 1.5 (Icons: Lucide,
+     15-16px, stroke 1.5). lucide-react always emits stroke-width as a
+     *presentation attribute*, which loses to any CSS rule — so this corrects
+     every icon in the app at once instead of touching ~78 call sites.
+     The second rule is more specific, so an explicit strokeWidth={3} (the
+     bold check glyphs inside 13-15px circles) still wins. */
+  svg.lucide {
+    stroke-width: 1.5;
+  }
+
+  svg.lucide[stroke-width="3"] {
+    stroke-width: 3;
   }
 }

@@ -5,7 +5,7 @@ import { getApiErrorMessage } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Loader2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -36,18 +36,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-blue-950 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 dark:bg-blue-500 mb-4">
-            <Sparkles className="w-8 h-8 text-white" />
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-semibold mb-2">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your FlowManager account</p>
+          <h1 className="mb-1.5 text-[26px] font-semibold">Welcome back</h1>
+          <p className="text-xs text-muted-foreground">Sign in to your FlowManager account</p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-xl border border-border bg-card p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -60,7 +60,7 @@ export default function LoginPage() {
                   setError(null);
                 }}
                 required
-                className="h-11"
+                className="h-8"
               />
             </div>
 
@@ -76,28 +76,27 @@ export default function LoginPage() {
                   setError(null);
                 }}
                 required
-                className="h-11"
+                className="h-8"
               />
             </div>
 
             {error && (
               <div
                 role="alert"
-                className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
+                className="rounded-lg border border-border bg-destructive/10 px-3 py-2 text-xs text-destructive"
               >
                 {error}
               </div>
             )}
 
-            <Button type="submit" className="w-full h-11 gap-2" disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <Button type="submit" className="h-8 w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm">
+          <div className="mt-4 text-center text-xs">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Link to="/register" state={location.state} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            <Link to="/register" state={location.state} className="font-medium text-primary hover:underline">
               Sign up
             </Link>
           </div>

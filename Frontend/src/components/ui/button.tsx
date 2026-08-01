@@ -4,31 +4,51 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "./utils";
 
+/**
+ * The design system's three-button system (Style Guide §2 Core components):
+ *
+ *   primary    accent fill, #fff text, 12px/500, padding 5px 11px, radius 6,
+ *              gap 7px — and it ALWAYS carries its keyboard chip.
+ *   secondary  1px --border on --panel, --text2 label, padding 4px 11px.
+ *   ghost      no border, transparent, --text2 label, padding 4px 8px.
+ *
+ * "One primary per view, always with its kbd chip. Everything else is
+ * secondary or ghost. No danger buttons — destructive actions confirm via
+ * palette." The shadcn `destructive` and `link` variants are deliberately
+ * absent; `outline` is kept as an alias for `secondary` so existing call
+ * sites keep working.
+ *
+ * No transition: "Motion: none by default — interactions are instant."
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  [
+    "inline-flex shrink-0 items-center justify-center gap-[7px] whitespace-nowrap",
+    "rounded-md text-xs font-medium leading-5",
+    "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline:
-          "border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        primary: "bg-primary text-primary-foreground px-[11px] py-[5px] hover:bg-primary/90",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border border-border bg-card text-muted-foreground px-[11px] py-1 hover:bg-hover hover:text-foreground",
+        ghost: "bg-transparent text-muted-foreground px-2 py-1 hover:bg-hover hover:text-foreground",
+        // Alias kept so pre-existing `variant="outline"` call sites resolve to
+        // the guide's secondary rather than silently falling back.
+        outline:
+          "border border-border bg-card text-muted-foreground px-[11px] py-1 hover:bg-hover hover:text-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9 rounded-md",
+        // The guide specifies one button size; padding lives on the variant.
+        default: "",
+        sm: "",
+        icon: "size-7 p-0",
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: "primary",
       size: "default",
     },
   },
@@ -39,9 +59,16 @@ const Button = React.forwardRef<
   React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
       asChild?: boolean;
+      /**
+       * Keyboard shortcut rendered as a chip inside the button. The guide
+       * requires this on every primary — `<Button kbd="C">New task</Button>`.
+       * Ignored when `asChild` is set, since the child owns its own content.
+       */
+      kbd?: React.ReactNode;
     }
->(({ className, variant, size, asChild = false, ...props }, ref) => {
+>(({ className, variant, size, asChild = false, kbd, children, ...props }, ref) => {
   const Comp = asChild ? Slot : "button";
+  const isPrimary = variant === "primary" || variant == null;
 
   return (
     <Comp
@@ -49,7 +76,30 @@ const Button = React.forwardRef<
       className={cn(buttonVariants({ variant, size, className }))}
       ref={ref}
       {...props}
-    />
+    >
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {children}
+          {kbd != null && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "rounded-sm px-[5px] py-px font-mono text-[10px] leading-4",
+                // On an accent fill the chip is a white wash; on a neutral
+                // surface it uses the standard kbd plate.
+                isPrimary
+                  ? "bg-white/[0.18] text-primary-foreground"
+                  : "border border-kbd-border bg-kbd-bg text-tertiary",
+              )}
+            >
+              {kbd}
+            </span>
+          )}
+        </>
+      )}
+    </Comp>
   );
 });
 

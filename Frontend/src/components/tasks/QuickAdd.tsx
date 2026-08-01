@@ -11,6 +11,12 @@ export interface QuickAddHandle {
 interface QuickAddProps {
   /** ⌘↵ hands the parsed draft off to the full editor instead of quick-adding. */
   onOpenFull: (parsed: ParsedQuickAdd) => void;
+  /**
+   * Due date applied when the text carries no date token — lets Schedule seed
+   * new items onto the day being viewed. An explicit token still wins.
+   */
+  defaultDueDate?: string | null;
+  placeholder?: string;
 }
 
 /**
@@ -18,7 +24,7 @@ interface QuickAddProps {
  * clears the field, and keeps focus for rapid consecutive entry.
  */
 export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function QuickAdd(
-  { onOpenFull },
+  { onOpenFull, defaultDueDate = null, placeholder = 'Add a task…  try "pay rent tomorrow !high"' },
   ref,
 ) {
   const { addTask } = useData();
@@ -43,7 +49,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function Quick
       completedAt: null,
       durationMinutes: null,
       priority: parsed.priority,
-      dueDate: parsed.dueDate,
+      dueDate: parsed.dueDate ?? defaultDueDate,
       dueTime: null,
       tags: parsed.tags,
       subtasks: [],
@@ -73,9 +79,9 @@ export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function Quick
               inputRef.current?.blur();
             }
           }}
-          placeholder='Add a task…  try "pay rent tomorrow !high"'
+          placeholder={placeholder}
           aria-label="Quick add task"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-tertiary"
+          className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-tertiary"
         />
         <span className="hidden shrink-0 font-mono text-[10px] text-tertiary md:inline">
           ↵ add · {CMD_LABEL}↵ full editor

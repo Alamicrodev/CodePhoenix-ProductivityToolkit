@@ -285,7 +285,7 @@ export function FocusSetupModal({
         aria-modal="true"
         aria-labelledby="focus-setup-title"
         onClick={event => event.stopPropagation()}
-        className="flex max-h-[92vh] w-[560px] max-w-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+        className="flex max-h-[92vh] w-[560px] max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
       >
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-border px-3.5 py-3">
@@ -499,7 +499,7 @@ export function FocusSetupModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
           >
             Cancel
           </button>
@@ -509,7 +509,7 @@ export function FocusSetupModal({
             className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
             Start session
-            <span className="font-mono text-[10px] opacity-70">{CMD_LABEL}↵</span>
+            <Kbd tone="onPrimary">{CMD_LABEL}↵</Kbd>
           </button>
         </div>
       </div>
