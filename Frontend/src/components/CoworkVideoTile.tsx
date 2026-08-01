@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MicOff, Volume2, VideoOff } from "lucide-react";
 
-import { SharedTask } from "../lib/coworkProtocol";
+import { initialsOf } from "../lib/coworkFormat";
 
 interface CoworkVideoTileProps {
   displayName: string;
@@ -15,17 +15,13 @@ interface CoworkVideoTileProps {
   isPublishing?: boolean;
   isCameraOff?: boolean;
   isMuted?: boolean;
+  isHost?: boolean;
+  /** Dims the tile while the room socket is down and the roster may be stale. */
+  isStale?: boolean;
+  /** Set on our own tile when the browser refused camera access. */
+  isBlocked?: boolean;
+  onRetryMedia?: () => void;
   connectionState?: RTCPeerConnectionState;
-  sharedTasks?: SharedTask[];
-}
-
-function initialsOf(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? "")
-    .join("");
 }
 
 // "connecting" is normal for a second or two; "failed" usually means this pair
@@ -52,8 +48,11 @@ export function CoworkVideoTile({
   isPublishing = true,
   isCameraOff = false,
   isMuted = false,
+  isHost = false,
+  isStale = false,
+  isBlocked = false,
+  onRetryMedia,
   connectionState,
-  sharedTasks = [],
 }: CoworkVideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // Autoplay with sound is blocked until the user has interacted with the site
@@ -101,9 +100,17 @@ export function CoworkVideoTile({
   }, []);
 
   const status = isLocal || !isPublishing ? null : connectionLabel(connectionState);
+  const showPlaceholder = (isCameraOff || !stream) && !isBlocked;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video">
+    <div
+      // The video surface keeps the same near-black in both themes: a tile that
+      // followed the theme would flash white around a dark camera feed.
+      style={{ backgroundColor: "#101012" }}
+      className={`relative aspect-video overflow-hidden rounded-[10px] transition-opacity ${
+        isStale ? "opacity-55" : ""
+      }`}
+    >
       <video
         ref={videoRef}
         autoPlay
@@ -112,34 +119,75 @@ export function CoworkVideoTile({
         muted={isLocal || needsUnmute}
         // Mirroring makes a local preview feel like a mirror rather than a stranger.
         className={`h-full w-full object-cover ${isLocal ? "-scale-x-100" : ""} ${
-          isCameraOff || !stream ? "invisible" : ""
+          showPlaceholder || isBlocked ? "invisible" : ""
         }`}
       />
 
-      {(isCameraOff || !stream) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-lg font-semibold text-white">
-            {initialsOf(displayName) || "?"}
+      {showPlaceholder && (
+        <div
+          style={{ backgroundColor: "#161618" }}
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          <div
+            style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white"
+          >
+            {initialsOf(displayName)}
           </div>
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 py-2">
-        <span className="truncate text-sm font-medium text-white">
+      {isBlocked && (
+        <div
+          style={{ backgroundColor: "#161618" }}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center"
+        >
+          <VideoOff className="h-5 w-5 text-white/70" />
+          <p className="text-[11.5px] text-white/70">Camera blocked — allow access in the browser</p>
+          {onRetryMedia && (
+            <button
+              type="button"
+              onClick={onRetryMedia}
+              className="rounded-md border border-white/30 px-2 py-1 text-[11px] text-white/90 transition-colors hover:bg-white/10"
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Name pill */}
+      <div
+        style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        className="absolute bottom-2 left-2 flex max-w-[calc(100%-16px)] items-center gap-1.5 rounded px-1.5 py-0.5"
+      >
+        <span className="truncate text-[10.5px] text-white/[0.92]">
           {displayName}
           {isLocal ? " (you)" : ""}
         </span>
-        {isMuted && <MicOff className="h-4 w-4 shrink-0 text-white/80" />}
-        {isCameraOff && <VideoOff className="h-4 w-4 shrink-0 text-white/80" />}
-        {sharedTasks.length > 0 && (
-          <span className="ml-auto shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs text-white">
-            {sharedTasks.filter(task => task.completed).length}/{sharedTasks.length} done
+        {isHost && (
+          <span className="shrink-0 rounded-[3px] border border-white/30 px-1 text-[8.5px] font-semibold uppercase leading-[14px] text-white/[0.92]">
+            Host
           </span>
         )}
       </div>
 
+      {isMuted && (
+        <div
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          className="absolute bottom-2 right-2 flex h-[22px] w-[22px] items-center justify-center rounded-full"
+          title="Microphone off"
+        >
+          <MicOff className="h-3 w-3 text-white/[0.92]" />
+          <span className="sr-only">Microphone off</span>
+        </div>
+      )}
+
       {status && (
-        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+        <div
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          className="absolute left-2 top-2 rounded px-1.5 py-0.5 text-[10.5px] text-white/[0.92]"
+        >
           {status}
         </div>
       )}
@@ -148,9 +196,10 @@ export function CoworkVideoTile({
         <button
           type="button"
           onClick={unmute}
-          className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80"
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          className="absolute right-2 top-2 flex items-center gap-1 rounded px-2 py-1 text-[10.5px] text-white/[0.92] hover:bg-black/80"
         >
-          <Volume2 className="h-3.5 w-3.5" />
+          <Volume2 className="h-3 w-3" />
           Tap for sound
         </button>
       )}
