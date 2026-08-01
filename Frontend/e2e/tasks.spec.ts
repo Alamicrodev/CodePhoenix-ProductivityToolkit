@@ -17,10 +17,16 @@ test("quick-add and modal create tasks, completion persists across a reload", as
   await expect(page.getByText("1 active · 0 done")).toBeVisible();
   await expect(quickAdd).toHaveValue("");
 
-  // modal path still works
-  await page.getByRole("button", { name: "New task" }).click();
+  // The editor is the escalation from the quick-add, not a separate entry
+  // point: the header button focuses the field, and Cmd/Ctrl+Enter hands the
+  // draft off to the full editor.
+  await page.getByRole("button", { name: /New task/ }).click();
+  await expect(quickAdd).toBeFocused();
+
+  await quickAdd.fill("Ship the e2e suite");
+  await quickAdd.press("ControlOrMeta+Enter");
   const dialog = page.getByRole("dialog");
-  await dialog.getByPlaceholder("Task title").fill("Ship the e2e suite");
+  await expect(dialog.getByPlaceholder("Task title")).toHaveValue("Ship the e2e suite");
   await dialog.getByRole("button", { name: /Create task/ }).click();
   await expect(page.getByText("2 active · 0 done")).toBeVisible();
 
