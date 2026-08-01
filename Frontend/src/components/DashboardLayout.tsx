@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { Kbd } from "./tasks/Kbd";
 import { deriveDayBlocks } from "../lib/schedulePlan";
+import { formatTimerDigits } from "../lib/focusPlan";
 import { formatDateKeyLocal } from "../lib/timeFormat";
 import {
   Sheet,
@@ -58,7 +59,7 @@ export default function DashboardLayout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
-  const { tasks, habits } = useData();
+  const { tasks, habits, focusSessions } = useData();
   const { resolvedTheme, setTheme } = useTheme();
 
   const counts = useMemo(() => {
@@ -69,6 +70,11 @@ export default function DashboardLayout({ children }: LayoutProps) {
       tasks: tasks.filter(task => !task.completed).length,
     };
   }, [tasks, habits]);
+
+  // Live state the sidebar carries: a running session's clock, and whether the
+  // user is sitting in a cowork room right now.
+  const runningFocus = focusSessions.find(session => session.status === "active") ?? null;
+  const isInRoom = location.pathname.startsWith("/cowork/");
 
   // T toggles the theme app-wide, matching the chip on the sidebar button.
   useEffect(() => {
@@ -164,8 +170,22 @@ export default function DashboardLayout({ children }: LayoutProps) {
                   }`}
                 />
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                {item.count && count > 0 && (
-                  <span className="shrink-0 text-[11px] text-tertiary">{count}</span>
+                {item.name === "Focus" && runningFocus ? (
+                  <span
+                    className="shrink-0 font-mono text-[10.5px] tabular-nums text-primary"
+                    title="Focus session running"
+                  >
+                    {formatTimerDigits(runningFocus.phaseRemainingSeconds)}
+                  </span>
+                ) : item.name === "Cowork" && isInRoom ? (
+                  <span
+                    className="h-[7px] w-[7px] shrink-0 animate-pulse rounded-full bg-done"
+                    title="You're in a room"
+                    aria-label="You're in a room"
+                  />
+                ) : (
+                  item.count &&
+                  count > 0 && <span className="shrink-0 text-[11px] text-tertiary">{count}</span>
                 )}
               </Link>
             );
