@@ -7,7 +7,7 @@ import DashboardLayout from "../components/DashboardLayout";
 import { ViewHeader } from "../components/shell/ViewHeader";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
-import { HabitModal } from "../components/HabitModal";
+import { HabitModal } from "../components/habits/HabitModal";
 import { HabitCalendarHeatmap } from "../components/HabitCalendarHeatmap";
 import { HabitScoreChart } from "../components/HabitScoreChart";
 import { HabitHistoryChart } from "../components/HabitHistoryChart";
@@ -157,12 +157,8 @@ export default function HabitDetailPage() {
           <HabitFrequencyCard habit={habit} />
         </div>
 
-        <HabitModal
-          key={`${habit.id}-${isEditOpen}`}
-          isOpen={isEditOpen}
-          onClose={() => setIsEditOpen(false)}
-          habit={habit}
-        />
+        {/* No key remount hack: the new modal re-seeds its draft on open. */}
+        <HabitModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} habit={habit} />
 
         <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
           <AlertDialogContent>

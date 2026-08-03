@@ -9,15 +9,14 @@ function todayKey() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-test("create a habit and mark it complete", async ({ page }) => {
+test("creates a habit from the quick-add and parses schedule tokens", async ({ page }) => {
   await registerFreshUser(page);
 
   await page.getByRole("link", { name: "Habits" }).click();
   await expect(page.getByText("Press C to add your first habit.")).toBeVisible();
 
-  // Creation is the inline quick-add, not a modal. Schedule tokens are parsed
-  // out of the draft, and the field keeps focus so a run of habits can be
-  // typed straight through.
+  // Plain Enter creates inline and keeps focus, so a run of habits can be typed
+  // straight through. This is condition (b) of the audit's B-3 modal ruling.
   const quickAdd = page.getByPlaceholder(/Add a habit/);
   await quickAdd.fill("Evening walk every weekday");
   await quickAdd.press("Enter");
@@ -26,30 +25,56 @@ test("create a habit and mark it complete", async ({ page }) => {
   await expect(quickAdd).toHaveValue("");
   await expect(quickAdd).toBeFocused();
 
-  // The row's check-in circle marks today.
-  await page.getByRole("checkbox", { name: "Check in: Evening walk" }).click();
-  await expect(page.getByRole("checkbox", { name: "Undo check-in: Evening walk" })).toBeVisible();
-
-  // completion persists across a reload
-  await page.reload();
-  await expect(page.getByRole("checkbox", { name: "Undo check-in: Evening walk" })).toBeVisible();
+  // Page shortcuts stay suppressed while the quick-add has focus.
+  await quickAdd.press("c");
+  await expect(quickAdd).toHaveValue("c");
 });
 
-test("V switches to the matrix, which shows the same check-in", async ({ page }) => {
+test("checks in from the matrix and it survives a reload", async ({ page }) => {
   await registerFreshUser(page);
 
   await page.getByRole("link", { name: "Habits" }).click();
   const quickAdd = page.getByPlaceholder(/Add a habit/);
-  await quickAdd.fill("Evening walk");
+  // No schedule token on purpose: activeDays [] is active every day, so this
+  // cell stays toggleable whichever day the suite happens to run.
+  await quickAdd.fill("Drink water");
   await quickAdd.press("Enter");
-  await page.getByRole("checkbox", { name: "Check in: Evening walk" }).click();
+  await expect(page.getByRole("link", { name: "Drink water" })).toBeVisible();
 
-  // Shortcuts stay suppressed while the quick-add has focus.
-  await quickAdd.press("v");
-  await expect(quickAdd).toHaveValue("v");
-  await quickAdd.clear();
-  await quickAdd.press("Escape");
-
-  await page.keyboard.press("v");
+  const cell = page.locator(`button[title="${todayKey()} - pending"]`);
+  await cell.click();
   await expect(page.locator(`button[title="${todayKey()} - completed"]`)).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(`button[title="${todayKey()} - completed"]`)).toBeVisible();
+});
+
+test("⌘↵ opens the full editor seeded from the quick-add draft", async ({ page }) => {
+  await registerFreshUser(page);
+
+  await page.getByRole("link", { name: "Habits" }).click();
+  const quickAdd = page.getByPlaceholder(/Add a habit/);
+  await quickAdd.fill("meditate 10m every weekday");
+  await quickAdd.press("ControlOrMeta+Enter");
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "New habit" })).toBeVisible();
+  // The parsed draft carries over: title cleaned up, weekdays preselected.
+  await expect(dialog.getByLabel("Habit title")).toHaveValue("Meditate 10m");
+  await expect(dialog.getByRole("button", { name: "Monday" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(dialog.getByRole("button", { name: "Sunday" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await expect(quickAdd).toHaveValue("");
+
+  // Adjust something only the full editor exposes, then save with ⌘↵.
+  await dialog.getByLabel("Habit description").fill("Ten quiet minutes");
+  await page.keyboard.press("ControlOrMeta+Enter");
+
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByRole("link", { name: "Meditate 10m" })).toBeVisible();
 });

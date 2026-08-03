@@ -98,8 +98,9 @@ interface DataContextType {
   addTask: (task: Omit<Task, "id">) => Promise<boolean>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (id: string) => Promise<boolean>;
-  addHabit: (habit: Omit<Habit, "id">) => Promise<void>;
-  updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
+  /** Resolves false when the save failed, so an editor can stay open. */
+  addHabit: (habit: Omit<Habit, "id">) => Promise<boolean>;
+  updateHabit: (id: string, updates: Partial<Habit>) => Promise<boolean>;
   deleteHabit: (id: string) => Promise<void>;
   completeHabit: (id: string, timestamp?: Date) => Promise<string | null>;
   undoCompleteHabit: (id: string, completionTimestamp: string) => Promise<void>;
@@ -714,10 +715,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addHabit = useCallback(
     async (habit: Omit<Habit, "id">) => {
       if (!accessToken) {
-        return;
+        return false;
       }
 
-      await runWithSync("Creating habit...", async () => {
+      return runWithSync("Creating habit...", async () => {
         try {
           const createdHabit = await apiRequest<ApiHabit>("/habits", {
             method: "POST",
@@ -726,8 +727,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           });
 
           setHabits(currentHabits => [mapHabitFromApi(createdHabit), ...currentHabits]);
+          return true;
         } catch (error) {
           handleApiError(error, "Failed to create habit.");
+          return false;
         }
       });
     },
@@ -737,10 +740,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateHabit = useCallback(
     async (id: string, updates: Partial<Habit>) => {
       if (!accessToken) {
-        return;
+        return false;
       }
 
-      await runWithSync("Saving habit...", async () => {
+      return runWithSync("Saving habit...", async () => {
         try {
           const updatedHabit = await apiRequest<ApiHabit>(`/habits/${id}`, {
             method: "PATCH",
@@ -751,8 +754,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setHabits(currentHabits =>
             currentHabits.map(habit => (habit.id === id ? mapHabitFromApi(updatedHabit) : habit)),
           );
+          return true;
         } catch (error) {
           handleApiError(error, "Failed to update habit.");
+          return false;
         }
       });
     },
