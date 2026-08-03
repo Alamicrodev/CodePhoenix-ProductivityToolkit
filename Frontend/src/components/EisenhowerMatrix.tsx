@@ -75,7 +75,7 @@ function InlineQuadrantAdd({ quadrant, name }: { quadrant: Quadrant; name: strin
       durationMinutes: null,
       priority: parsed.priority,
       dueDate: parsed.dueDate,
-      dueTime: null,
+      dueTime: parsed.dueTime,
       // parseQuickAdd strips #tags out of the title, so hard-coding [] here
       // silently threw them away: "Renew domain #ops" saved with no tag.
       tags: parsed.tags,

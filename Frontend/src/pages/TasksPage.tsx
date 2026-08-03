@@ -211,6 +211,7 @@ export default function TasksPage() {
       title: parsed.title,
       priority: parsed.priority,
       dueDate: parsed.dueDate,
+      dueTime: parsed.dueTime,
       tags: parsed.tags,
     });
     setIsModalOpen(true);

@@ -11,6 +11,7 @@ describe("parseQuickAdd", () => {
       title: "Write the report",
       priority: "medium",
       dueDate: null,
+      dueTime: null,
       quadrant: "not-urgent-important",
       tags: [],
     });
@@ -72,5 +73,53 @@ describe("parseQuickAdd", () => {
 
   it("returns an empty title when input is only tokens", () => {
     expect(parseQuickAdd("!high today", NOW).title).toBe("");
+  });
+
+  /* ------------------------- natural language (chrono) ------------------------ */
+
+  it("understands far more than today and tomorrow", () => {
+    expect(parseQuickAdd("email bob monday", NOW).dueDate).toBe("2026-08-03");
+    expect(parseQuickAdd("renew passport in 2 weeks", NOW).dueDate).toBe("2026-08-12");
+    expect(parseQuickAdd("file taxes april 15", NOW).dueDate).toBe("2027-04-15");
+    expect(parseQuickAdd("ship it 2026-09-01", NOW).dueDate).toBe("2026-09-01");
+  });
+
+  it("picks up a time when the draft names one", () => {
+    const parsed = parseQuickAdd("standup friday at 9am", NOW);
+    expect(parsed.dueDate).toBe("2026-07-31");
+    expect(parsed.dueTime).toBe("09:00");
+    expect(parsed.title).toBe("Standup");
+  });
+
+  it("leaves dueTime null when only a day was named", () => {
+    expect(parseQuickAdd("pay rent tomorrow", NOW).dueTime).toBeNull();
+  });
+
+  /**
+   * The eagerness guard. chrono would happily read the month or weekday out of
+   * these titles and swallow the word; parseQuickAddDate only accepts a date
+   * that ends the draft, which is what keeps the names intact.
+   */
+  it("does not eat a month or weekday that is part of the name", () => {
+    const sunday = parseQuickAdd("sunday roast prep", NOW);
+    expect(sunday.title).toBe("Sunday roast prep");
+    expect(sunday.dueDate).toBeNull();
+
+    const march = parseQuickAdd("march on washington", NOW);
+    expect(march.title).toBe("March on washington");
+    expect(march.dueDate).toBeNull();
+  });
+
+  it("does not treat a trailing \"now\" as a due date", () => {
+    // "now" is how sentences end, and "today" already means what it would.
+    const parsed = parseQuickAdd("fix issue#42 now", NOW);
+    expect(parsed.title).toBe("Fix issue#42 now");
+    expect(parsed.dueDate).toBeNull();
+  });
+
+  it("leaves numbers inside a title alone", () => {
+    for (const input of ["read chapter 5", "buy 2 tickets", "review PR 88", "call 555-1234"]) {
+      expect(parseQuickAdd(input, NOW).dueDate).toBeNull();
+    }
   });
 });

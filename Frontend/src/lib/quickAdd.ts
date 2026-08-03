@@ -1,4 +1,4 @@
-import { formatDateKeyLocal } from "./timeFormat";
+import { parseQuickAddDate } from "./naturalDate";
 import { TaskPriority } from "./taskDates";
 
 export type TaskQuadrant =
@@ -11,12 +11,13 @@ export interface ParsedQuickAdd {
   title: string;
   priority: TaskPriority;
   dueDate: string | null;
+  /** Set only when the draft named a clock time, e.g. "standup friday at 9am". */
+  dueTime: string | null;
   quadrant: TaskQuadrant;
   tags: string[];
 }
 
 const PRIORITY_TOKEN = /(?:^|\s)!(high|hi|medium|med|low)\b/i;
-const DATE_TOKEN = /(?:^|\s)(today|tomorrow)\b/i;
 const TAG_TOKEN = /(?:^|\s)#([\w-]+)/g;
 
 const PRIORITY_ALIASES: Record<string, TaskPriority> = {
@@ -57,15 +58,16 @@ export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
     title = title.replace(PRIORITY_TOKEN, " ");
   }
 
+  // Natural language via chrono, narrowed by parseQuickAddDate so a month or
+  // weekday sitting inside the name is never eaten. Runs after the ! and #
+  // tokens are out, so "pay rent tomorrow !high" still trails with the date.
   let dueDate: string | null = null;
-  const dateMatch = title.match(DATE_TOKEN);
+  let dueTime: string | null = null;
+  const dateMatch = parseQuickAddDate(title, now);
   if (dateMatch) {
-    const date = new Date(now.getTime());
-    if (dateMatch[1].toLowerCase() === "tomorrow") {
-      date.setDate(date.getDate() + 1);
-    }
-    dueDate = formatDateKeyLocal(date);
-    title = title.replace(DATE_TOKEN, " ");
+    dueDate = dateMatch.date;
+    dueTime = dateMatch.time;
+    title = `${title.slice(0, dateMatch.index)} ${title.slice(dateMatch.index + dateMatch.text.length)}`;
   }
 
   title = title.replace(/\s+/g, " ").trim();
@@ -73,5 +75,5 @@ export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
     title = title.charAt(0).toUpperCase() + title.slice(1);
   }
 
-  return { title, priority, dueDate, quadrant: QUADRANT_BY_PRIORITY[priority], tags };
+  return { title, priority, dueDate, dueTime, quadrant: QUADRANT_BY_PRIORITY[priority], tags };
 }

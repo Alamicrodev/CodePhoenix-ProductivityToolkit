@@ -50,7 +50,7 @@ export const QuickAdd = forwardRef<QuickAddHandle, QuickAddProps>(function Quick
       durationMinutes: null,
       priority: parsed.priority,
       dueDate: parsed.dueDate ?? defaultDueDate,
-      dueTime: null,
+      dueTime: parsed.dueTime,
       tags: parsed.tags,
       subtasks: [],
       quadrant: parsed.quadrant,

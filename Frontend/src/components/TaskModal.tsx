@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Calendar, Check, Clock, Timer, X } from "lucide-react";
 import { Task, useData } from "../context/DataContext";
+import { parseDurationInput } from "../lib/focusPlan";
+import { parseDateFieldInput } from "../lib/naturalDate";
 import { CMD_LABEL } from "../lib/platform";
 import { QUADRANT_BY_PRIORITY } from "../lib/quickAdd";
 import { formatBlockDuration } from "../lib/schedulePlan";
@@ -15,6 +17,7 @@ export interface TaskModalSeed {
   title?: string;
   priority?: TaskPriority;
   dueDate?: string | null;
+  dueTime?: string | null;
   tags?: string[];
 }
 
@@ -84,7 +87,7 @@ function emptyDraft(seed?: TaskModalSeed): Draft {
     description: "",
     priority: seed?.priority ?? "medium",
     dueDate: seed?.dueDate ?? null,
-    dueTime: null,
+    dueTime: seed?.dueTime ?? null,
     durationMinutes: null,
     tags: seed?.tags ? [...seed.tags] : [],
     subtasks: [],
@@ -130,6 +133,8 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
   const [subDraft, setSubDraft] = useState("");
   const [tagDraft, setTagDraft] = useState("");
   const [timeDraft, setTimeDraft] = useState("");
+  const [dateDraft, setDateDraft] = useState("");
+  const [durationDraft, setDurationDraft] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -142,6 +147,8 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
     setSubDraft("");
     setTagDraft("");
     setTimeDraft("");
+    setDateDraft("");
+    setDurationDraft("");
     const timer = window.setTimeout(() => {
       // Don't steal focus if the user already started interacting with the modal.
       if (modalRef.current?.contains(document.activeElement)) {
@@ -288,6 +295,29 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
     }
   };
 
+  const parsedCustomDate = dateDraft ? parseDateFieldInput(dateDraft) : null;
+  const applyCustomDate = (raw: string) => {
+    setDateDraft(raw);
+    const parsed = parseDateFieldInput(raw);
+    if (parsed) {
+      setDraft(d => ({
+        ...d,
+        dueDate: parsed.date,
+        // "friday at 3pm" sets both; a plain date leaves any existing time be.
+        dueTime: parsed.time ?? d.dueTime,
+      }));
+    }
+  };
+
+  const parsedCustomDuration = durationDraft ? parseDurationInput(durationDraft) : null;
+  const applyCustomDuration = (raw: string) => {
+    setDurationDraft(raw);
+    const parsed = parseDurationInput(raw);
+    if (parsed !== null && parsed > 0) {
+      setDraft(d => ({ ...d, durationMinutes: parsed }));
+    }
+  };
+
   const addTag = () => {
     const tag = tagDraft.trim().replace(/^#/, "").toLowerCase();
     if (!tag) {
@@ -421,7 +451,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 </span>
               </button>
               {pop === "due" && (
-                <div className={`${POPOVER_CLASS} w-[150px]`} role="menu" onClick={stop}>
+                <div className={`${POPOVER_CLASS} w-[188px]`} role="menu" onClick={stop}>
                   {dueOptions.map(option => (
                     <button
                       key={option.label}
@@ -439,6 +469,34 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                       )}
                     </button>
                   ))}
+                  <div className="px-1 pb-1 pt-1">
+                    <input
+                      value={dateDraft}
+                      onChange={event => applyCustomDate(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (parseDateFieldInput(dateDraft)) {
+                            setPop(null);
+                          }
+                        }
+                      }}
+                      placeholder="custom — next friday"
+                      aria-label="Custom due date"
+                      className={`h-[26px] w-full rounded-md border bg-transparent px-2 font-mono text-[11.5px] outline-none placeholder:text-tertiary ${
+                        dateDraft && !parsedCustomDate
+                          ? "border-priority-medium"
+                          : dateDraft
+                            ? "border-primary"
+                            : "border-border"
+                      }`}
+                    />
+                    {/* An eager parser must never file a task silently — show
+                        what it resolved to, in the same words the chip uses. */}
+                    <p className="min-h-[15px] px-0.5 pt-1 text-[10.5px] text-tertiary">
+                      {parsedCustomDate ? formatDueLabel(parsedCustomDate.date) : ""}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -522,7 +580,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 </span>
               </button>
               {pop === "duration" && (
-                <div className={`${POPOVER_CLASS} w-[140px]`} role="menu" onClick={stop}>
+                <div className={`${POPOVER_CLASS} w-[164px]`} role="menu" onClick={stop}>
                   {DURATION_OPTIONS.map(option => (
                     <button
                       key={option.label}
@@ -540,6 +598,30 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                       )}
                     </button>
                   ))}
+                  {/* Same vocabulary the Focus setup modal teaches. */}
+                  <div className="px-1 pb-1 pt-1">
+                    <input
+                      value={durationDraft}
+                      onChange={event => applyCustomDuration(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (parseDurationInput(durationDraft) !== null) {
+                            setPop(null);
+                          }
+                        }
+                      }}
+                      placeholder="custom — 1h 45m"
+                      aria-label="Custom duration"
+                      className={`h-[26px] w-full rounded-md border bg-transparent px-2 font-mono text-[11.5px] outline-none placeholder:text-tertiary ${
+                        durationDraft && parsedCustomDuration === null
+                          ? "border-priority-medium"
+                          : durationDraft
+                            ? "border-primary"
+                            : "border-border"
+                      }`}
+                    />
+                  </div>
                 </div>
               )}
             </div>
