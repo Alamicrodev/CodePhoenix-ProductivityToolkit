@@ -99,10 +99,21 @@ test("quick-add hands off to the full editor, which edits via chips and saves wi
   await expect(dialog.getByText("#marketing")).toBeVisible();
   await expect(quickAdd).toHaveValue("");
 
-  // property chips: set a time from the popover
+  // Property chips: set a time from the popover. The menus render into a
+  // portal on document.body so they escape the modal's scroll box, which is
+  // why they are addressed at page level rather than through `dialog`.
   await dialog.getByRole("button", { name: /^Time$/ }).click();
-  await dialog.getByRole("menuitem", { name: "9:00 AM" }).click();
+  await page.getByRole("menuitem", { name: "9:00 AM" }).click();
   await expect(dialog.getByText("9:00 AM")).toBeVisible();
+
+  // Opening a menu must not make the editor scroll — an in-flow popover used
+  // to grow the panel's scroll height and then get clipped by it.
+  await dialog.getByRole("button", { name: /^Duration$/ }).click();
+  await expect(page.getByRole("menuitem", { name: "1h 30m" })).toBeVisible();
+  expect(
+    await dialog.evaluate(el => el.scrollHeight <= el.clientHeight),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
 
   // subtask checklist: ↵ appends and keeps the input ready
   const subtaskInput = dialog.getByPlaceholder(/Add a subtask/);
@@ -121,9 +132,9 @@ test("quick-add hands off to the full editor, which edits via chips and saves wi
   await page.getByText("Write launch email").click();
   await expect(dialog.getByRole("heading", { name: "Edit task" })).toBeVisible();
   await dialog.getByRole("button", { name: "Tomorrow" }).click();
-  await expect(dialog.getByRole("menuitem", { name: "Next week" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Next week" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(dialog.getByRole("menuitem", { name: "Next week" })).not.toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Next week" })).not.toBeVisible();
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();

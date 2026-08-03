@@ -8,6 +8,7 @@ import { QUADRANT_BY_PRIORITY } from "../lib/quickAdd";
 import { formatBlockDuration } from "../lib/schedulePlan";
 import { formatDueLabel, isOverdue, TaskPriority } from "../lib/taskDates";
 import { formatClockTime12, formatDateKeyLocal, parseTimeInput } from "../lib/timeFormat";
+import { ChipPopover } from "./tasks/ChipPopover";
 import { CircleCheckbox } from "./tasks/CircleCheckbox";
 import { Kbd } from "./tasks/Kbd";
 import { PriorityBars } from "./tasks/PriorityBars";
@@ -121,8 +122,6 @@ function newSubtask(title: string): Subtask {
 
 const CHIP_CLASS =
   "flex items-center gap-[7px] rounded-md border border-border bg-card px-2.5 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground";
-const POPOVER_CLASS =
-  "absolute left-0 top-[calc(100%+5px)] z-10 rounded-lg border border-border bg-popover p-1 shadow-lg";
 const POPOVER_ROW_CLASS =
   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-hover";
 
@@ -137,6 +136,16 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
   const [durationDraft, setDurationDraft] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  // Chip anchors. The menus render into a portal, so each one needs a handle
+  // on its trigger to position against.
+  const priorityAnchor = useRef<HTMLButtonElement>(null);
+  const dueAnchor = useRef<HTMLButtonElement>(null);
+  const timeAnchor = useRef<HTMLButtonElement>(null);
+  const durationAnchor = useRef<HTMLButtonElement>(null);
+  const tagAnchor = useRef<HTMLButtonElement>(null);
+  // Only one menu is ever open, so they can share the panel ref the focus
+  // trap reads.
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -224,18 +233,27 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
       if (!root) {
         return;
       }
-      const focusables = Array.from(
-        root.querySelectorAll<HTMLElement>(
-          'button, input, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter(el => !el.hasAttribute("disabled"));
+      // The open menu lives in a portal, outside the panel, so it has to be
+      // queried separately or Tab would skip straight past its rows.
+      const roots: HTMLElement[] = [root, popoverRef.current].filter(
+        (el): el is NonNullable<typeof el> => el !== null,
+      );
+      const focusables = roots
+        .flatMap(el =>
+          Array.from(
+            el.querySelectorAll<HTMLElement>(
+              'button, input, textarea, [tabindex]:not([tabindex="-1"])',
+            ),
+          ),
+        )
+        .filter(el => !el.hasAttribute("disabled"));
       if (focusables.length === 0) {
         return;
       }
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const active = document.activeElement;
-      const outside = !root.contains(active);
+      const outside = !roots.some(el => el.contains(active));
       if (event.shiftKey && (active === first || outside)) {
         event.preventDefault();
         last.focus();
@@ -395,8 +413,9 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
 
           <div className="flex flex-wrap items-center gap-1.5 pb-3.5 pt-2.5">
             {/* Priority chip */}
-            <div className="relative">
+            <div>
               <button
+                ref={priorityAnchor}
                 type="button"
                 onClick={togglePop("priority")}
                 aria-haspopup="menu"
@@ -406,8 +425,13 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 <PriorityBars priority={draft.priority} />
                 <span>{PRIORITY_LABELS[draft.priority]}</span>
               </button>
-              {pop === "priority" && (
-                <div className={`${POPOVER_CLASS} w-[170px]`} role="menu" onClick={stop}>
+              <ChipPopover
+                anchorRef={priorityAnchor}
+                open={pop === "priority"}
+                width={170}
+                panelRef={popoverRef}
+              >
+                <div onClick={stop}>
                   {(["high", "medium", "low"] as const).map(level => (
                     <button
                       key={level}
@@ -425,12 +449,13 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     </button>
                   ))}
                 </div>
-              )}
+              </ChipPopover>
             </div>
 
             {/* Due date chip */}
-            <div className="relative">
+            <div>
               <button
+                ref={dueAnchor}
                 type="button"
                 onClick={togglePop("due")}
                 aria-haspopup="menu"
@@ -450,8 +475,8 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                   {dueLabel}
                 </span>
               </button>
-              {pop === "due" && (
-                <div className={`${POPOVER_CLASS} w-[188px]`} role="menu" onClick={stop}>
+              <ChipPopover anchorRef={dueAnchor} open={pop === "due"} width={188} panelRef={popoverRef}>
+                <div onClick={stop}>
                   {dueOptions.map(option => (
                     <button
                       key={option.label}
@@ -498,12 +523,13 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     </p>
                   </div>
                 </div>
-              )}
+              </ChipPopover>
             </div>
 
             {/* Time chip */}
-            <div className="relative">
+            <div>
               <button
+                ref={timeAnchor}
                 type="button"
                 onClick={togglePop("time")}
                 aria-haspopup="menu"
@@ -515,8 +541,8 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                   {draft.dueTime ? formatClockTime12(draft.dueTime) : "Time"}
                 </span>
               </button>
-              {pop === "time" && (
-                <div className={`${POPOVER_CLASS} w-[164px]`} role="menu" onClick={stop}>
+              <ChipPopover anchorRef={timeAnchor} open={pop === "time"} width={164} panelRef={popoverRef}>
+                <div onClick={stop}>
                   {TIME_OPTIONS.map(option => (
                     <button
                       key={option.label}
@@ -560,12 +586,13 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     />
                   </div>
                 </div>
-              )}
+              </ChipPopover>
             </div>
 
             {/* Duration chip */}
-            <div className="relative">
+            <div>
               <button
+                ref={durationAnchor}
                 type="button"
                 onClick={togglePop("duration")}
                 aria-haspopup="menu"
@@ -579,8 +606,13 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     : "Duration"}
                 </span>
               </button>
-              {pop === "duration" && (
-                <div className={`${POPOVER_CLASS} w-[164px]`} role="menu" onClick={stop}>
+              <ChipPopover
+                anchorRef={durationAnchor}
+                open={pop === "duration"}
+                width={164}
+                panelRef={popoverRef}
+              >
+                <div onClick={stop}>
                   {DURATION_OPTIONS.map(option => (
                     <button
                       key={option.label}
@@ -623,7 +655,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     />
                   </div>
                 </div>
-              )}
+              </ChipPopover>
             </div>
 
             <span className="h-4 w-px bg-border" aria-hidden="true" />
@@ -645,8 +677,9 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 </button>
               </span>
             ))}
-            <div className="relative">
+            <div>
               <button
+                ref={tagAnchor}
                 type="button"
                 onClick={togglePop("tag")}
                 aria-haspopup="true"
@@ -655,8 +688,8 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
               >
                 + Tag
               </button>
-              {pop === "tag" && (
-                <div className={`${POPOVER_CLASS} w-[170px] px-2.5 py-2`} onClick={stop}>
+              <ChipPopover anchorRef={tagAnchor} open={pop === "tag"} width={170} panelRef={popoverRef}>
+                <div className="px-1.5 py-1" onClick={stop}>
                   <input
                     autoFocus
                     value={tagDraft}
@@ -672,7 +705,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                     className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-tertiary"
                   />
                 </div>
-              )}
+              </ChipPopover>
             </div>
           </div>
         </div>
