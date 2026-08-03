@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getWebSocketUrl } from "../lib/api";
 import {
@@ -239,15 +239,29 @@ export function useCoworkRoom(slug: string | undefined, token: string | null): C
     };
   }, [send, slug, token]);
 
-  return {
-    connectionState,
-    fatalError,
-    selfPeerId,
-    room,
-    peers,
-    maxParticipants,
-    shareTasks,
-    announceMedia,
-    subscribe,
-  };
+  // Memoised for the same reason as useSfuRoom's return: consumers depend on it.
+  return useMemo(
+    () => ({
+      connectionState,
+      fatalError,
+      selfPeerId,
+      room,
+      peers,
+      maxParticipants,
+      shareTasks,
+      announceMedia,
+      subscribe,
+    }),
+    [
+      connectionState,
+      fatalError,
+      selfPeerId,
+      room,
+      peers,
+      maxParticipants,
+      shareTasks,
+      announceMedia,
+      subscribe,
+    ],
+  );
 }

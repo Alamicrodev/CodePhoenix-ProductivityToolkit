@@ -395,17 +395,33 @@ export function useSfuRoom({ slug, token, connection, iceServers, enabled }: Sfu
     });
   }, [mediaRoster, readySessionId, runExclusive, selfPeerId, slug, token]);
 
-  return {
-    localStream,
-    remoteMedia,
-    isMicOn,
-    isCameraOn,
-    toggleMic,
-    toggleCamera,
-    mediaError,
-    retryMedia,
-    videoError,
-  };
+  // Memoised because callers legitimately treat this as a dependency — a fresh
+  // object every render silently invalidates every useMemo/useEffect built on
+  // it, which is what put the cowork room into a render loop.
+  return useMemo(
+    () => ({
+      localStream,
+      remoteMedia,
+      isMicOn,
+      isCameraOn,
+      toggleMic,
+      toggleCamera,
+      mediaError,
+      retryMedia,
+      videoError,
+    }),
+    [
+      localStream,
+      remoteMedia,
+      isMicOn,
+      isCameraOn,
+      toggleMic,
+      toggleCamera,
+      mediaError,
+      retryMedia,
+      videoError,
+    ],
+  );
 }
 
 //keep the one outgoing video stream small: every subscriber downloads it

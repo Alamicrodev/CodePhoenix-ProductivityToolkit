@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { PaletteCommand } from "../components/ModuleCommandPalette";
@@ -87,17 +88,41 @@ export function usePalette(): PaletteContextValue {
 
 /**
  * Publishes this view's own commands to the global palette for as long as the
- * view is mounted. Pass a stable (memoised) array — it is the effect's dep.
+ * view is mounted.
  *
  *   const commands = useMemo(() => [...], [deps]);
  *   useRegisterPaletteCommands("Habits", commands);
+ *
+ * Keyed on what the palette actually shows, never on the array's identity.
+ * Identity looked like a reasonable dep until a caller memoised on a value that
+ * is itself fresh every render — useSfuRoom used to hand back a bare object
+ * literal — and then: re-register -> new entry -> new context value -> the
+ * caller re-renders -> a newer array -> re-register. That spun CoworkRoomPage at
+ * ~1300 renders/sec, and a navigate() issued during the storm never committed,
+ * which is what stranded users on an ended room with every control dead.
  */
 export function useRegisterPaletteCommands(heading: string, commands: PaletteCommand[]) {
   const { register } = usePalette();
+
+  const signature = commands
+    .map(command => [command.label, command.shortcut ?? "", command.destructive ? "!" : ""].join("\u0001"))
+    .join("\u0002");
+
+  // The registered rows keep working off the newest closures even while the
+  // signature — and therefore the registration — stays put.
+  const latest = useRef(commands);
+  latest.current = commands;
+
   useEffect(() => {
-    register(heading, commands);
+    register(
+      heading,
+      latest.current.map((command, index) => ({
+        ...command,
+        run: () => latest.current[index]?.run(),
+      })),
+    );
     return () => register("", []);
-  }, [register, heading, commands]);
+  }, [register, heading, signature]);
 }
 
 /**
