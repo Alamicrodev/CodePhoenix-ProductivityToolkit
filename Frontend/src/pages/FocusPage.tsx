@@ -609,7 +609,7 @@ export default function FocusPage() {
           tasks={tasks}
           habits={habits}
           seedTaskIds={seedTaskIds}
-          onStart={input => void startSession(input)}
+          onStart={startSession}
         />
       </div>
     </DashboardLayout>

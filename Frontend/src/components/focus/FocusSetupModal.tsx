@@ -12,6 +12,7 @@ import {
   sessionTitle,
 } from "../../lib/focusPlan";
 import { CMD_LABEL } from "../../lib/platform";
+import { PendingLabel } from "../PendingLabel";
 import { DueLabel } from "../tasks/DueLabel";
 import { Kbd } from "../tasks/Kbd";
 import { PriorityBars } from "../tasks/PriorityBars";
@@ -24,13 +25,18 @@ interface FocusSetupModalProps {
   habits: Habit[];
   /** Preselected task ids, e.g. arriving from a task row's focus action. */
   seedTaskIds?: string[];
+  /**
+   * Awaited, so the button can carry the request rather than the modal sitting
+   * there looking unpressed — creating a session is a round trip that regularly
+   * runs past half a second.
+   */
   onStart: (input: {
     totalDurationMinutes: number;
     focusLengthMinutes: number;
     breakLengthMinutes: number;
     taskIds: string[];
     habitIds: string[];
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 type PickerFilter = "all" | "task" | "habit";
@@ -94,6 +100,7 @@ export function FocusSetupModal({
   const [filter, setFilter] = useState<PickerFilter>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
+  const [isStarting, setIsStarting] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -113,6 +120,7 @@ export function FocusSetupModal({
     setQuery("");
     setFilter("all");
     setCursor(0);
+    setIsStarting(false);
     setSelected((seedTaskIds ?? []).map(id => `task:${id}`));
     window.setTimeout(() => searchRef.current?.focus(), 0);
   }, [isOpen, seedTaskIds]);
@@ -168,19 +176,27 @@ export function FocusSetupModal({
   const toggle = (id: string) =>
     setSelected(current => (current.includes(id) ? current.filter(entry => entry !== id) : [...current, id]));
 
-  const start = () => {
-    if (totalMinutes <= 0) {
+  const start = async () => {
+    // The guard also blocks a second ⌘↵ landing while the first is still open.
+    if (totalMinutes <= 0 || isStarting) {
       return;
     }
-    onStart({
-      totalDurationMinutes: totalMinutes,
-      // "No breaks" is one unbroken block, which the API models as a focus
-      // period the length of the session.
-      focusLengthMinutes: Math.min(focusLength || totalMinutes, totalMinutes),
-      breakLengthMinutes: Math.max(breakLength, 1),
-      taskIds: selectedTaskIds,
-      habitIds: selectedHabitIds,
-    });
+    setIsStarting(true);
+    try {
+      await onStart({
+        totalDurationMinutes: totalMinutes,
+        // "No breaks" is one unbroken block, which the API models as a focus
+        // period the length of the session.
+        focusLengthMinutes: Math.min(focusLength || totalMinutes, totalMinutes),
+        breakLengthMinutes: Math.max(breakLength, 1),
+        taskIds: selectedTaskIds,
+        habitIds: selectedHabitIds,
+      });
+    } finally {
+      // On success the caller closes the modal; on failure it stays open with a
+      // toast, and the button has to be pressable again.
+      setIsStarting(false);
+    }
   };
 
   const applyCustomDuration = (raw: string) => {
@@ -211,6 +227,11 @@ export function FocusSetupModal({
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      // The modal's own shortcuts stand down until the request lands — but
+      // without preventDefault, so Tab and the like still behave normally.
+      if (isStarting) {
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
@@ -218,7 +239,7 @@ export function FocusSetupModal({
       }
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        start();
+        void start();
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -499,17 +520,22 @@ export function FocusSetupModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+            disabled={isStarting}
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={start}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            onClick={() => void start()}
+            disabled={isStarting}
+            aria-busy={isStarting}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-70"
           >
-            Start session
-            <Kbd tone="onPrimary">{CMD_LABEL}↵</Kbd>
+            <PendingLabel pending={isStarting} pendingLabel="Starting…">
+              Start session
+              <Kbd tone="onPrimary">{CMD_LABEL}↵</Kbd>
+            </PendingLabel>
           </button>
         </div>
       </div>
