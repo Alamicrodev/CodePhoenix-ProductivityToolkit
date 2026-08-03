@@ -20,6 +20,48 @@ export function formatClockTime12(value: string) {
   return `${displayHour}:${pad(minutes)} ${period}`;
 }
 
+/**
+ * Free-text time entry → "HH:MM", or null when it is not a time yet.
+ *
+ * Deliberately forgiving, in the spirit of parseDurationInput: people type
+ * "9", "930", "9:30pm", "21:30" and expect all of them to land. Returning null
+ * for a partial draft is what lets a field keep the keystrokes while the user
+ * is still mid-word.
+ */
+export function parseTimeInput(raw: string): string | null {
+  const text = raw.trim().toLowerCase();
+  if (!text) {
+    return null;
+  }
+
+  const match = text.match(/^(\d{1,2})(?::?(\d{2}))?\s*(am|pm|a|p)?$/);
+  if (!match) {
+    return null;
+  }
+
+  // Backtracking splits a run-together "930" or "2130" for us: the hour group
+  // gives up a digit so the minute group can have its two.
+  const [, rawHour, rawMinute, rawPeriod] = match;
+  let hours = Number(rawHour);
+  const minutes = rawMinute === undefined ? 0 : Number(rawMinute);
+
+  if (minutes > 59) {
+    return null;
+  }
+
+  if (rawPeriod) {
+    if (hours < 1 || hours > 12) {
+      return null;
+    }
+    const isPm = rawPeriod.startsWith("p");
+    hours = (hours % 12) + (isPm ? 12 : 0);
+  } else if (hours > 23) {
+    return null;
+  }
+
+  return `${pad(hours)}:${pad(minutes)}`;
+}
+
 export function splitClockTime12(value: string) {
   const { hours, minutes } = parseClockTime(value);
   return {

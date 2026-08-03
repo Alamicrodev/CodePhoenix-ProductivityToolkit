@@ -5,7 +5,7 @@ import { CMD_LABEL } from "../lib/platform";
 import { QUADRANT_BY_PRIORITY } from "../lib/quickAdd";
 import { formatBlockDuration } from "../lib/schedulePlan";
 import { formatDueLabel, isOverdue, TaskPriority } from "../lib/taskDates";
-import { formatClockTime12, formatDateKeyLocal } from "../lib/timeFormat";
+import { formatClockTime12, formatDateKeyLocal, parseTimeInput } from "../lib/timeFormat";
 import { CircleCheckbox } from "./tasks/CircleCheckbox";
 import { Kbd } from "./tasks/Kbd";
 import { PriorityBars } from "./tasks/PriorityBars";
@@ -129,6 +129,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
   const [pop, setPop] = useState<PopoverKey | null>(null);
   const [subDraft, setSubDraft] = useState("");
   const [tagDraft, setTagDraft] = useState("");
+  const [timeDraft, setTimeDraft] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -140,6 +141,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
     setPop(null);
     setSubDraft("");
     setTagDraft("");
+    setTimeDraft("");
     const timer = window.setTimeout(() => {
       // Don't steal focus if the user already started interacting with the modal.
       if (modalRef.current?.contains(document.activeElement)) {
@@ -276,6 +278,15 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
     setPop(current => (current === key ? null : key));
   };
   const stop = (event: React.MouseEvent) => event.stopPropagation();
+
+  /** Keeps every keystroke, but only commits once the draft reads as a time. */
+  const applyCustomTime = (raw: string) => {
+    setTimeDraft(raw);
+    const parsed = parseTimeInput(raw);
+    if (parsed) {
+      setDraft(d => ({ ...d, dueTime: parsed }));
+    }
+  };
 
   const addTag = () => {
     const tag = tagDraft.trim().replace(/^#/, "").toLowerCase();
@@ -447,7 +458,7 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                 </span>
               </button>
               {pop === "time" && (
-                <div className={`${POPOVER_CLASS} w-[140px]`} role="menu" onClick={stop}>
+                <div className={`${POPOVER_CLASS} w-[164px]`} role="menu" onClick={stop}>
                   {TIME_OPTIONS.map(option => (
                     <button
                       key={option.label}
@@ -465,6 +476,31 @@ export function TaskModal({ isOpen, onClose, task, seed }: TaskModalProps) {
                       )}
                     </button>
                   ))}
+                  {/* Four presets cannot cover a day. Enter commits and closes,
+                      like the preset rows; a partial draft simply does nothing. */}
+                  <div className="px-1 pb-1 pt-1">
+                    <input
+                      value={timeDraft}
+                      onChange={event => applyCustomTime(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (parseTimeInput(timeDraft)) {
+                            setPop(null);
+                          }
+                        }
+                      }}
+                      placeholder="custom — 9:30pm"
+                      aria-label="Custom time"
+                      className={`h-[26px] w-full rounded-md border bg-transparent px-2 font-mono text-[11.5px] outline-none placeholder:text-tertiary ${
+                        timeDraft && !parseTimeInput(timeDraft)
+                          ? "border-priority-medium"
+                          : timeDraft
+                            ? "border-primary"
+                            : "border-border"
+                      }`}
+                    />
+                  </div>
                 </div>
               )}
             </div>
