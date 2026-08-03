@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { Link } from "react-router";
+import { FormEvent, useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { Check, Copy, Plus, Search, User, Users } from "lucide-react";
+import { Check, ChevronLeft, Copy, Plus, Search, User, Users } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
+import { PendingLabel } from "../components/PendingLabel";
 import type { PaletteCommand } from "../components/ModuleCommandPalette";
 import { usePalette, useRegisterPaletteCommands } from "../context/PaletteContext";
+import { BannerSpinner } from "../components/cowork/StatusBanner";
 import { Kbd } from "../components/tasks/Kbd";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../lib/api";
@@ -51,18 +53,22 @@ function Presence({ count }: { count: number }) {
 
 export default function CoworkPage() {
   const { accessToken } = useAuth();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<ApiCoworkSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [confirmEndSlug, setConfirmEndSlug] = useState<string | null>(null);
+  // Which room's end request is in flight, so that row's button can show it.
+  const [endingSlug, setEndingSlug] = useState<string | null>(null);
   // ⌘K and the palette live in the shell; this page only needs to know the
   // palette is open so its own single-letter keys stay suppressed under it.
   const { open: isPaletteOpen, setOpen: setIsPaletteOpen } = usePalette();
-  // A room being named. It exists on screen before it exists on the server —
-  // committing the name is what creates it.
-  const [draftName, setDraftName] = useState<string | null>(null);
+  // Naming a room is its own screen rather than an inline row: it is the one
+  // moment to explain what a room is for, and the name is worth a real field.
+  const [isComposing, setIsComposing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const draftRef = useRef<HTMLInputElement>(null);
-  const isCommittingRef = useRef(false);
 
   const loadRooms = useCallback(async () => {
     if (!accessToken) {
@@ -98,46 +104,65 @@ export default function CoworkPage() {
 
   const startDraft = useCallback(() => {
     setDraftName("");
+    setIsComposing(true);
     window.setTimeout(() => draftRef.current?.focus(), 0);
   }, []);
 
-  const commitDraft = async () => {
-    if (draftName === null || isCommittingRef.current || !accessToken) {
+  const cancelDraft = useCallback(() => {
+    setIsComposing(false);
+    setDraftName("");
+  }, []);
+
+  const createRoom = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!accessToken || isCreating) {
       return;
     }
-    isCommittingRef.current = true;
     const title = draftName.trim();
-    setDraftName(null);
+    setIsCreating(true);
     try {
       const created = await coworkApi.create(accessToken, title || undefined);
-      setRooms(current => [created, ...current]);
       const copied = await copyLink(created.slug, true);
       toast.success(copied ? "Room created — link copied" : "Room created");
+      // Creating a room means wanting to be in one — go straight in rather than
+      // dropping the host back on a list they then have to click through.
+      navigate(`/cowork/${created.slug}`);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Could not create the room."));
-    } finally {
-      isCommittingRef.current = false;
+      setIsCreating(false);
     }
   };
 
   const endRoom = async (slug: string) => {
-    if (!accessToken) {
+    if (!accessToken || endingSlug) {
       return;
     }
-    setConfirmEndSlug(null);
+    // The popover stays open and the button carries the spinner, so the click
+    // visibly does something on a slow connection.
+    setEndingSlug(slug);
     try {
       await coworkApi.end(accessToken, slug);
       setRooms(current => current.filter(room => room.slug !== slug));
       toast.success("Room ended.");
+      setConfirmEndSlug(null);
     } catch (error) {
+      // Leave the popover up so the retry is one click away.
       toast.error(getApiErrorMessage(error, "Could not end the room."));
+    } finally {
+      setEndingSlug(null);
     }
   };
 
-  // N opens a new room for naming; ⌘K opens the palette.
+  // N opens a new room for naming; Esc backs out of it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || isPaletteOpen) {
+      if (event.metaKey || event.ctrlKey || event.altKey || isPaletteOpen || isCreating) {
+        return;
+      }
+      // Checked before the typing guard: Esc has to work from inside the name field.
+      if (event.key === "Escape" && isComposing) {
+        event.preventDefault();
+        cancelDraft();
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -148,17 +173,17 @@ export default function CoworkPage() {
       if (isTyping) {
         return;
       }
-      if (event.key.toLowerCase() === "n" && draftName === null) {
+      if (event.key.toLowerCase() === "n" && !isComposing) {
         event.preventDefault();
         startDraft();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [draftName, isPaletteOpen]);
+  }, [cancelDraft, isComposing, isCreating, isPaletteOpen, startDraft]);
 
   const liveCount = rooms.filter(room => room.participant_count > 0).length;
-  const showEmptyState = !isLoading && rooms.length === 0 && draftName === null;
+  const showEmptyState = !isLoading && rooms.length === 0;
 
   const paletteCommands: PaletteCommand[] = useMemo(() => [
     { label: "New room", icon: <Plus />, shortcut: "N", run: startDraft },
@@ -170,6 +195,90 @@ export default function CoworkPage() {
   ], [rooms, startDraft, copyLink]);
 
   useRegisterPaletteCommands("Cowork", paletteCommands);
+
+  // --- creating -------------------------------------------------------------
+
+  if (isCreating) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          <BannerSpinner />
+          <p className="text-[13px] text-muted-foreground">Creating room…</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // --- naming a new room ----------------------------------------------------
+
+  if (isComposing) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-full flex-col">
+          <div className="flex h-[46px] shrink-0 items-center gap-2 border-b border-border px-3">
+            <button
+              type="button"
+              onClick={cancelDraft}
+              aria-label="Back to your rooms"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-hover hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <h1 className="text-[13px] font-semibold">New room</h1>
+            <span className="flex-1" />
+            <span className="hidden items-center gap-1.5 text-[11px] text-tertiary sm:flex">
+              <Kbd>esc</Kbd> cancel
+            </span>
+          </div>
+
+          <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col px-6">
+            {/* Top half — what a room is actually for */}
+            <div className="flex flex-1 flex-col items-center justify-center pb-6 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-card">
+                <Users className="h-4 w-4 text-tertiary" />
+              </div>
+              <h2 className="mt-3 text-[13.5px] font-semibold">Work alongside someone</h2>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-tertiary">
+                Body doubling is the trick of working next to another person — in silence, on
+                unrelated things. Starting is easier when someone else has already started, and
+                staying is easier when they are still there.
+              </p>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-tertiary">
+                A room is a video space with a shareable link. Nobody has to talk, and the link
+                stops working after 24 hours.
+              </p>
+            </div>
+
+            {/* Centre — name it and go */}
+            <form onSubmit={event => void createRoom(event)} className="flex flex-1 flex-col">
+              <div className="flex items-start gap-2">
+                <input
+                  ref={draftRef}
+                  value={draftName}
+                  onChange={event => setDraftName(event.target.value)}
+                  placeholder="Room name"
+                  aria-label="Room name"
+                  className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3.5 text-[15px] font-medium outline-none transition-colors placeholder:font-normal placeholder:text-tertiary focus:border-primary"
+                />
+                <button
+                  type="submit"
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Create room
+                  <Kbd tone="onPrimary">↵</Kbd>
+                </button>
+              </div>
+              <p className="mt-2 px-0.5 text-[11.5px] text-tertiary">
+                Leave the name blank for an untitled room.
+              </p>
+            </form>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // --- the lobby ------------------------------------------------------------
 
   return (
     <DashboardLayout>
@@ -231,40 +340,13 @@ export default function CoworkPage() {
           ) : (
             <>
               <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-tertiary">
-                Your rooms · {rooms.length + (draftName === null ? 0 : 1)}
+                Your rooms · {rooms.length}
               </h2>
-
-              {draftName !== null && (
-                <div className="flex items-center gap-2.5 rounded-md px-2 py-2">
-                  <Presence count={0} />
-                  <input
-                    ref={draftRef}
-                    value={draftName}
-                    onChange={event => setDraftName(event.target.value)}
-                    onBlur={() => void commitDraft()}
-                    onKeyDown={event => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void commitDraft();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setDraftName(null);
-                      }
-                    }}
-                    placeholder="Room name"
-                    aria-label="Name the new room"
-                    className="min-w-0 flex-1 rounded-[5px] border border-primary bg-transparent px-1.5 py-0.5 text-[13px] font-medium outline-none placeholder:font-normal placeholder:text-tertiary"
-                  />
-                  <span className="shrink-0 text-[11.5px] text-tertiary">
-                    <Kbd>↵</Kbd> to create
-                  </span>
-                </div>
-              )}
 
               <div className="flex flex-col">
                 {rooms.map(room => {
                   const occupied = room.participant_count > 0;
+                  const isEnding = endingSlug === room.slug;
                   return (
                     <div
                       key={room.id}
@@ -338,16 +420,21 @@ export default function CoworkPage() {
                               <button
                                 type="button"
                                 onClick={() => setConfirmEndSlug(null)}
-                                className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+                                disabled={isEnding}
+                                className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void endRoom(room.slug)}
-                                className="rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground transition-opacity hover:opacity-90"
+                                disabled={isEnding}
+                                aria-busy={isEnding}
+                                className="flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-70"
                               >
-                                End room
+                                <PendingLabel pending={isEnding} pendingLabel="Ending…">
+                                  End room
+                                </PendingLabel>
                               </button>
                             </div>
                           </div>

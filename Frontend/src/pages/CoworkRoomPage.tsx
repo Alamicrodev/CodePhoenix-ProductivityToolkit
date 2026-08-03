@@ -16,6 +16,7 @@ import {
 
 import CoworkVideoTile from "../components/CoworkVideoTile";
 import DashboardLayout from "../components/DashboardLayout";
+import { PendingLabel } from "../components/PendingLabel";
 import type { PaletteCommand } from "../components/ModuleCommandPalette";
 import { usePalette, useRegisterPaletteCommands } from "../context/PaletteContext";
 import { BannerSpinner, StatusBanner } from "../components/cowork/StatusBanner";
@@ -54,10 +55,18 @@ export default function CoworkRoomPage() {
   // The shared clock in DataContext only ticks every 30s, which would leave the
   // elapsed counter sitting on 0:00 and then jumping. A room needs a real second hand.
   const [now, setNow] = useState(() => Date.now());
+  // Once the room is over, "time together" is a record of what happened, not a
+  // clock. Freeze it at the moment it ended — it used to keep climbing on the
+  // ended screen, so a room you left at 12:04 read 40 minutes long if you sat
+  // on that screen.
+  const [endedAt, setEndedAt] = useState<number | null>(null);
   useEffect(() => {
+    if (endedAt !== null) {
+      return;
+    }
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [endedAt]);
 
   const [room, setRoom] = useState<ApiCoworkSession | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -69,6 +78,7 @@ export default function CoworkRoomPage() {
   // know whether the palette is open so its own keys stay suppressed under it.
   const { open: isPaletteOpen } = usePalette();
   const [isConfirmingEnd, setIsConfirmingEnd] = useState(false);
+  const [isEndingRoom, setIsEndingRoom] = useState(false);
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const joinedAtRef = useRef(Date.now());
 
@@ -80,6 +90,14 @@ export default function CoworkRoomPage() {
     iceServers,
     enabled: Boolean(room) && !loadError,
   });
+
+  // Whatever ends the room — this host's own button, another host's "room-ended"
+  // frame, or a room that would not load at all — stops the clock at that instant.
+  useEffect(() => {
+    if (loadError || connection.fatalError) {
+      setEndedAt(current => current ?? Date.now());
+    }
+  }, [loadError, connection.fatalError]);
 
   // --- room + ICE config ----------------------------------------------------
 
@@ -167,15 +185,20 @@ export default function CoworkRoomPage() {
   // --- host controls --------------------------------------------------------
 
   const handleEndRoom = async () => {
-    if (!accessToken || !slug) {
+    if (!accessToken || !slug || isEndingRoom) {
       return;
     }
+    // Ending disconnects everyone, so the button has to say the request is in
+    // flight rather than sitting there looking unpressed.
+    setIsEndingRoom(true);
     try {
       await coworkApi.end(accessToken, slug);
       toast.success("Room ended.");
       navigate("/cowork");
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Could not end the room."));
+      // Only on failure — success unmounts this page on the next line up.
+      setIsEndingRoom(false);
     }
   };
 
@@ -335,7 +358,7 @@ export default function CoworkRoomPage() {
           </p>
           {!loadError && (
             <p className="mt-1 text-[12.5px] text-tertiary">
-              {room?.title} · {formatElapsed(joinedAtRef.current, now)} together ·{" "}
+              {room?.title} · {formatElapsed(joinedAtRef.current, endedAt ?? now)} together ·{" "}
               {completedHere} task{completedHere === 1 ? "" : "s"} completed
             </p>
           )}
@@ -407,16 +430,21 @@ export default function CoworkRoomPage() {
                     <button
                       type="button"
                       onClick={() => setIsConfirmingEnd(false)}
-                      className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-hover hover:text-foreground"
+                      disabled={isEndingRoom}
+                      className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleEndRoom()}
-                      className="rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90"
+                      disabled={isEndingRoom}
+                      aria-busy={isEndingRoom}
+                      className="flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:pointer-events-none disabled:opacity-70"
                     >
-                      End room
+                      <PendingLabel pending={isEndingRoom} pendingLabel="Ending…">
+                        End room
+                      </PendingLabel>
                     </button>
                   </div>
                 </div>
