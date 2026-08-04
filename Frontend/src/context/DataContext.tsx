@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { toast } from "sonner";
 import { ApiError, apiRequest } from "../lib/api";
+import { formatLocalOffsetIso } from "../lib/timeFormat";
 import { useAuth } from "./AuthContext";
 
 export interface Task {
@@ -797,7 +798,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const completedHabit = await apiRequest<ApiHabit>(`/habits/${id}/complete`, {
             method: "POST",
             token: accessToken,
-            body: JSON.stringify({ timestamp: (timestamp ?? new Date()).toISOString() }),
+            body: JSON.stringify({ timestamp: formatLocalOffsetIso(timestamp ?? new Date()) }),
           });
 
           const mappedHabit = mapHabitFromApi(completedHabit);

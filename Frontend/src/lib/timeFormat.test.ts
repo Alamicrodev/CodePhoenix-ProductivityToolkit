@@ -1,6 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { formatClockTime12, parseTimeInput } from "./timeFormat";
+import { formatClockTime12, formatLocalOffsetIso, parseTimeInput } from "./timeFormat";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("formatLocalOffsetIso", () => {
+  it("keeps the browser's local wall-clock time and offset", () => {
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-300);
+    const date = new Date(2026, 7, 4, 7, 0, 0, 0);
+
+    expect(formatLocalOffsetIso(date)).toBe("2026-08-04T07:00:00.000+05:00");
+  });
+});
 
 describe("parseTimeInput", () => {
   it("reads a bare hour as the top of that hour", () => {

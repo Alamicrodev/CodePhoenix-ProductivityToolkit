@@ -8,6 +8,24 @@ from app.models.habit import Habit, HabitOccurrence
 from app.schemas.habits import HabitCreate, HabitUpdate
 from app.services.habit_progress import recalculate_habit_progress
 
+
+def _same_completion_timestamp(occurrence_time: datetime, completion_timestamp: str) -> bool:
+    if occurrence_time.isoformat() == completion_timestamp or occurrence_time.date().isoformat() == completion_timestamp:
+        return True
+
+    try:
+        parsed = datetime.fromisoformat(completion_timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    if occurrence_time.tzinfo is None:
+        occurrence_time = occurrence_time.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return occurrence_time.astimezone(timezone.utc) == parsed.astimezone(timezone.utc)
+
+
 #Get habbits by userId
 def list_habits(db: Session, user_id: str) -> list[Habit]:
     stmt = select(Habit).where(Habit.user_id == user_id).options(selectinload(Habit.occurrences)).order_by(Habit.created_at.desc())
@@ -90,7 +108,7 @@ def undo_habit_completion(db: Session, habit: Habit, completion_timestamp: str) 
         occ for occ in habit.occurrences
         if not (
             occ.status == "completed"
-            and (occ.timestamp.isoformat() == completion_timestamp or occ.timestamp.date().isoformat() == completion_timestamp)
+            and _same_completion_timestamp(occ.timestamp, completion_timestamp)
         )
     ]
 

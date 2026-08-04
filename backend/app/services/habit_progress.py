@@ -1,24 +1,33 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone, tzinfo
 
 from app.models.habit import Habit
 
 
-def _ensure_utc(value: datetime) -> datetime:
+def _ensure_aware(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+    return value
 
 
 def _parse_timestamp(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00")
     parsed = datetime.fromisoformat(normalized)
-    return _ensure_utc(parsed)
+    return _ensure_aware(parsed)
 
 
 def _now(reference_time: datetime | None = None) -> datetime:
-    return _ensure_utc(reference_time or datetime.now(timezone.utc))
+    return _ensure_aware(reference_time or datetime.now(timezone.utc))
+
+
+def _hourly_progress_timezone(habit: Habit, reference_time: datetime) -> tzinfo:
+    for marker in reversed(habit.completed_dates):
+        completed_at = _parse_timestamp(marker)
+        if completed_at.tzinfo is not None:
+            return completed_at.tzinfo
+
+    return reference_time.tzinfo or timezone.utc
 
 
 def _js_day_of_week(date_time: datetime) -> int:
@@ -74,7 +83,7 @@ def _has_skip_in_range(habit: Habit, start: datetime, end: datetime) -> bool:
         if occurrence.status != "skipped":
             continue
 
-        skipped_at = _ensure_utc(occurrence.timestamp)
+        skipped_at = _ensure_aware(occurrence.timestamp)
         if _window_contains_timestamp(habit, start, end, skipped_at):
             return True
 
@@ -240,6 +249,8 @@ def recalculate_habit_progress(habit: Habit, reference_time: datetime | None = N
     now = _now(reference_time)
 
     if habit.frequency == "hourly":
+        progress_tz = _hourly_progress_timezone(habit, now)
+        now = now.astimezone(progress_tz)
         habit.streak = _hourly_streak(habit, now)
     elif habit.frequency == "daily":
         habit.streak = _daily_streak(habit, now)

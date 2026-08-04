@@ -86,6 +86,16 @@ export function formatDateKeyLocal(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export function formatLocalOffsetIso(date: Date) {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offsetHours = Math.floor(absoluteOffset / MINUTES_PER_HOUR);
+  const offsetRemainder = absoluteOffset % MINUTES_PER_HOUR;
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, "0")}${sign}${pad(offsetHours)}:${pad(offsetRemainder)}`;
+}
+
 export function startOfLocalDay(date: Date) {
   const copy = new Date(date.getTime());
   copy.setHours(0, 0, 0, 0);
