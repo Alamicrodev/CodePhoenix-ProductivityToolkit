@@ -175,7 +175,13 @@ function hourlyDayStatus(habit: Habit, day: Date, today: Date, now: Date, create
   const skippedSlots = due.filter(slot => slot.status === "skipped").length;
 
   if (due.length === 0) {
-    return { ...base, dueSlots: 0, completedSlots: 0, status: day.getTime() === today.getTime() ? "pending" : "inactive", toggleable: false };
+    return {
+      ...base,
+      dueSlots: 0,
+      completedSlots: 0,
+      status: day.getTime() === today.getTime() ? "pending" : "inactive",
+      toggleable: day.getTime() === today.getTime() && slots.length > 0,
+    };
   }
 
   const dueSlots = due.length;

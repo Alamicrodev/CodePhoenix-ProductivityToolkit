@@ -232,6 +232,22 @@ describe("buildDayStatuses", () => {
     expect(statuses[0].completedSlots).toBe(2);
   });
 
+  it("allows today's active hourly slot before it has elapsed", () => {
+    const habit = makeHabit({
+      frequency: "hourly",
+      hourlyInterval: 3,
+      activeHours: { start: "07:00", end: "22:00" },
+      createdAt: "2026-08-04T00:00:00",
+    });
+    const now = new Date(2026, 7, 4, 7, 56, 0);
+
+    const statuses = buildDayStatuses(habit, now, localDate("2026-08-04"), localDate("2026-08-04"));
+
+    expect(statuses[0].status).toBe("pending");
+    expect(statuses[0].dueSlots).toBe(0);
+    expect(statuses[0].toggleable).toBe(true);
+  });
+
   it("marks the weekly completion day and dims the rest of a satisfied week", () => {
     const habit = makeHabit({
       frequency: "weekly",
