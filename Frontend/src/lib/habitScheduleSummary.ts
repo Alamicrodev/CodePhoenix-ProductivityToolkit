@@ -25,11 +25,12 @@ export function describeHabitListMeta(habit: Habit): string {
     pieces.push(days);
   }
 
-  if (habit.frequency === "daily" && habit.activeHours) {
-    const start = formatClockTime12(habit.activeHours.start);
-    const end = formatClockTime12(habit.activeHours.end);
-    pieces.push(start === end ? start : `${start}-${end}`);
-  }
+  // This makes no sense 
+  // if (habit.frequency === "daily" && habit.activeHours) {
+  //   const start = formatClockTime12(habit.activeHours.start);
+  //   const end = formatClockTime12(habit.activeHours.end);
+  //   pieces.push(start === end ? start : `${start}-${end}`);
+  // }
 
   return pieces.join(" | ");
 }
@@ -64,18 +65,13 @@ export const DAY_NAME = [
   "Saturday",
 ];
 
-const WEEKDAYS = "1,2,3,4,5";
-const WEEKEND = "0,6";
-
 /** "every day" · "weekdays" · "weekends" · "Mon, Wed, Fri". */
 export function formatActiveDays(days: number[]): string {
   const sorted = [...new Set(days)].sort((a, b) => a - b);
   if (sorted.length === 0 || sorted.length === 7) {
     return "every day";
   }
-  const key = sorted.join(",");
-  if (key === WEEKDAYS) return "weekdays";
-  if (key === WEEKEND) return "weekends";
+ 
   return sorted.map(day => DAY_SHORT[day]).join(", ");
 }
 
