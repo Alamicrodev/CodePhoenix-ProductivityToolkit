@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  describeHabitListMeta,
   describeHabitSchedule,
   formatActiveDays,
   hourlySlotsPerDay,
   type HabitScheduleDraft,
 } from "./habitScheduleSummary";
+import type { Habit } from "../context/DataContext";
 
 const base: HabitScheduleDraft = {
   frequency: "daily",
@@ -13,6 +15,22 @@ const base: HabitScheduleDraft = {
   activeDays: [0, 1, 2, 3, 4, 5, 6],
   activeHours: null,
 };
+
+function makeHabit(overrides: Partial<Habit> = {}): Habit {
+  return {
+    id: "h1",
+    createdAt: "2026-08-04T00:00:00",
+    title: "Drink water",
+    description: "",
+    frequency: "daily",
+    activeDays: [],
+    streak: 0,
+    lastCompleted: null,
+    completedDates: [],
+    occurrences: [],
+    ...overrides,
+  };
+}
 
 describe("formatActiveDays", () => {
   it("names the whole week rather than listing it", () => {
@@ -103,6 +121,45 @@ describe("describeHabitSchedule", () => {
     );
     expect(describeHabitSchedule({ ...base, frequency: "weekly", activeDays: [1] })).toBe(
       "Once a week · Mon only",
+    );
+  });
+});
+
+describe("describeHabitListMeta", () => {
+  it("includes strength, frequency, active days, and active hours", () => {
+    expect(
+      describeHabitListMeta(
+        makeHabit({
+          frequency: "hourly",
+          hourlyInterval: 3,
+          activeDays: [1, 2, 3, 4, 5],
+          activeHours: { start: "07:00", end: "22:00" },
+        }),
+      ),
+    ).toBe("Every 3 hours (7:00 AM-10:00 PM) | weekdays");
+  });
+
+  it("singularises hourly habits that repeat every hour", () => {
+    expect(describeHabitListMeta(makeHabit({ frequency: "hourly", hourlyInterval: 1 }))).toBe(
+      "Every hour",
+    );
+  });
+
+  it("does not repeat days for weekly habits", () => {
+    expect(describeHabitListMeta(makeHabit({ frequency: "weekly", activeDays: [0, 6] }))).toBe(
+      "Weekly",
+    );
+  });
+
+  it("shows daily only when every day is active", () => {
+    expect(describeHabitListMeta(makeHabit({ frequency: "daily", activeDays: [] }))).toBe(
+      "Daily",
+    );
+  });
+
+  it("uses active days instead of daily for restricted daily habits", () => {
+    expect(describeHabitListMeta(makeHabit({ frequency: "daily", activeDays: [1, 3, 5] }))).toBe(
+      "Mon, Wed, Fri",
     );
   });
 });

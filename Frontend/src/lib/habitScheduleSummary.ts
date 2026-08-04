@@ -1,6 +1,39 @@
 import type { Habit } from "../context/DataContext";
 import { formatClockTime12, parseClockTime } from "./timeFormat";
 
+export function describeHabitListMeta(habit: Habit): string {
+  const activeDays = habit.activeDays ?? [];
+  const days = formatActiveDays(activeDays);
+  const pieces: string[] = [];
+
+  if (habit.frequency === "hourly") {
+    const interval = Math.max(1, Math.round(habit.hourlyInterval ?? 1));
+    const label = interval === 1 ? "Every hour" : `Every ${interval} hours`;
+    const frequency = habit.activeHours
+      ? `${label} (${formatClockTime12(habit.activeHours.start)}-${formatClockTime12(habit.activeHours.end)})`
+      : label;
+    pieces.push(frequency);
+    if (days !== "every day") {
+      pieces.push(days);
+    }
+    return pieces.join(" | ");
+  } else if (habit.frequency === "weekly") {
+    pieces.push("Weekly");
+  } else if (days === "every day") {
+    pieces.push("Daily");
+  } else {
+    pieces.push(days);
+  }
+
+  if (habit.frequency === "daily" && habit.activeHours) {
+    const start = formatClockTime12(habit.activeHours.start);
+    const end = formatClockTime12(habit.activeHours.end);
+    pieces.push(start === end ? start : `${start}-${end}`);
+  }
+
+  return pieces.join(" | ");
+}
+
 /**
  * Plain-English descriptions of a habit's schedule, for the creation modal.
  *

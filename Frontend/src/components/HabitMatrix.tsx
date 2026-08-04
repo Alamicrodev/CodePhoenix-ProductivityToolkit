@@ -3,7 +3,8 @@ import { Link } from "react-router";
 import type { Habit } from "../context/DataContext";
 import { useData } from "../context/DataContext";
 import { addDays, startOfLocalDay } from "../lib/habitSchedule";
-import { buildDayStatuses, getCurrentScore } from "../lib/habitStats";
+import { describeHabitListMeta } from "../lib/habitScheduleSummary";
+import { buildDayStatuses } from "../lib/habitStats";
 import { HabitDayCell } from "./HabitDayCell";
 import { useHabitDayToggle } from "./useHabitDayToggle";
 
@@ -13,7 +14,7 @@ interface HabitMatrixProps {
   habits: Habit[];
 }
 
-function HabitMatrixRow({ habit, days, index }: { habit: Habit; days: Date[]; index: number }) {
+function HabitMatrixRow({ habit, days }: { habit: Habit; days: Date[] }) {
   const { currentTime } = useData();
   const toggle = useHabitDayToggle(habit);
   const now = new Date(currentTime);
@@ -22,18 +23,12 @@ function HabitMatrixRow({ habit, days, index }: { habit: Habit; days: Date[]; in
     () => buildDayStatuses(habit, now, days[0], days[days.length - 1]),
     [habit, currentTime],
   );
-  const score = useMemo(() => getCurrentScore(habit, now), [habit, currentTime]);
+  const meta = useMemo(() => describeHabitListMeta(habit), [habit]);
 
   return (
     <div className="flex items-center gap-2 border-t border-border py-2">
       <div className="sticky left-0 z-10 flex min-w-40 flex-1 flex-col bg-card pr-2">
         <span className="flex items-center gap-1.5">
-          {/* The 1-9 check-in shortcut needs an anchor on screen. */}
-          {index < 9 && (
-            <span className="shrink-0 font-mono text-[10px] text-tertiary" aria-hidden="true">
-              {index + 1}
-            </span>
-          )}
           <Link
             to={`/habits/${habit.id}`}
             className="truncate text-[13px] font-medium hover:underline"
@@ -42,7 +37,7 @@ function HabitMatrixRow({ habit, days, index }: { habit: Habit; days: Date[]; in
             {habit.title}
           </Link>
         </span>
-        <span className="text-xs text-muted-foreground">{Math.round(score * 100)}%</span>
+        <span className="truncate text-xs text-muted-foreground" title={meta}>{meta}</span>
       </div>
       <div className="flex gap-2">
         {statuses.map(day => (
@@ -78,8 +73,8 @@ export function HabitMatrix({ habits }: HabitMatrixProps) {
           ))}
         </div>
       </div>
-      {habits.map((habit, index) => (
-        <HabitMatrixRow key={habit.id} habit={habit} days={days} index={index} />
+      {habits.map(habit => (
+        <HabitMatrixRow key={habit.id} habit={habit} days={days} />
       ))}
     </div>
   );
