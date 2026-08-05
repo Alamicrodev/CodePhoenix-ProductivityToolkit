@@ -19,11 +19,11 @@ import { ScheduleRail } from "../components/schedule/ScheduleRail";
 import { TimelineView } from "../components/schedule/TimelineView";
 import { WeekDay, WeekStrip } from "../components/schedule/WeekStrip";
 import { usePersistentState } from "../hooks/usePersistentState";
-import { findCompletionMarkerForDay } from "../lib/habitStats";
 import { ScheduleDragItem } from "../components/schedule/dnd";
 import {
   computePlanStats,
   deriveDayBlocks,
+  findCompletionMarkerForScheduleDay,
   formatBlockDuration,
   formatMinutes,
   minutesOfDay,
@@ -129,7 +129,7 @@ export default function SchedulePage() {
         toast.info("Habit check-ins happen on the day itself");
         return;
       }
-      const marker = findCompletionMarkerForDay(habit, now);
+      const marker = findCompletionMarkerForScheduleDay(habit, now);
       if (marker) {
         void undoCompleteHabit(habit.id, marker);
       } else {
@@ -173,15 +173,28 @@ export default function SchedulePage() {
     [taskById, habitById, updateTask, updateHabit, viewedKey],
   );
 
-  /** Resize commit: the grid handle sets the task's duration estimate. */
-  const handleResizeTask = useCallback(
+  /** Resize commit: tasks store an estimate; habits store an active-hours window. */
+  const handleResizeBlock = useCallback(
     (block: ScheduleBlock, minutes: number) => {
-      const task = taskById.get(block.sourceId);
-      if (!task) return;
-      void updateTask(task.id, { durationMinutes: minutes });
-      toast.success(`"${task.title}" estimated at ${formatBlockDuration(minutes)}`);
+      if (block.kind === "task") {
+        const task = taskById.get(block.sourceId);
+        if (!task) return;
+        void updateTask(task.id, { durationMinutes: minutes });
+        toast.success(`"${task.title}" estimated at ${formatBlockDuration(minutes)}`);
+        return;
+      }
+
+      const habit = habitById.get(block.sourceId);
+      if (!habit) return;
+      void updateHabit(habit.id, {
+        activeHours: {
+          start: minutesToClock(block.start),
+          end: minutesToClock(block.start + minutes),
+        },
+      });
+      toast.success(`"${habit.title}" scheduled for ${formatBlockDuration(minutes)}`);
     },
-    [taskById, updateTask],
+    [taskById, habitById, updateTask, updateHabit],
   );
 
   // N focuses the inline quick-add rather than opening a modal — creation is
@@ -391,7 +404,7 @@ export default function SchedulePage() {
                 onToggle={handleToggleBlock}
                 onEditTask={handleEditTask}
                 onDropSchedule={handleDropSchedule}
-                onResizeTask={handleResizeTask}
+                onResizeBlock={handleResizeBlock}
               />
             ) : (
               <AgendaView

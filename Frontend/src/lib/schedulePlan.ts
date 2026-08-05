@@ -1,6 +1,6 @@
 import { Habit, Task } from "../context/DataContext";
 import { findCompletionMarkerForDay } from "./habitStats";
-import { isActiveDay } from "./habitSchedule";
+import { addDays, hasCompletionInRange, isActiveDay, parseStoredDate, startOfWeek } from "./habitSchedule";
 import { TaskPriority, compareByPriority } from "./taskDates";
 import { parseClockTime, parseDateOnlyLocal } from "./timeFormat";
 
@@ -62,8 +62,10 @@ export interface ScheduleBlock {
   priority?: TaskPriority;
   /** Date key (YYYY-MM-DD) for task blocks; drives overdue/due-today styling. */
   dueDate?: string | null;
-  /** Habit streak in days. */
+  /** Habit streak length, measured in the habit's own frequency unit. */
   streak?: number;
+  /** Habit frequency; present on habit blocks so UI labels can name the right streak unit. */
+  habitFrequency?: Habit["frequency"];
   /** Backing task/habit id; toggles write through to the workspace. */
   sourceId: string;
 }
@@ -136,16 +138,45 @@ function taskBlock(task: Task): ScheduleBlock {
   };
 }
 
+/** A habit's schedule duration comes from its active-hours window. */
+export function habitDuration(habit: Pick<Habit, "activeHours">): number {
+  if (!habit.activeHours) {
+    return HABIT_DURATION;
+  }
+
+  return Math.max(
+    clockToMinutes(habit.activeHours.end) - clockToMinutes(habit.activeHours.start),
+    SLOT_MINUTES,
+  );
+}
+
+/** Schedule views treat a weekly habit as the same occurrence across its week. */
+export function findCompletionMarkerForScheduleDay(habit: Habit, day: Date): string | null {
+  if (habit.frequency !== "weekly") {
+    return findCompletionMarkerForDay(habit, day);
+  }
+
+  const weekStart = startOfWeek(day);
+  const weekEnd = addDays(weekStart, 7);
+  return hasCompletionInRange(habit, weekStart, weekEnd)
+    ? habit.completedDates.find(entry => {
+        const completedAt = parseStoredDate(entry);
+        return completedAt >= weekStart && completedAt < weekEnd;
+      }) ?? null
+    : null;
+}
+
 function habitBlock(habit: Habit, day: Date): ScheduleBlock {
   return {
     id: `habit-${habit.id}`,
     start: habit.activeHours?.start ? clockToMinutes(habit.activeHours.start) : UNTIMED,
-    dur: HABIT_DURATION,
+    dur: habitDuration(habit),
     kind: "habit",
     title: habit.title,
     desc: habit.description || undefined,
-    done: findCompletionMarkerForDay(habit, day) !== null,
+    done: findCompletionMarkerForScheduleDay(habit, day) !== null,
     streak: habit.streak,
+    habitFrequency: habit.frequency,
     sourceId: habit.id,
   };
 }

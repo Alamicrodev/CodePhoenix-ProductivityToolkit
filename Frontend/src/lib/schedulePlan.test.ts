@@ -4,6 +4,7 @@ import {
   agendaGroups,
   computePlanStats,
   deriveDayBlocks,
+  findCompletionMarkerForScheduleDay,
   formatBlockDuration,
   formatMinutes,
   formatTimeRange,
@@ -122,7 +123,7 @@ describe("deriveDayBlocks", () => {
     expect(untimed[0].done).toBe(true);
   });
 
-  it("places habits at their active-hours start and honors active days", () => {
+  it("places habits at their active-hours start, uses their window length, and honors active days", () => {
     const { timed, untimed } = deriveDayBlocks(
       [],
       [
@@ -133,13 +134,28 @@ describe("deriveDayBlocks", () => {
       ],
       DAY,
     );
-    expect(timed.map(b => [b.sourceId, b.start])).toEqual([["morning", 450]]);
+    expect(timed.map(b => [b.sourceId, b.start, b.dur])).toEqual([["morning", 450, 90]]);
     expect(untimed.map(b => b.sourceId)).toEqual(["anytime"]);
   });
 
   it("derives habit done from that day's completion", () => {
     const { untimed } = deriveDayBlocks([], [habit({ completedDates: [DAY] })], DAY);
     expect(untimed[0].done).toBe(true);
+  });
+
+  it("treats a weekly habit completion as done across the schedule week", () => {
+    const weekly = habit({
+      frequency: "weekly",
+      activeDays: [],
+      activeHours: { start: "09:00", end: "10:00" },
+      completedDates: ["2026-07-29"],
+    });
+
+    const { timed } = deriveDayBlocks([], [weekly], DAY);
+
+    expect(timed[0].done).toBe(true);
+    expect(timed[0].habitFrequency).toBe("weekly");
+    expect(findCompletionMarkerForScheduleDay(weekly, new Date(`${DAY}T12:00:00`))).toBe("2026-07-29");
   });
 
   it("orders untimed items tasks-first by priority", () => {

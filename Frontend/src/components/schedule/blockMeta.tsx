@@ -28,7 +28,8 @@ export function blockExtra(
     return { text: `Due ${formatDueLabel(block.dueDate, now)}`, className: "text-tertiary" };
   }
   if (block.kind === "habit" && block.streak != null) {
-    return { text: `${block.streak}-day streak`, className: "text-done" };
+    const unit = block.habitFrequency === "weekly" ? "week" : "day";
+    return { text: `${block.streak}-${unit} streak`, className: "text-done" };
   }
   return null;
 }

@@ -55,9 +55,9 @@ const HOURLY_WINDOWS = [
   { label: "Evening · 6:00 PM–10:00 PM", window: { start: "18:00", end: "22:00" } },
 ];
 const TIMES_OF_DAY = [
-  { label: "Morning · 8:00 AM", window: { start: "08:00", end: "08:00" } },
-  { label: "Midday · 12:00 PM", window: { start: "12:00", end: "12:00" } },
-  { label: "Evening · 7:00 PM", window: { start: "19:00", end: "19:00" } },
+  { label: "Morning · 8:00 AM-8:30 AM", window: { start: "08:00", end: "08:30" } },
+  { label: "Midday · 12:00 PM-12:30 PM", window: { start: "12:00", end: "12:30" } },
+  { label: "Evening · 7:00 PM-7:30 PM", window: { start: "19:00", end: "19:30" } },
 ];
 
 type Popover = "interval" | "time" | null;
@@ -98,9 +98,10 @@ function timeChipLabel(draft: Draft) {
   if (!draft.activeHours) {
     return draft.frequency === "hourly" ? "All day" : "Any time";
   }
-  return draft.frequency === "hourly"
-    ? `${formatClockTime12(draft.activeHours.start)}–${formatClockTime12(draft.activeHours.end)}`
-    : formatClockTime12(draft.activeHours.start);
+  if (draft.activeHours.start === draft.activeHours.end) {
+    return formatClockTime12(draft.activeHours.start);
+  }
+  return `${formatClockTime12(draft.activeHours.start)}-${formatClockTime12(draft.activeHours.end)}`;
 }
 
 /**
@@ -341,9 +342,6 @@ export function HabitModal({ isOpen, onClose, habit, seed }: HabitModalProps) {
     }
     setDraft(current => {
       const base = current.activeHours ?? { start: raw, end: raw };
-      if (current.frequency !== "hourly") {
-        return { ...current, activeHours: { start: raw, end: raw } };
-      }
       return { ...current, activeHours: { ...base, [edge]: raw } };
     });
   };
@@ -370,6 +368,7 @@ export function HabitModal({ isOpen, onClose, habit, seed }: HabitModalProps) {
   }
 
   const timePresets = draft.frequency === "hourly" ? HOURLY_WINDOWS : TIMES_OF_DAY;
+  const timeLabel = draft.frequency === "hourly" ? "Active Window" : "Schedule Time";
   // Phase 1: update_habit drops an explicit null, so a SAVED window cannot be
   // cleared over PATCH. Say so rather than offering a control that lies.
   const clearWindowBlocked = isEditing && Boolean(habit?.activeHours);
@@ -511,7 +510,7 @@ export function HabitModal({ isOpen, onClose, habit, seed }: HabitModalProps) {
                 })}
               </div>
 
-              <span className="text-[11.5px] text-tertiary">Time</span>
+              <span className="text-[11.5px] text-tertiary">{timeLabel}</span>
               <div className="relative">
                 <button
                   type="button"
@@ -559,21 +558,19 @@ export function HabitModal({ isOpen, onClose, habit, seed }: HabitModalProps) {
                         defaultValue={draft.activeHours?.start ?? ""}
                         onChange={event => applyCustomTime("start", event.target.value)}
                         placeholder="07:00"
-                        aria-label={draft.frequency === "hourly" ? "Window start" : "Time of day"}
+                        aria-label={
+                          draft.frequency === "hourly" ? "Window start" : "Schedule start"
+                        }
                         className={`${MONO_INPUT} w-[68px] border-border focus:border-primary`}
                       />
-                      {draft.frequency === "hourly" && (
-                        <>
-                          <span className="text-[11px] text-tertiary">–</span>
-                          <input
-                            defaultValue={draft.activeHours?.end ?? ""}
-                            onChange={event => applyCustomTime("end", event.target.value)}
-                            placeholder="22:00"
-                            aria-label="Window end"
-                            className={`${MONO_INPUT} w-[68px] border-border focus:border-primary`}
-                          />
-                        </>
-                      )}
+                      <span className="text-[11px] text-tertiary">-</span>
+                      <input
+                        defaultValue={draft.activeHours?.end ?? ""}
+                        onChange={event => applyCustomTime("end", event.target.value)}
+                        placeholder={draft.frequency === "hourly" ? "22:00" : "08:30"}
+                        aria-label={draft.frequency === "hourly" ? "Window end" : "Schedule end"}
+                        className={`${MONO_INPUT} w-[68px] border-border focus:border-primary`}
+                      />
                     </div>
                   </div>
                 )}

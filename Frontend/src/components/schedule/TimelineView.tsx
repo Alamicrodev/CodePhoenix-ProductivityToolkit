@@ -30,8 +30,8 @@ interface TimelineViewProps {
   onEditTask: (block: ScheduleBlock) => void;
   /** Applies a drop: reschedule `item` to start at `minutes` on the viewed day. */
   onDropSchedule: (item: ScheduleDragItem, minutes: number) => void;
-  /** Commits a resize: set the task's duration estimate to `minutes`. */
-  onResizeTask: (block: ScheduleBlock, minutes: number) => void;
+  /** Commits a resize: set a task estimate or habit schedule window to `minutes`. */
+  onResizeBlock: (block: ScheduleBlock, minutes: number) => void;
 }
 
 /** Card height between two clock positions on the piecewise scale. */
@@ -275,23 +275,21 @@ function TimelineBlock({
           </div>
         )}
       </div>
-      {block.kind === "task" && (
-        <div
-          onPointerDown={onResizeStart}
-          onPointerMove={onResizeMove}
-          onPointerUp={onResizeEnd}
-          onPointerCancel={onResizeEnd}
-          onClick={event => event.stopPropagation()}
-          title="Drag to adjust duration"
-          className="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize touch-none items-end justify-center"
-        >
-          <span
-            className={`mb-[2px] h-[3px] w-8 rounded-full transition-opacity ${
-              previewDur !== null ? "bg-primary opacity-100" : "bg-tertiary/60 opacity-0 group-hover:opacity-100"
-            }`}
-          />
-        </div>
-      )}
+      <div
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        onClick={event => event.stopPropagation()}
+        title="Drag to adjust duration"
+        className="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize touch-none items-end justify-center"
+      >
+        <span
+          className={`mb-[2px] h-[3px] w-8 rounded-full transition-opacity ${
+            previewDur !== null ? "bg-primary opacity-100" : "bg-tertiary/60 opacity-0 group-hover:opacity-100"
+          }`}
+        />
+      </div>
     </div>
   );
 }
@@ -306,7 +304,7 @@ export function TimelineView({
   onToggle,
   onEditTask,
   onDropSchedule,
-  onResizeTask,
+  onResizeBlock,
 }: TimelineViewProps) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [ghost, setGhost] = useState<{ slot: number; dur: number; title: string } | null>(null);
@@ -418,7 +416,7 @@ export function TimelineView({
             todayKey={todayKey}
             onToggle={onToggle}
             onEditTask={onEditTask}
-            onResize={onResizeTask}
+            onResize={onResizeBlock}
             minutesAtClientY={minutesAtClientY}
           />
         ))}

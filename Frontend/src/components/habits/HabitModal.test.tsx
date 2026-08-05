@@ -134,6 +134,35 @@ describe("HabitModal — create", () => {
     expect(addHabit.mock.calls[0][0].hourlyInterval).toBe(4);
   });
 
+  it("labels hourly windows and daily schedule times distinctly", async () => {
+    const user = userEvent.setup();
+    render(<HabitModal isOpen onClose={vi.fn()} />);
+
+    expect(screen.getByText("Schedule Time")).toBeInTheDocument();
+    expect(screen.queryByText("Active Window")).not.toBeInTheDocument();
+
+    await user.click(frequency("Hourly"));
+
+    expect(screen.getByText("Active Window")).toBeInTheDocument();
+    expect(screen.queryByText("Schedule Time")).not.toBeInTheDocument();
+  });
+
+  it("lets non-hourly habits save a schedule start and end", async () => {
+    const user = userEvent.setup();
+    render(<HabitModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Any time" }));
+    await user.clear(screen.getByLabelText("Schedule start"));
+    await user.type(screen.getByLabelText("Schedule start"), "09:00");
+    await user.clear(screen.getByLabelText("Schedule end"));
+    await user.type(screen.getByLabelText("Schedule end"), "10:15");
+    await user.type(screen.getByLabelText("Habit title"), "Read");
+    await user.click(screen.getByRole("button", { name: /Create habit/ }));
+
+    await waitFor(() => expect(addHabit).toHaveBeenCalled());
+    expect(addHabit.mock.calls[0][0].activeHours).toEqual({ start: "09:00", end: "10:15" });
+  });
+
   it("summarises the schedule live in the footer", async () => {
     const user = userEvent.setup();
     render(<HabitModal isOpen onClose={vi.fn()} />);
@@ -192,7 +221,7 @@ describe("HabitModal — edit", () => {
     const user = userEvent.setup();
     render(<HabitModal isOpen onClose={vi.fn()} habit={makeHabit()} />);
 
-    await user.click(screen.getByRole("button", { name: /AM–|PM/ }));
+    await user.click(screen.getByRole("button", { name: /AM-|PM/ }));
     const clear = screen.getByRole("menuitem", { name: "All day" });
     expect(clear).toBeDisabled();
     expect(clear).toHaveAttribute("title", "Clearing a saved time window needs a backend change");
