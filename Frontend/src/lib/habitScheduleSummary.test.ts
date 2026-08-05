@@ -42,9 +42,9 @@ describe("formatActiveDays", () => {
     expect(formatActiveDays([])).toBe("every day");
   });
 
-  it("recognises weekdays and weekends", () => {
-    expect(formatActiveDays([1, 2, 3, 4, 5])).toBe("weekdays");
-    expect(formatActiveDays([0, 6])).toBe("weekends");
+  it("lists weekday and weekend sets explicitly", () => {
+    expect(formatActiveDays([1, 2, 3, 4, 5])).toBe("Mon, Tue, Wed, Thu, Fri");
+    expect(formatActiveDays([0, 6])).toBe("Sun, Sat");
   });
 
   it("lists anything else in week order", () => {
@@ -104,7 +104,7 @@ describe("describeHabitSchedule", () => {
 
   it("tells a daily habit whether its time reaches the schedule timeline", () => {
     expect(describeHabitSchedule({ ...base, activeDays: [1, 2, 3, 4, 5] })).toBe(
-      "Once a day · weekdays · not on the schedule timeline",
+      "Once a day · Mon, Tue, Wed, Thu, Fri · not on the schedule timeline",
     );
     expect(
       describeHabitSchedule({
@@ -112,7 +112,7 @@ describe("describeHabitSchedule", () => {
         activeDays: [1, 2, 3, 4, 5],
         activeHours: { start: "07:00", end: "07:00" },
       }),
-    ).toBe("Once a day · weekdays · 7:00 AM on the schedule");
+    ).toBe("Once a day · Mon, Tue, Wed, Thu, Fri · 7:00 AM on the schedule");
   });
 
   it("says out loud that a restricted weekly habit can only be checked in on those days", () => {
@@ -136,7 +136,7 @@ describe("describeHabitListMeta", () => {
           activeHours: { start: "07:00", end: "22:00" },
         }),
       ),
-    ).toBe("Every 3 hours (7:00 AM-10:00 PM) | weekdays");
+    ).toBe("Every 3 hours (7:00 AM-10:00 PM) | Mon, Tue, Wed, Thu, Fri");
   });
 
   it("singularises hourly habits that repeat every hour", () => {
