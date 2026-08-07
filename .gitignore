@@ -169,3 +169,5 @@ design_screenshots/
 #vscode stuff
 .vscode
 
+#claude
+.claude
