@@ -5,7 +5,10 @@ import {
   canCompleteHabitNow,
   formatHabitNextOccurrence,
   isHabitCurrentlyActive,
+  localDateKey,
 } from "./habitSchedule";
+
+
 
 function makeHabit(overrides: Partial<Habit> = {}): Habit {
   return {
@@ -40,8 +43,12 @@ describe("habitSchedule", () => {
       .filter(slot => slot.start.getHours() === 7)
       .every(slot => slot.label.includes("7:00 AM"))).toBe(true);
 
-    const completedSlot = slots.find(slot => slot.start.toISOString().startsWith("2026-07-08T13"));
+    const completedSlot = slots.find(slot => localDateKey(slot.start) === "2026-07-08" && slot.start.getHours() === 13
+    );
     expect(completedSlot?.status).toBe("completed");
+
+    // const completedSlot = slots.find(slot => slot.start.toISOString().startsWith("2026-07-08T13"));
+    // expect(completedSlot?.status).toBe("completed");
   });
 
   it("skips inactive days for daily habits and keeps today pending", () => {
