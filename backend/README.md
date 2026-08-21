@@ -59,10 +59,12 @@ The backend follows a layered approach:
 - Tasks
 - Habits
 - Focus sessions
+- AI scheduler
+- Cowork sessions, realtime presence, and SFU video proxy
 
 ## Initial Database Schema
 
-The current initial migration creates:
+The current migrations create:
 
 - `users`
 - `tasks`
@@ -71,6 +73,9 @@ The current initial migration creates:
 - `habit_occurrences`
 - `focus_sessions`
 - `focus_session_items`
+- `cowork_sessions`
+
+The latest task schema also stores `duration_minutes`, used by the schedule timeline.
 
 ## Environment Variables
 
@@ -82,6 +87,16 @@ SECRET_KEY=change-me-in-production
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
 ```
+
+Optional, for AI schedule suggestions:
+
+```env
+GEMINI_API_KEY=<gemini api key>
+SCHEDULER_MODEL=gemini-3.5-flash
+SCHEDULER_MODEL_TIMEOUT_SECONDS=60
+```
+
+When `GEMINI_API_KEY` is absent, `POST /ai-scheduler/suggest` returns a deterministic heuristic plan so local development and tests do not require an external AI key.
 
 Optional, for cowork room video. Create a TURN Server app under **Realtime → TURN
 Server** in the Cloudflare dashboard, which yields a Turn Token ID and an API
@@ -157,12 +172,14 @@ In Docker:
 Current route groups:
 
 - `GET /api/v1/health`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `GET /api/v1/auth/me`
-- `GET /api/v1/tasks`
-- `GET /api/v1/habits`
-- `GET /api/v1/focus-sessions`
+- `/api/v1/auth`: register, login, current user
+- `/api/v1/tasks`: task CRUD
+- `/api/v1/habits`: habit CRUD, complete, undo
+- `/api/v1/focus-sessions`: focus session CRUD, lifecycle actions, item completion
+- `/api/v1/ai-scheduler/suggest`: AI or heuristic schedule suggestions
+- `/api/v1/cowork-sessions`: room CRUD, ICE configuration, room ending
+- `WS /api/v1/ws/cowork/{slug}`: cowork presence, shared task lists, and media-published events
+- `/api/v1/cowork-sessions/{slug}/sfu`: Cloudflare Realtime SFU session and track proxy
 
 ## Frontend Integration Status
 
@@ -172,6 +189,9 @@ The active frontend in `Frontend/src/` is now wired to these API endpoints for:
 - Task CRUD
 - Habit CRUD and completion tracking
 - Focus session creation and lifecycle updates
+- Cowork room creation, joining, presence, shared task lists, and SFU-backed video when configured
+
+The schedule page is computed in the frontend from persisted tasks and habits. The backend AI scheduler endpoint is available for schedule suggestions, with a Gemini implementation and a heuristic fallback.
 
 ## Using a hosted Supabase database
 
@@ -212,7 +232,7 @@ local Docker Postgres.
 
 API tests live in `backend/tests/` and run against a real PostgreSQL database
 using the project's Alembic migrations (strategy and roadmap in
-[TESTING_PLAN.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/TESTING_PLAN.md)).
+[../Documentation/TESTING_PLAN.md](../Documentation/TESTING_PLAN.md)).
 
 One-time setup (with Docker running):
 
@@ -242,5 +262,5 @@ step against an empty database.
 
 ## Related Documentation
 
-- Root guide: [README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/README.md)
-- Architecture guide: [ARCHITECTURE.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/ARCHITECTURE.md)
+- Root guide: [../README.md](../README.md)
+- Architecture guide: [../Documentation/ARCHITECTURE.md](../Documentation/ARCHITECTURE.md)

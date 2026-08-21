@@ -1,6 +1,6 @@
 # CodePhoenix Productivity Toolkit
 
-CodePhoenix Productivity Toolkit is a web-based productivity platform built as a final year project at BITS Pilani. The application combines task management, habit tracking, and focus session workflows in one system.
+CodePhoenix Productivity Toolkit is a web-based productivity platform built as a final year project at BITS Pilani. The application combines scheduling, task management, habit tracking, focus sessions, AI schedule suggestions, and coworking rooms in one system.
 
 The repository currently contains:
 
@@ -8,27 +8,29 @@ The repository currently contains:
 - A FastAPI + SQLAlchemy backend in `backend/`
 - PostgreSQL for persistence
 - Docker Compose for running the full stack locally
+- Render and Vercel deployment configuration
 - Supporting project artifacts in `Documentation/`
 
-Watch an early development demo on YouTube: [Project Demo](https://www.youtube.com/watch?v=pZxzrRLDrf0)
+Watch the project demo on YouTube: [Project Demo](https://www.youtube.com/watch?v=TZcZFXkjK5s&t=57s)
 
 ## Architecture Summary
 
 The system is organized as a small full-stack monorepo:
 
-- `Frontend/`: React client, routing, UI components, and context-based state management backed by the REST API
-- `backend/`: FastAPI API, JWT auth, SQLAlchemy models, Alembic migrations, and CRUD route modules
+- `Frontend/`: React client, routing, UI components, and context-based state management backed by the REST API and cowork WebSocket
+- `backend/`: FastAPI API, JWT auth, SQLAlchemy models, Alembic migrations, REST routes, cowork WebSocket, and Cloudflare Realtime proxy routes
 - `docker-compose.yml`: local orchestration for frontend, backend, and PostgreSQL
 - `Documentation/`: architecture notes, diagrams, and project reports
 
 High-level flow:
 
 1. The user interacts with the React frontend.
-2. The frontend renders pages for dashboard, tasks, habits, focus sessions, auth, and profile flows.
+2. The frontend renders pages for schedule, tasks, habits, focus sessions, cowork, auth, and profile flows.
 3. The backend exposes REST endpoints under `/api/v1`.
-4. PostgreSQL stores users, tasks, subtasks, habits, habit occurrences, focus sessions, and focus session items.
+4. PostgreSQL stores users, tasks, subtasks, habits, habit occurrences, focus sessions, focus session items, and cowork rooms.
+5. Cowork rooms use a WebSocket for presence/task-list updates and Cloudflare Realtime SFU for video when SFU credentials are configured.
 
-Detailed documentation is available in [ARCHITECTURE.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/ARCHITECTURE.md).
+Detailed documentation is available in [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md).
 
 ## Repository Structure
 
@@ -110,30 +112,35 @@ When running the backend outside Docker, update `DATABASE_URL` to point to your 
 - User auth with register, login, and current-user endpoints (JWT)
 - Backend-backed task management with subtasks, tags, and priorities
 - Backend-backed habit tracking with streaks and completion history
+- Schedule home page with agenda/timeline views, drag-and-drop scheduling, task estimates, and habit schedule windows
 - Backend-backed focus session flows with pomodoro-style phases
-- Client-side dashboard with weekly progress computed from live data
+- Cowork rooms with share links, live presence, shared task lists, and optional Cloudflare SFU video
+- Backend AI scheduler endpoint with Gemini support and a heuristic fallback when no API key is configured
 - Automated test suite (pytest, Vitest, Playwright) with GitHub Actions CI
 
 ## API Overview
 
-Current backend endpoints include:
+Current backend route groups include:
 
 - `GET /api/v1/health`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `GET /api/v1/auth/me`
-- `GET /api/v1/tasks`
-- `GET /api/v1/habits`
-- `GET /api/v1/focus-sessions`
+- `/api/v1/auth`: register, login, and current-user lookup
+- `/api/v1/tasks`: task CRUD with subtasks, tags, priorities, due dates, and duration estimates
+- `/api/v1/habits`: habit CRUD, completion, undo, streaks, and occurrence history
+- `/api/v1/focus-sessions`: session CRUD, lifecycle actions, and item completion
+- `/api/v1/ai-scheduler/suggest`: AI or heuristic schedule suggestions from current workspace data
+- `/api/v1/cowork-sessions`: cowork room CRUD, ICE config, and host room ending
+- `WS /api/v1/ws/cowork/{slug}`: cowork presence, shared task lists, and media-published announcements
+- `/api/v1/cowork-sessions/{slug}/sfu`: server-side proxy for Cloudflare Realtime SFU session and track operations
 
 ## Documentation
 
-- Project architecture: [ARCHITECTURE.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/ARCHITECTURE.md)
-- Frontend guide: [Frontend/README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Frontend/README.md)
-- Backend guide: [backend/README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/backend/README.md)
-- Testing plan: [TESTING_PLAN.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/TESTING_PLAN.md)
+- Project architecture: [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md)
+- Frontend guide: [Frontend/README.md](Frontend/README.md)
+- Backend guide: [backend/README.md](backend/README.md)
+- Testing plan: [Documentation/TESTING_PLAN.md](Documentation/TESTING_PLAN.md)
 
 ## Notes
 
-- The active app under `Frontend/src/` is integrated with the FastAPI backend.
+- The active app under `Frontend/src/` is integrated with the FastAPI backend; schedule views are derived from persisted tasks and habits.
 - JWT session restore still uses localStorage to persist the access token in the browser.
+- Cowork video degrades to presence-and-tasks-only when Cloudflare SFU credentials are not configured.

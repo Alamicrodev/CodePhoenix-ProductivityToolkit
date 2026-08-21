@@ -10,20 +10,26 @@ This folder contains the React + Vite frontend for the CodePhoenix Productivity 
 - TypeScript
 - Tailwind CSS
 - Radix UI based components
+- React Router
+- Vitest, Testing Library, MSW, and Playwright
 
 ## What The Frontend Contains
 
 - Authentication screens
-- Dashboard and productivity pages
+- Schedule home page with agenda and timeline views
 - Task management UI
 - Habit tracking UI
 - Focus session UI
+- Cowork lobby and room UI with live presence, shared task lists, and video tiles
+- Profile/settings UI
 - Shared UI components and layouts
 
 ## Important Folders
 
 - `src/components/`: reusable UI and feature components
 - `src/context/`: auth and app data state
+- `src/hooks/`: cowork room and SFU room hooks
+- `src/lib/`: API client, parsers, schedule planning, cowork protocol, and formatting helpers
 - `src/pages/`: page-level screens
 - `src/routes/`: router configuration
 - `src/styles/`: shared styles
@@ -31,6 +37,9 @@ This folder contains the React + Vite frontend for the CodePhoenix Productivity 
 ## Development Notes
 
 - The main auth and productivity flows in `src/` are backed by the FastAPI API in `../backend/`.
+- The schedule page is the authenticated home page (`/`); `/schedule` redirects there for old bookmarks.
+- Schedule blocks are derived client-side from persisted tasks and habit schedule settings.
+- Cowork rooms use REST for room metadata, a WebSocket for presence/task-list updates, and Cloudflare Realtime SFU proxy calls for video when the backend is configured with SFU credentials.
 - Authentication stores the JWT access token in localStorage for session restore between reloads.
 
 ## Local Run
@@ -88,10 +97,11 @@ The active `src/` app currently:
 
 1. Uses backend JWT auth for register, login, and session restore.
 2. Loads and mutates tasks, habits, and focus sessions through the FastAPI API.
-3. Keeps the existing page and component structure while mapping backend responses into the frontend data shape.
+3. Creates and joins cowork rooms through the backend, then uses the cowork WebSocket and SFU proxy routes for realtime room state and video.
+4. Maps backend `snake_case` payloads into the frontend camelCase data shape.
 
 ## Related Documentation
 
-- Root guide: [README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/README.md)
-- Architecture guide: [ARCHITECTURE.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/Documentation/ARCHITECTURE.md)
-- Backend guide: [backend/README.md](file:///e:/_code/bits/CodePhoenix-ProductivityToolkit/backend/README.md)
+- Root guide: [../README.md](../README.md)
+- Architecture guide: [../Documentation/ARCHITECTURE.md](../Documentation/ARCHITECTURE.md)
+- Backend guide: [../backend/README.md](../backend/README.md)

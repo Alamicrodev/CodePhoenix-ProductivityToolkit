@@ -20,6 +20,7 @@ At a high level, the platform works as follows:
 4. The FastAPI backend applies auth, validation, and business logic.
 5. SQLAlchemy persists data in PostgreSQL.
 6. Alembic manages schema migrations.
+7. Cowork rooms add a WebSocket control plane for presence/task-list sync and an optional Cloudflare Realtime SFU media plane for video.
 
 ## Runtime Components
 
@@ -36,17 +37,21 @@ The frontend lives in `Frontend/` and is built with:
 Current frontend responsibilities:
 
 - Authentication screens
-- Dashboard and feature pages
+- Scheduling and feature pages
 - Task, habit, and focus-session interactions
+- Cowork lobby and room interactions
 - Route protection
 - Theme management
-- Prototype/local persistence through React Context and localStorage
+- Workspace state through React Context backed by the API
+- JWT session restore through localStorage
 
 Important areas:
 
 - `Frontend/src/App.tsx`: top-level application wiring
 - `Frontend/src/routes/`: route definitions
 - `Frontend/src/context/`: auth and productivity state
+- `Frontend/src/hooks/`: cowork WebSocket and SFU room hooks
+- `Frontend/src/lib/`: API client, schedule planning, protocol, parser, and formatting helpers
 - `Frontend/src/components/`: reusable UI and feature components
 - `Frontend/src/pages/`: page-level screens
 
@@ -67,9 +72,11 @@ Backend responsibilities:
 - API routing
 - Request validation
 - Authentication (JWT)
-- Business logic for tasks, habits, and focus sessions
+- Business logic for tasks, habits, focus sessions, AI schedule suggestions, and cowork rooms
 - Database persistence
 - Migration management
+- WebSocket handling for cowork room presence and shared task lists
+- Server-side proxying for Cloudflare Realtime TURN/SFU credentials and operations
 
 Important areas:
 
@@ -78,7 +85,7 @@ Important areas:
 - `backend/app/models/`: SQLAlchemy models
 - `backend/app/schemas/`: Pydantic request/response schemas
 - `backend/app/services/`: service-layer logic
-- `backend/app/core/`: settings and security helpers
+- `backend/app/core/`: settings, provider credentials, and security helpers
 - `backend/app/db/`: base model and DB session setup
 - `backend/alembic/`: migration environment and versions
 
@@ -86,7 +93,7 @@ Important areas:
 
 PostgreSQL is used as the primary relational datastore.
 
-The current initial schema includes:
+The current schema includes:
 
 - `users`
 - `tasks`
@@ -95,6 +102,7 @@ The current initial schema includes:
 - `habit_occurrences`
 - `focus_sessions`
 - `focus_session_items`
+- `cowork_sessions`
 
 These tables were designed to align with the current frontend data structures so the prototype can be migrated incrementally.
 
@@ -119,6 +127,7 @@ Relations:
 - One user to many habits
 - One user to many focus sessions
 
+
 ### Task and Subtask
 
 Tasks model user work items and support nested subtasks.
@@ -132,6 +141,7 @@ Task fields include:
 - `priority`
 - `due_date`
 - `due_time`
+- `duration_minutes`
 - `quadrant`
 - `tags`
 
@@ -183,7 +193,7 @@ Session items link the session to tasks or habits completed during the session.
 
 Cowork sessions are shareable rooms: a host creates one, shares
 `/cowork/{slug}`, and participants see each other's cameras and shared task
-lists.
+lists when video is available.
 
 Fields: `slug` (unguessable share token), `host_user_id`, `title`, `status`
 (`open` | `ended`), `expires_at` (24h default), `ended_at`.
@@ -199,8 +209,10 @@ Only the room is persisted. Two things deliberately are not:
   WebRTC PeerConnection to Cloudflare's Realtime SFU (anycast edge), which
   routes tracks between them. The backend proxies Cloudflare's Sessions/Tracks
   HTTPS API (`app/api/routes/cowork_sfu.py`, gated on live room membership) so
-  the App Secret stays server-side. Rooms are capped at twelve — with an SFU
-  the constraint is download bandwidth and UI density, not upload.
+  the App Secret stays server-side. If SFU credentials are missing or
+  Cloudflare is unreachable, rooms degrade to presence-and-tasks-only. Rooms
+  are capped at twelve — with an SFU the constraint is download bandwidth and
+  UI density, not upload.
 
 ## Realtime Layer
 
@@ -239,6 +251,10 @@ Current route groups:
 - `/tasks`
 - `/habits`
 - `/focus-sessions`
+- `/ai-scheduler`
+- `/cowork-sessions`
+- `/cowork-sessions/{slug}/sfu`
+- `/ws/cowork/{slug}` WebSocket
 
 The backend currently uses JWT bearer tokens for protected routes.
 
@@ -254,16 +270,11 @@ The backend currently uses JWT bearer tokens for protected routes.
 
 ### Productivity Data Flow
 
-Current state:
-
-- The frontend manages task, habit, and focus-session state through the backend API.
-- The backend provides the matching server-side models, services, and routes.
-
-Target state:
-
-1. Frontend creates or updates entities through the backend API.
+1. Frontend creates or updates tasks, habits, focus sessions, and cowork rooms through the backend API.
 2. Backend validates and persists changes in PostgreSQL.
-3. Frontend fetches the latest state from the backend.
+3. Frontend fetches the latest workspace state from the backend.
+4. Schedule views are derived in the frontend from persisted task and habit data.
+5. Cowork room state is synchronized through the room WebSocket while media negotiation uses the SFU REST proxy.
 
 ## Container Architecture
 
@@ -298,7 +309,7 @@ Services:
 
 ### Frontend Code Layout
 
-The application lives under `Frontend/src/`, with the entry chain `index.html` → `src/main.tsx` → `src/App.tsx` → `src/routes/AppRoutes.tsx` plus providers in `src/context/`. (A duplicated legacy `src/app/` mock tree has been removed from the repository.)
+The application lives under `Frontend/src/`, with the entry chain `index.html` -> `src/main.tsx` -> `src/App.tsx` -> `src/routes/AppRoutes.tsx` plus providers in `src/context/`. The schedule page is the authenticated home page; `/schedule` redirects to `/` for old bookmarks. A duplicated legacy `src/app/` mock tree has been removed from the repository.
 
 ### Service Layer Pattern
 
@@ -326,11 +337,12 @@ Current limitations:
 - Role-based access control is not implemented
 - Refresh tokens are not implemented
 - Email verification and password reset are not implemented
+- WebSocket auth still passes the JWT as a query parameter; a short-lived ticket flow is the planned hardening
 
 ## Recommended Next Steps
 
-- Replace frontend localStorage persistence with backend API integration
-- Add tests for auth and CRUD flows
+- Add WebSocket ticket auth for cowork rooms
+- Add room creation rate limiting and guest access if cowork rooms become public
 - Add role or permissions support if needed
 - Add environment-specific configuration for production deployment
 - Expand dashboard analytics using persisted habit and focus-session data
