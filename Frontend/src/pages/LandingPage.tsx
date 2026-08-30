@@ -2,6 +2,7 @@ import { Link } from "react-router"
 import img1 from '../../public/image_1.jpeg'
 import img2 from '../../public/image_2.jpeg'
 import img3 from '../../public/image_3.jpeg'
+import img4 from '../../public/image_4.jpeg'
 
 
 export default function LandingPage() {
@@ -143,6 +144,31 @@ export default function LandingPage() {
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     </div>
                     <img src={img3} alt="Habits" />
+                </div>
+            </div>
+
+
+            {/* Modules Focus  */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center max-w-[1180px] mx-auto">
+                <div>
+                    <div className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-warn-lt dark:text-warn mb-4">
+                        <span className="w-2 h-2 rounded-[2px] bg-warn-lt dark:bg-warn"></span>FOCUS
+                    </div>
+                    <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">Pomodoro sessions built from real work</h3>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Session items are pulled straight from your tasks and habits &mdash; not typed in fresh. Pause, resume, complete or quit, with a running history of every block.</p>
+                    <ul className="space-y-[10px]">
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-warn-lt dark:bg-warn mt-2 flex-shrink-0"></span>Configurable focus-and-break rhythm</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-warn-lt dark:bg-warn mt-2 flex-shrink-0"></span>Items completed independently within the session</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-warn-lt dark:bg-warn mt-2 flex-shrink-0"></span>Full session history feeds the analytics layer</li>
+                    </ul>
+                </div>
+                <div className="rounded-xl2 border border-border-lt dark:border-border bg-panel-lt dark:bg-panel overflow-hidden shadow-feat-lt dark:shadow-feat transition-colors duration-150">
+                    <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised">
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                    </div>
+                    <img src={img4} alt="Focus" />
                 </div>
             </div>
         </section>
