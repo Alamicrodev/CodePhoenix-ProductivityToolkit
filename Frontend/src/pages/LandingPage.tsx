@@ -204,7 +204,29 @@ export default function LandingPage() {
                 </div>
             </div>
         </section>
-    
+        
+        {/* Tests Section */}
+        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="stack">
+            <div className="max-w-[640px] mx-auto mb-14 text-center">
+                <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Under the hood</div>
+                <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Built on a tested, production stack</h2>
+                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">FastAPI and PostgreSQL on the backend, React on the front &mdash; deployed end-to-end on free-tier infrastructure, gated by CI on every push.</p>
+            </div>
+            <div className="flex flex-wrap gap-2.5 justify-center max-w-[780px] mx-auto">
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">FastAPI</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">SQLAlchemy 2</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">PostgreSQL</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">React 19</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">TypeScript</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">Tailwind CSS</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">WebRTC</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">Cloudflare SFU</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">GitHub Actions CI</span>
+                <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">Docker</span>
+            </div>
+        </section>
+
+
 
     </>
 }
