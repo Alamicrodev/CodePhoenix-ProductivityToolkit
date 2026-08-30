@@ -13,8 +13,8 @@ app.add_middleware(
     CORSMiddleware,      
     allow_origins=settings.cors_origins,
     allow_credentials=True,     #allows sending sensitive data like cookies from server to a client of different origin
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],      
+    allow_headers=["*"],      
 )
 
 

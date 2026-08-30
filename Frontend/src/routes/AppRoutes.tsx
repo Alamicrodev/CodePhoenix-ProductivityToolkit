@@ -10,6 +10,7 @@ import ProfilePage from "../pages/ProfilePage";
 import RegisterPage from "../pages/RegisterPage";
 import SchedulePage from "../pages/SchedulePage";
 import TasksPage from "../pages/TasksPage";
+import LandingPage from "../pages/LandingPage";
 
 // Central routing keeps page-level navigation easy to scan in one place.
 export const appRouter = createBrowserRouter([
@@ -20,22 +21,25 @@ export const appRouter = createBrowserRouter([
   {
     path: "/register",
     element: <RegisterPage />,
+  }, 
+  {
+    path: "/", 
+    element: <LandingPage/>, 
   },
   {
-    path: "/",
     element: <AuthGuard />,     //AuthGuard essentially wraps arround its children, and only allows access if authenticated.
     children: [
       // The schedule ("Today") is the home page; the old dashboard is gone.
-      { index: true, element: <SchedulePage /> },
-      { path: "tasks", element: <TasksPage /> },
-      { path: "habits", element: <HabitsPage /> },
-      { path: "habits/:habitId", element: <HabitDetailPage /> },
-      { path: "focus", element: <FocusPage /> },
-      { path: "cowork", element: <CoworkPage /> },
-      { path: "cowork/:slug", element: <CoworkRoomPage /> },
+      { path: "/schedule", element: <SchedulePage /> },
+      { path: "/tasks", element: <TasksPage /> },
+      { path: "/habits", element: <HabitsPage /> },
+      { path: "/habits/:habitId", element: <HabitDetailPage /> },
+      { path: "/focus", element: <FocusPage /> },
+      { path: "/cowork", element: <CoworkPage /> },
+      { path: "/cowork/:slug", element: <CoworkRoomPage /> },
       // Old bookmarks and links keep working.
-      { path: "schedule", element: <Navigate to="/" replace /> },
-      { path: "profile", element: <ProfilePage /> },
+      { path: "/schedule", element: <Navigate to="/" replace /> },
+      { path: "/profile", element: <ProfilePage /> },
     ],
   },
 ]);

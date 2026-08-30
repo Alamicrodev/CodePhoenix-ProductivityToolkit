@@ -38,7 +38,7 @@ interface LayoutProps {
 type CountKey = "today" | "tasks";
 
 const navigation: Array<{ name: string; href: string; icon: LucideIcon; count?: CountKey }> = [
-  { name: "Today", href: "/", icon: Calendar, count: "today" },
+  { name: "Today", href: "/schedule", icon: Calendar, count: "today" },
   { name: "Tasks", href: "/tasks", icon: CheckSquare, count: "tasks" },
   { name: "Habits", href: "/habits", icon: Target },
   { name: "Focus", href: "/focus", icon: Timer },
