@@ -6,6 +6,7 @@ export default function LandingPage() {
 
 
     return <>
+        {/* NavBar */}
         <nav className="sticky top-0 z-20 bg-bg-lt/85 dark:bg-bg/85 backdrop-blur-md border-b border-border-soft-lt dark:border-border-soft transition-colors duration-150">
             <div className="flex items-center justify-between px-8 py-4 max-w-[1180px] mx-auto">
                 <div className="flex items-center gap-2.5 font-bold text-[15px] tracking-tight">
@@ -33,7 +34,7 @@ export default function LandingPage() {
             </div>
         </nav>
 
-
+        {/* HeroSection */}
         <section className="pt-24 pb-16 px-8 text-center">
             <div className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.08em] text-accent-strong-lt dark:text-accent-strong bg-[rgba(90,103,216,0.09)] dark:bg-[rgba(124,136,224,0.12)] border border-[rgba(90,103,216,0.2)] dark:border-[rgba(124,136,224,0.25)] px-3.5 py-1.5 rounded-full mb-7">
                 <span className="w-1.5 h-1.5 rounded-full bg-success-lt dark:bg-success shadow-[0_0_0_3px_rgba(30,158,90,0.15)] dark:shadow-[0_0_0_3px_rgba(98,184,130,0.18)]"></span>
@@ -63,7 +64,30 @@ export default function LandingPage() {
             </div>
         </section>
 
-
+        {/* Acchievement cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 py-14 px-8 max-w-[1180px] mx-auto">
+        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-success-lt dark:bg-success"></span>
+            <div className="font-mono font-medium text-[26px] mb-1">480+</div>
+            <div className="text-[12.5px] text-muted-lt dark:text-muted">automated tests</div>
+        </div>
+        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-warn-lt dark:bg-warn"></span>
+            <div className="font-mono font-medium text-[26px] mb-1">99%</div>
+            <div className="text-[12.5px] text-muted-lt dark:text-muted">backend coverage</div>
+        </div>
+        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent-lt dark:bg-accent"></span>
+            <div className="font-mono font-medium text-[26px] mb-1">12</div>
+            <div className="text-[12.5px] text-muted-lt dark:text-muted">users per cowork room</div>
+        </div>
+        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-danger-lt dark:bg-danger"></span>
+            <div className="font-mono font-medium text-[26px] mb-1">8/8</div>
+            <div className="text-[12.5px] text-muted-lt dark:text-muted">capstone objectives met</div>
+        </div>
+        </div>
+        
 
 
     </>
