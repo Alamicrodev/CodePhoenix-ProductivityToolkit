@@ -1,5 +1,6 @@
 import { Link } from "react-router"
 import img1 from '../../public/image_1.jpeg'
+import img2 from '../../public/image_2.jpeg'
 
 
 export default function LandingPage() {
@@ -66,28 +67,61 @@ export default function LandingPage() {
 
         {/* Acchievement cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 py-14 px-8 max-w-[1180px] mx-auto">
-        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
-            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-success-lt dark:bg-success"></span>
-            <div className="font-mono font-medium text-[26px] mb-1">480+</div>
-            <div className="text-[12.5px] text-muted-lt dark:text-muted">automated tests</div>
+            <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+                <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-success-lt dark:bg-success"></span>
+                <div className="font-mono font-medium text-[26px] mb-1">480+</div>
+                <div className="text-[12.5px] text-muted-lt dark:text-muted">automated tests</div>
+            </div>
+            <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+                <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-warn-lt dark:bg-warn"></span>
+                <div className="font-mono font-medium text-[26px] mb-1">99%</div>
+                <div className="text-[12.5px] text-muted-lt dark:text-muted">backend coverage</div>
+            </div>
+            <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+                <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent-lt dark:bg-accent"></span>
+                <div className="font-mono font-medium text-[26px] mb-1">12</div>
+                <div className="text-[12.5px] text-muted-lt dark:text-muted">users per cowork room</div>
+            </div>
+            <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
+                <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-danger-lt dark:bg-danger"></span>
+                <div className="font-mono font-medium text-[26px] mb-1">8/8</div>
+                <div className="text-[12.5px] text-muted-lt dark:text-muted">capstone objectives met</div>
+            </div>
         </div>
-        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
-            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-warn-lt dark:bg-warn"></span>
-            <div className="font-mono font-medium text-[26px] mb-1">99%</div>
-            <div className="text-[12.5px] text-muted-lt dark:text-muted">backend coverage</div>
-        </div>
-        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
-            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent-lt dark:bg-accent"></span>
-            <div className="font-mono font-medium text-[26px] mb-1">12</div>
-            <div className="text-[12.5px] text-muted-lt dark:text-muted">users per cowork room</div>
-        </div>
-        <div className="relative overflow-hidden bg-panel-lt dark:bg-panel border border-border-lt dark:border-border rounded-xl pl-[26px] pr-[22px] py-5 transition-colors duration-150">
-            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-danger-lt dark:bg-danger"></span>
-            <div className="font-mono font-medium text-[26px] mb-1">8/8</div>
-            <div className="text-[12.5px] text-muted-lt dark:text-muted">capstone objectives met</div>
-        </div>
-        </div>
-        
+
+
+        {/* Modules Section */}
+        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="modules">
+            <div className="max-w-[640px] mx-auto mb-14 text-center">
+                <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">One data model, four views</div>
+                <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Every module speaks the same language</h2>
+                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">Complete a task in a focus session and your habit streak updates. Finish a habit and the Today view redraws itself. Nothing needs to be re-entered twice.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center max-w-[1180px] mx-auto mb-[120px]">
+                <div>
+                    <div className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-accent-strong-lt dark:text-accent-strong mb-4">
+                        <span className="w-2 h-2 rounded-[2px] bg-accent-lt dark:bg-accent"></span>TASKS
+                    </div>
+                    <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">An Eisenhower matrix that sorts itself</h3>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Subtasks, priorities, due dates and tags &mdash; plus natural-language quick-add. Type &ldquo;pay rent tomorrow !high #home&rdquo; and FlowManager handles the rest.</p>
+                    <ul className="space-y-[10px]">
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-accent-lt dark:bg-accent mt-2 flex-shrink-0"></span>Auto-categorised into Do first / Schedule / Delegate / Eliminate</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-accent-lt dark:bg-accent mt-2 flex-shrink-0"></span>List and matrix views of the same underlying tasks</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-accent-lt dark:bg-accent mt-2 flex-shrink-0"></span>Cross-user isolation enforced at the service layer</li>
+                    </ul>
+                </div>
+                <div className="rounded-xl2 border border-border-lt dark:border-border bg-panel-lt dark:bg-panel overflow-hidden shadow-feat-lt dark:shadow-feat transition-colors duration-150">
+                    <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised">
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                    </div>
+                    <img src={img2} alt="Tasks" />
+                </div>
+            </div>
+        </section>
+
 
 
     </>
