@@ -3,6 +3,7 @@ import img1 from '../../public/image_1.jpeg'
 import img2 from '../../public/image_2.jpeg'
 import img3 from '../../public/image_3.jpeg'
 import img4 from '../../public/image_4.jpeg'
+import img5 from '../../public/image_5.jpeg'
 
 
 export default function LandingPage() {
@@ -53,7 +54,7 @@ export default function LandingPage() {
                 <Link to="/schedule" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-semibold bg-accent-lt dark:bg-accent text-white dark:text-bg hover:bg-accent-strong-lt dark:hover:bg-accent-strong transition-colors duration-150">
                     <span> See it in action </span>
                 </Link>
-                <Link to="#" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-medium bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-ink-lt dark:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] transition-colors duration-150">
+                <Link to="#modules" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-medium bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-ink-lt dark:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] transition-colors duration-150">
                     <span> Read More </span>
                 </Link>
             </div>
@@ -93,7 +94,7 @@ export default function LandingPage() {
 
 
         {/* Modules Section */}
-        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="modules">
+        <section id="modules" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="modules">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">One data model, four views</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Every module speaks the same language</h2>
@@ -172,8 +173,38 @@ export default function LandingPage() {
                 </div>
             </div>
         </section>
-
-
+        
+        {/* Co-op Section */}
+        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150" id="cowork">
+            <div className="max-w-[640px] mx-auto mb-14 text-center">
+                <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Beyond the original scope</div>
+                <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Cowork Rooms &mdash; focus, out loud</h2>
+                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">Up to twelve authenticated users share live video and a synchronised task list. Media is routed through a Cloudflare Realtime SFU, not meshed peer-to-peer &mdash; so the room stays smooth as it fills up.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center max-w-[1180px] mx-auto">
+                <div>
+                <div className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-violet-lt dark:text-violet mb-4">
+                    <span className="w-2 h-2 rounded-[2px] bg-violet-lt dark:bg-violet"></span>COWORK ROOMS
+                </div>
+                <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">A live, task-aware body-double</h3>
+                <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Every participant sees who's here, what they're working on, and can share a task into the room &mdash; without leaving the workspace or opening a separate call app.</p>
+                <ul className="space-y-[10px]">
+                    <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-violet-lt dark:bg-violet mt-2 flex-shrink-0"></span>Unguessable slugs, 24-hour room expiry</li>
+                    <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-violet-lt dark:bg-violet mt-2 flex-shrink-0"></span>One upload stream per participant, regardless of room size</li>
+                    <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-violet-lt dark:bg-violet mt-2 flex-shrink-0"></span>Every Cloudflare credential stays server-side</li>
+                </ul>
+                </div>
+                <div className="rounded-xl2 border border-border-lt dark:border-border bg-panel-lt dark:bg-panel overflow-hidden shadow-feat-lt dark:shadow-feat transition-colors duration-150">
+                <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised">
+                    <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                    <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                    <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                </div>
+                 <img src={img5}  alt="Cowork Rooms"/> 
+                </div>
+            </div>
+        </section>
+    
 
     </>
 }
