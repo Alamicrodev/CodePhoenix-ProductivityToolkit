@@ -1,15 +1,19 @@
 import { Link } from "react-router"
+import { useTheme } from "next-themes"
 import img1 from '../../public/image_1.jpeg'
 import img2 from '../../public/image_2.jpeg'
 import img3 from '../../public/image_3.jpeg'
 import img4 from '../../public/image_4.jpeg'
 import img5 from '../../public/image_5.jpeg'
+import "./LandingPage.css"
 
 
 export default function LandingPage() {
+    const { resolvedTheme, setTheme } = useTheme()
+    const isDark = resolvedTheme === "dark"
 
 
-    return <>
+    return <div className="landing-page min-h-screen bg-bg-lt dark:bg-bg text-ink-lt dark:text-ink antialiased transition-colors duration-150">
         {/* NavBar */}
         <nav className="sticky top-0 z-20 bg-bg-lt/85 dark:bg-bg/85 backdrop-blur-md border-b border-border-soft-lt dark:border-border-soft transition-colors duration-150">
             <div className="flex items-center justify-between px-8 py-4 max-w-[1180px] mx-auto">
@@ -23,10 +27,14 @@ export default function LandingPage() {
                     <a href="#stack" className="hover:text-ink-lt dark:hover:text-ink">Stack</a>
                 </div>
                 <div className="flex items-center gap-3.5">
-                    <button id="themeToggle" type="button" aria-label="Toggle light and dark theme"
+                    <button
+                        id="themeToggle"
+                        type="button"
+                        aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
+                        onClick={() => setTheme(isDark ? "light" : "dark")}
                         className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-lg bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-muted-lt dark:text-muted hover:text-ink-lt dark:hover:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] cursor-pointer flex-shrink-0 transition-colors duration-150">
-                        <svg className="w-4 h-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
-                        <svg className="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                        <svg className="w-4 h-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+                        <svg className="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                     </button>
                     <Link to="https://github.com/Alamicrodev/CodePhoenix-ProductivityToolkit/" className="inline-flex items-center gap-2 px-4 py-[9px] rounded-lg text-sm font-medium bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-ink-lt dark:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] transition-colors duration-150">
                         <span> View on Github </span>
@@ -45,10 +53,10 @@ export default function LandingPage() {
                 CAPSTONE PROJECT &middot; CODE PHOENIX
             </div>
             <h1 className="text-[38px] md:text-[60px] leading-[1.06] font-bold tracking-[-0.03em] max-w-[780px] mx-auto mb-5">
-                Your day, <span className="text-accent-strong-lt dark:text-accent-strong">assembled</span> &mdash; not managed.
+                Your day, <span className="text-accent-strong-lt dark:text-accent-strong">assembled</span>. not managed.
             </h1>
             <p className="text-lg text-muted-lt dark:text-muted max-w-[560px] mx-auto mb-9 leading-relaxed">
-                Tasks, habits and focus sessions share one brain, so the day plans itself &mdash; and focus is never a solo habit.
+                Tasks, habits and focus sessions share one brain. The day plans itself, and focus is never a solo habit.
             </p>
             <div className="flex gap-3 justify-center mb-[72px] flex-wrap">
                 <Link to="/schedule" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-semibold bg-accent-lt dark:bg-accent text-white dark:text-bg hover:bg-accent-strong-lt dark:hover:bg-accent-strong transition-colors duration-150">
@@ -64,7 +72,7 @@ export default function LandingPage() {
                     <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                 </div>
-                <img src={img1} alt="Hero Image" />
+                <img src={img1} alt="Hero Image" className="block w-full h-auto" />
             </div>
         </section>
 
@@ -107,7 +115,7 @@ export default function LandingPage() {
                         <span className="w-2 h-2 rounded-[2px] bg-accent-lt dark:bg-accent"></span>TASKS
                     </div>
                     <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">An Eisenhower matrix that sorts itself</h3>
-                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Subtasks, priorities, due dates and tags &mdash; plus natural-language quick-add. Type &ldquo;pay rent tomorrow !high #home&rdquo; and FlowManager handles the rest.</p>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Subtasks, priorities, due dates and tags, plus natural-language quick-add. Type &ldquo;pay rent tomorrow !high #home&rdquo; and FlowManager handles the rest.</p>
                     <ul className="space-y-[10px]">
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-accent-lt dark:bg-accent mt-2 flex-shrink-0"></span>Auto-categorised into Do first / Schedule / Delegate / Eliminate</li>
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-accent-lt dark:bg-accent mt-2 flex-shrink-0"></span>List and matrix views of the same underlying tasks</li>
@@ -120,7 +128,7 @@ export default function LandingPage() {
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     </div>
-                    <img src={img2} alt="Tasks" />
+                    <img src={img2} alt="Tasks" className="block w-full h-auto" />
                 </div>
             </div>
 
@@ -131,7 +139,7 @@ export default function LandingPage() {
                         <span className="w-2 h-2 rounded-[2px] bg-success-lt dark:bg-success"></span>HABITS
                     </div>
                     <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">Streaks that understand your schedule</h3>
-                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Hourly, daily or weekly cadence, with active hours and active weekdays &mdash; so a sleeping user is never marked as having missed anything.</p>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Hourly, daily or weekly cadence, with active hours and active weekdays, so a sleeping user is never marked as having missed anything.</p>
                     <ul className="space-y-[10px]">
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-success-lt dark:bg-success mt-2 flex-shrink-0"></span>Idempotent completion &amp; undo, streaks that never go negative</li>
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-success-lt dark:bg-success mt-2 flex-shrink-0"></span>Exponential-decay habit-strength score</li>
@@ -144,7 +152,7 @@ export default function LandingPage() {
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     </div>
-                    <img src={img3} alt="Habits" />
+                    <img src={img3} alt="Habits" className="block w-full h-auto" />
                 </div>
             </div>
 
@@ -156,7 +164,7 @@ export default function LandingPage() {
                         <span className="w-2 h-2 rounded-[2px] bg-warn-lt dark:bg-warn"></span>FOCUS
                     </div>
                     <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">Pomodoro sessions built from real work</h3>
-                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Session items are pulled straight from your tasks and habits &mdash; not typed in fresh. Pause, resume, complete or quit, with a running history of every block.</p>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Session items are pulled straight from your tasks and habits, not typed in fresh. Pause, resume, complete or quit, with a running history of every block.</p>
                     <ul className="space-y-[10px]">
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-warn-lt dark:bg-warn mt-2 flex-shrink-0"></span>Configurable focus-and-break rhythm</li>
                         <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-warn-lt dark:bg-warn mt-2 flex-shrink-0"></span>Items completed independently within the session</li>
@@ -169,7 +177,7 @@ export default function LandingPage() {
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     </div>
-                    <img src={img4} alt="Focus" />
+                    <img src={img4} alt="Focus" className="block w-full h-auto" />
                 </div>
             </div>
         </section>
@@ -178,8 +186,8 @@ export default function LandingPage() {
         <section id="cowork" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Beyond the original scope</div>
-                <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Cowork Rooms &mdash; focus, out loud</h2>
-                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">Up to twelve authenticated users share live video and a synchronised task list. Media is routed through a Cloudflare Realtime SFU, not meshed peer-to-peer &mdash; so the room stays smooth as it fills up.</p>
+                <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Cowork Rooms: focus, out loud</h2>
+                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">Up to twelve authenticated users share live video and a synchronised task list. Media is routed through a Cloudflare Realtime SFU, not meshed peer-to-peer, so the room stays smooth as it fills up.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center max-w-[1180px] mx-auto">
                 <div>
@@ -187,7 +195,7 @@ export default function LandingPage() {
                     <span className="w-2 h-2 rounded-[2px] bg-violet-lt dark:bg-violet"></span>COWORK ROOMS
                 </div>
                 <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">A live, task-aware body-double</h3>
-                <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Every participant sees who's here, what they're working on, and can share a task into the room &mdash; without leaving the workspace or opening a separate call app.</p>
+                <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Every participant sees who's here, what they're working on, and can share a task into the room without leaving the workspace or opening a separate call app.</p>
                 <ul className="space-y-[10px]">
                     <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-violet-lt dark:bg-violet mt-2 flex-shrink-0"></span>Unguessable slugs, 24-hour room expiry</li>
                     <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-violet-lt dark:bg-violet mt-2 flex-shrink-0"></span>One upload stream per participant, regardless of room size</li>
@@ -200,7 +208,7 @@ export default function LandingPage() {
                     <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                 </div>
-                 <img src={img5}  alt="Cowork Rooms"/> 
+                 <img src={img5} alt="Cowork Rooms" className="block w-full h-auto" /> 
                 </div>
             </div>
         </section>
@@ -210,7 +218,7 @@ export default function LandingPage() {
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Under the hood</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Built on a tested, production stack</h2>
-                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">FastAPI and PostgreSQL on the backend, React on the front &mdash; deployed end-to-end on free-tier infrastructure, gated by CI on every push.</p>
+                <p className="text-muted-lt dark:text-muted text-base leading-relaxed">FastAPI and PostgreSQL on the backend, React on the frontend. The stack is deployed end-to-end on free-tier infrastructure, gated by CI on every push.</p>
             </div>
             <div className="flex flex-wrap gap-2.5 justify-center max-w-[780px] mx-auto">
                 <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">FastAPI</span>
@@ -257,5 +265,5 @@ export default function LandingPage() {
 
 
 
-    </>
+    </div>
 }
