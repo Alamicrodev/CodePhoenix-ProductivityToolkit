@@ -54,9 +54,9 @@ export default function LandingPage() {
                 <Link to="/schedule" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-semibold bg-accent-lt dark:bg-accent text-white dark:text-bg hover:bg-accent-strong-lt dark:hover:bg-accent-strong transition-colors duration-150">
                     <span> See it in action </span>
                 </Link>
-                <Link to="#modules" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-medium bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-ink-lt dark:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] transition-colors duration-150">
+                <a href="#modules" className="inline-flex items-center gap-2 px-[22px] py-[11px] rounded-lg text-[14.5px] font-medium bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-ink-lt dark:text-ink hover:border-[#C7C9D1] dark:hover:border-[#3a3d49] transition-colors duration-150">
                     <span> Read More </span>
-                </Link>
+                </a>
             </div>
             <div className="max-w-[980px] mx-auto rounded-xl2 border border-border-lt dark:border-border bg-panel-lt dark:bg-panel overflow-hidden shadow-hero-lt dark:shadow-hero transition-colors duration-150">
                 <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised">
@@ -175,7 +175,7 @@ export default function LandingPage() {
         </section>
         
         {/* Co-op Section */}
-        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150" id="cowork">
+        <section id="cowork" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150" id="cowork">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Beyond the original scope</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Cowork Rooms &mdash; focus, out loud</h2>
@@ -205,8 +205,8 @@ export default function LandingPage() {
             </div>
         </section>
         
-        {/* Tests Section */}
-        <section className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="stack">
+        {/* Stack Section */}
+        <section id="stack" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="stack">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Under the hood</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Built on a tested, production stack</h2>
@@ -225,6 +225,35 @@ export default function LandingPage() {
                 <span className="px-4 py-2 rounded-full bg-panel-lt dark:bg-panel border border-border-lt dark:border-border text-[13.5px] text-muted-lt dark:text-muted transition-colors duration-150">Docker</span>
             </div>
         </section>
+       
+       {/* Footer  */}
+        <footer className="border-t border-border-soft-lt dark:border-border-soft pt-14 pb-10 px-8 transition-colors duration-150">
+        <div className="max-w-[1180px] mx-auto flex justify-between items-start flex-wrap gap-6">
+            <div>
+            <div className="flex items-center gap-2.5 font-bold text-[14.5px]">
+                <div className="w-[26px] h-[26px] rounded-[7px] bg-accent-lt dark:bg-accent text-white dark:text-bg flex items-center justify-center font-bold text-sm">F</div>
+                FlowManager
+            </div>
+            <div className="text-dim-lt dark:text-dim text-[13px] mt-2.5 leading-[1.7]">
+                CodePhoenix Productivity Toolkit &middot; Group 129<br></br>
+                Mohid Alam &middot; Sharad Bhamidipati &middot; Anurag Suman &middot; Shayma Arif<br></br>
+                BSc CS (WILP), BITS Pilani &middot; Supervisor: Raghu Babu &middot; AY 2025&ndash;26
+            </div>
+            </div>
+            <div className="flex gap-[22px] text-[13.5px]">
+
+            <Link to="https://github.com/Alamicrodev/CodePhoenix-ProductivityToolkit" className="text-muted-lt dark:text-muted hover:text-ink-lt dark:hover:text-ink">
+             <span>  GitHub </span>
+            </Link>
+            <Link to="https://docs.google.com/document/d/14n9XuvY9Afq7ItPRWyxsrVKMznP0-p_H" className="text-muted-lt dark:text-muted hover:text-ink-lt dark:hover:text-ink">
+                <span>Documentation</span>
+            </Link>
+            <Link to="https://www.youtube.com/watch?v=TZcZFXkjK5s&t=64s" className="text-muted-lt dark:text-muted hover:text-ink-lt dark:hover:text-ink">
+                <span> Live demo Video </span>
+             </Link>
+            </div>
+        </div>
+        </footer>
 
 
 
