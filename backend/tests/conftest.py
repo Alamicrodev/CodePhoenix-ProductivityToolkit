@@ -2,8 +2,7 @@
 
 The suite runs against a real PostgreSQL database so tests exercise the same
 dialect as production. The schema is built by running the actual Alembic
-migrations, so every test run doubles as a migration regression test
-(see Documentation/TESTING_PLAN.md).
+migrations, so every test run doubles as a migration regression test.
 
 Point TEST_DATABASE_URL at a dedicated, disposable database, e.g.:
 

@@ -16,11 +16,11 @@ beforeEach(() => {
 });
 
 /**
- * These three cases are STYLE_GUIDE_AUDIT.md Appendix B-3's conditions made
- * executable. The create-mode HabitModal is only legal while they hold, so
+ * These three cases are the create-mode conditions made executable.
+ * The create-mode HabitModal is only legal while they hold, so
  * a failure here is a design-system violation, not a cosmetic regression.
  */
-describe("HabitQuickAdd — the B-3 conditions", () => {
+describe("HabitQuickAdd — the create-mode conditions", () => {
   it("(b) plain Enter creates inline, clears, and keeps focus", async () => {
     const user = userEvent.setup();
     render(<HabitQuickAdd onOpenFull={vi.fn()} />);
@@ -34,7 +34,7 @@ describe("HabitQuickAdd — the B-3 conditions", () => {
     expect(input).toHaveFocus();
   });
 
-  it("(c) the hint reads the exact string B-3 requires", () => {
+  it("(c) the hint reads the exact required string", () => {
     render(<HabitQuickAdd onOpenFull={vi.fn()} />);
     // CMD_LABEL resolves per platform, so match around it.
     expect(screen.getByText(/↵ add ·.*↵ full editor/)).toBeInTheDocument();

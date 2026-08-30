@@ -137,7 +137,6 @@ Current backend route groups include:
 - Project architecture: [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md)
 - Frontend guide: [Frontend/README.md](Frontend/README.md)
 - Backend guide: [backend/README.md](backend/README.md)
-- Testing plan: [Documentation/TESTING_PLAN.md](Documentation/TESTING_PLAN.md)
 
 ## Notes
 

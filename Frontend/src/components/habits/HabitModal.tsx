@@ -107,10 +107,10 @@ function timeChipLabel(draft: Draft) {
 /**
  * The full habit editor — create and edit.
  *
- * STYLE_GUIDE_AUDIT.md Appendix B-3 permits a create-mode modal only while the
- * inline quick-add still exists, plain ↵ still creates inline and refocuses,
- * and the quick-add hint reads "↵ add · ⌘↵ full editor". HabitQuickAdd.tsx
- * holds all three; do not change either file without re-reading B-3.
+ * A create-mode modal is permitted only while the inline quick-add still
+ * exists, plain ↵ still creates inline and refocuses, and the quick-add hint
+ * reads "↵ add · ⌘↵ full editor". HabitQuickAdd.tsx holds all three;
+ * do not change either file without preserving all three.
  *
  * Layout follows FocusSetupModal rather than TaskModal: pinned header and
  * footer around an inner scroller, because the footer carries the live

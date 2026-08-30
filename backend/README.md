@@ -231,8 +231,7 @@ local Docker Postgres.
 ## Testing
 
 API tests live in `backend/tests/` and run against a real PostgreSQL database
-using the project's Alembic migrations (strategy and roadmap in
-[../Documentation/TESTING_PLAN.md](../Documentation/TESTING_PLAN.md)).
+using the project's Alembic migrations.
 
 One-time setup (with Docker running):
 

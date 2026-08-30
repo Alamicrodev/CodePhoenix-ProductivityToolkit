@@ -89,7 +89,6 @@ This starts the frontend alongside the backend API and PostgreSQL.
   `vite.config.ts` so the docker dev container never depends on test-only
   packages.
 - E2E specs live in `e2e/` and run against the full docker compose stack.
-- Strategy and roadmap: see `Documentation/TESTING_PLAN.md`.
 
 ## Integration Status
 

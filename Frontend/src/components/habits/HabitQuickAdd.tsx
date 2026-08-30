@@ -18,10 +18,10 @@ interface HabitQuickAddProps {
  * always-visible quick-add at the top of its list: Enter commits + keeps
  * focus, tokens are parsed inline."
  *
- * ⌘↵ escalates to the full editor. STYLE_GUIDE_AUDIT.md Appendix B-3 permits a
- * create-mode modal only while all three of these hold: this quick-add still
- * exists, plain ↵ still creates inline and refocuses, and the hint below reads
- * "↵ add · ⌘↵ full editor". Do not change any of them without re-reading B-3.
+ * ⌘↵ escalates to the full editor. A create-mode modal is permitted only
+ * while all three of these hold: this quick-add still exists, plain ↵ still
+ * creates inline and refocuses, and the hint below reads
+ * "↵ add · ⌘↵ full editor". Do not change any of them.
  *
  * Geometry per the spec: 1px border, radius 8, padding 7px 12px, gap 10px,
  * accent "+" at 15px, example placeholder, right-aligned mono 10px hint.

@@ -16,7 +16,7 @@ test("creates a habit from the quick-add and parses schedule tokens", async ({ p
   await expect(page.getByText("Press C to add your first habit.")).toBeVisible();
 
   // Plain Enter creates inline and keeps focus, so a run of habits can be typed
-  // straight through. This is condition (b) of the audit's B-3 modal ruling.
+  // straight through. This is condition (b) of the create-mode modal rules.
   const quickAdd = page.getByPlaceholder(/Add a habit/);
   await quickAdd.fill("Evening walk every weekday");
   await quickAdd.press("Enter");
