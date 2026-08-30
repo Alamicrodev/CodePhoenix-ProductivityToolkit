@@ -1,6 +1,7 @@
 import { Link } from "react-router"
 import img1 from '../../public/image_1.jpeg'
 import img2 from '../../public/image_2.jpeg'
+import img3 from '../../public/image_3.jpeg'
 
 
 export default function LandingPage() {
@@ -118,6 +119,30 @@ export default function LandingPage() {
                         <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
                     </div>
                     <img src={img2} alt="Tasks" />
+                </div>
+            </div>
+
+            {/* Modules Habits */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center max-w-[1180px] mx-auto mb-[120px]">
+                <div className="md:order-2">
+                    <div className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-success-lt dark:text-success mb-4">
+                        <span className="w-2 h-2 rounded-[2px] bg-success-lt dark:bg-success"></span>HABITS
+                    </div>
+                    <h3 className="text-[26px] font-semibold tracking-[-0.015em] mb-3.5">Streaks that understand your schedule</h3>
+                    <p className="text-muted-lt dark:text-muted text-[15.5px] leading-[1.7] mb-[18px]">Hourly, daily or weekly cadence, with active hours and active weekdays &mdash; so a sleeping user is never marked as having missed anything.</p>
+                    <ul className="space-y-[10px]">
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-success-lt dark:bg-success mt-2 flex-shrink-0"></span>Idempotent completion &amp; undo, streaks that never go negative</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-success-lt dark:bg-success mt-2 flex-shrink-0"></span>Exponential-decay habit-strength score</li>
+                        <li className="flex items-start gap-[10px] text-[14.5px]"><span className="w-[5px] h-[5px] rounded-full bg-success-lt dark:bg-success mt-2 flex-shrink-0"></span>A week grid that shows done, missed and not-yet-due at a glance</li>
+                    </ul>
+                </div>
+                <div className="md:order-1 rounded-xl2 border border-border-lt dark:border-border bg-panel-lt dark:bg-panel overflow-hidden shadow-feat-lt dark:shadow-feat transition-colors duration-150">
+                    <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised">
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                        <span className="w-[9px] h-[9px] rounded-full bg-[#D8D9DE] dark:bg-[#2A2C35]"></span>
+                    </div>
+                    <img src={img3} alt="Habits" />
                 </div>
             </div>
         </section>
