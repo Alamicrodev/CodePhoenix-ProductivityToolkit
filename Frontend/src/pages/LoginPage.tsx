@@ -17,9 +17,9 @@ export default function LoginPage() {
   const location = useLocation();
 
   // AuthGuard stashes the page the user originally asked for in router state, so a
-  // shared link survives the trip through login. Falls back to the dashboard.
+  // shared link survives the trip through login. Falls back to the app home.
   const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/";
+  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/schedule";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

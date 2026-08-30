@@ -20,7 +20,7 @@ export default function RegisterPage() {
   // Same deep-link handoff as LoginPage: an invite link that lands on /register
   // should still finish at the room the user was invited to.
   const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/";
+  const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/schedule";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

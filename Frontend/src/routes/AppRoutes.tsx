@@ -38,7 +38,7 @@ export const appRouter = createBrowserRouter([
       { path: "/cowork", element: <CoworkPage /> },
       { path: "/cowork/:slug", element: <CoworkRoomPage /> },
       // Old bookmarks and links keep working.
-      { path: "/schedule", element: <Navigate to="/" replace /> },
+      { path: "/dashboard", element: <Navigate to="/schedule" replace /> },
       { path: "/profile", element: <ProfilePage /> },
     ],
   },

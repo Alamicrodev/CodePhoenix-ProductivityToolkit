@@ -15,6 +15,7 @@ function renderRegister() {
     [
       { path: "/register", element: <RegisterPage /> },
       { path: "/login", element: <div>LOGIN PAGE</div> },
+      { path: "/schedule", element: <div>APP HOME</div> },
       { path: "/", element: <div>HOME</div> },
     ],
     { initialEntries: ["/register"] },
@@ -33,7 +34,7 @@ async function fillForm() {
 }
 
 describe("RegisterPage", () => {
-  it("creates the account with full_name, auto-logs-in, and navigates home", async () => {
+  it("creates the account with full_name, auto-logs-in, and navigates to the app home", async () => {
     let registerBody: unknown = null;
     server.use(
       http.post(`${API}/auth/register`, async ({ request }) => {
@@ -50,7 +51,7 @@ describe("RegisterPage", () => {
     await fillForm();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByText("HOME")).toBeInTheDocument();
+    expect(await screen.findByText("APP HOME")).toBeInTheDocument();
     expect(registerBody).toEqual({
       email: "ada@example.com",
       password: "password123",
@@ -72,7 +73,7 @@ describe("RegisterPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Email already registered");
-    expect(screen.queryByText("HOME")).not.toBeInTheDocument();
+    expect(screen.queryByText("APP HOME")).not.toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBeNull();
 
     // editing a field dismisses the stale error

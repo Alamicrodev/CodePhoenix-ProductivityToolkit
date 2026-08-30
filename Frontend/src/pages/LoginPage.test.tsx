@@ -16,6 +16,7 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <div>REGISTER PAGE</div> },
       { path: "/cowork/:slug", element: <div>ROOM PAGE</div> },
+      { path: "/schedule", element: <div>APP HOME</div> },
       { path: "/", element: <div>HOME</div> },
     ],
     { initialEntries: [initialEntry] },
@@ -28,7 +29,7 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
 }
 
 describe("LoginPage", () => {
-  it("signs in and navigates to the dashboard", async () => {
+  it("signs in and navigates to the app home", async () => {
     server.use(
       http.post(`${API}/auth/login`, () =>
         HttpResponse.json({ access_token: "tok-1", token_type: "bearer" }),
@@ -41,7 +42,7 @@ describe("LoginPage", () => {
     await userEvent.type(screen.getByLabelText("Password"), "password123");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("HOME")).toBeInTheDocument();
+    expect(await screen.findByText("APP HOME")).toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBe("tok-1");
   });
 
@@ -76,7 +77,7 @@ describe("LoginPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Incorrect email or password");
-    expect(screen.queryByText("HOME")).not.toBeInTheDocument();
+    expect(screen.queryByText("APP HOME")).not.toBeInTheDocument();
     expect(localStorage.getItem("accessToken")).toBeNull();
 
     // editing a field dismisses the stale error

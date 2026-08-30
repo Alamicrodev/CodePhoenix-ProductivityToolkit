@@ -94,7 +94,7 @@ export default function LandingPage() {
 
 
         {/* Modules Section */}
-        <section id="modules" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="modules">
+        <section id="modules" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">One data model, four views</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Every module speaks the same language</h2>
@@ -175,7 +175,7 @@ export default function LandingPage() {
         </section>
         
         {/* Co-op Section */}
-        <section id="cowork" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150" id="cowork">
+        <section id="cowork" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft bg-bg-raised-lt dark:bg-bg-raised transition-colors duration-150">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Beyond the original scope</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Cowork Rooms &mdash; focus, out loud</h2>
@@ -206,7 +206,7 @@ export default function LandingPage() {
         </section>
         
         {/* Stack Section */}
-        <section id="stack" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150" id="stack">
+        <section id="stack" className="py-[88px] px-8 border-t border-border-soft-lt dark:border-border-soft transition-colors duration-150">
             <div className="max-w-[640px] mx-auto mb-14 text-center">
                 <div className="font-mono text-xs tracking-[0.1em] text-dim-lt dark:text-dim mb-3 uppercase">Under the hood</div>
                 <h2 className="text-[34px] font-bold tracking-[-0.02em] mb-3.5">Built on a tested, production stack</h2>
